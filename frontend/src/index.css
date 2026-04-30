@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --emerald-500: #10b981;
+  --emerald-600: #059669;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900;
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Custom Leaflet Styling */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  border-radius: 1rem;
+}
+
+.glass-panel {
+  @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-xl;
+}
+
+/* Transitions */
+.sidebar-transition {
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-item {
+  @apply flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200;
+}
+
+.nav-item.active {
+  @apply bg-emerald-50 text-emerald-700 font-semibold shadow-sm;
+}
+
+.nav-item:not(.active) {
+  @apply text-slate-500 hover:bg-slate-100 hover:text-slate-900;
+}
