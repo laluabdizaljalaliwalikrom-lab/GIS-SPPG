@@ -31,7 +31,7 @@ const MapView = () => {
   const { profile } = useOutletContext();
   const navigate = useNavigate();
   const [clickedLocation, setClickedLocation] = useState(null);
-  const [showLegend, setShowLegend] = useState(true);
+  const [showLegend, setShowLegend] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 

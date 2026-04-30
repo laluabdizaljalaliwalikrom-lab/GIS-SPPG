@@ -121,7 +121,13 @@ const Dashboard = () => {
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden">
-      <Toaster position="top-center" reverseOrder={false} />
+      <Toaster 
+        position="top-center" 
+        reverseOrder={false} 
+        containerStyle={{
+          zIndex: 100001,
+        }}
+      />
       
       {/* Desktop Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 bg-white border-r border-blue-100 shadow-xl transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isCollapsed ? 'w-24' : 'w-72'}`}>
