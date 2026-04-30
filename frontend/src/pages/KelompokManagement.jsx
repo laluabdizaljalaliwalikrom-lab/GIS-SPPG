@@ -1,94 +1,82 @@
-import { useState, useEffect, useCallback } from 'react';
-import api from '../api';
-import { useOutletContext } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import KelompokForm from '../components/KelompokForm';
+import FormModal from '../components/FormModal';
+import EntityDetailDrawer from '../components/EntityDetailDrawer';
+import { useKelompok } from '../hooks/useKelompok';
 import { 
   Users, 
-  CheckCircle2, 
   XCircle, 
-  Clock, 
   Search, 
   MapPin,
   Plus,
-  Edit2,
-  Trash2,
-  Filter,
-  Check
+  Check,
+  ChevronRight,
+  ShieldCheck,
+  Globe
 } from 'lucide-react';
 
 const KelompokManagement = () => {
   const { profile } = useOutletContext();
-  const [kelompoks, setKelompoks] = useState([]);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   
-  // CRUD State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
+  // Extract URL params directly for initialization
+  const urlAdd = searchParams.get('add') === 'true';
+  const urlLat = searchParams.get('lat');
+  const urlLng = searchParams.get('lng');
 
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await api.get('/kelompok');
-      setKelompoks(res.data);
-    } catch (error) {
-      console.error(error);
-    }
-  }, []);
+  // Initialize state directly from URL params to avoid cascading renders
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(urlAdd);
+  const [initialCoords, setInitialCoords] = useState(
+    (urlAdd && urlLat && urlLng) 
+      ? { lat: parseFloat(urlLat), lng: parseFloat(urlLng) } 
+      : null
+  );
 
   useEffect(() => {
-    const init = async () => {
-      await fetchData();
-    };
-    init();
-  }, [fetchData]);
-
-  const handleSave = async (formData) => {
-    try {
-      if (editingItem) {
-        await api.put(`/kelompok/${editingItem.id}`, formData);
-      } else {
-        await api.post('/kelompok', formData);
-      }
-      setIsModalOpen(false);
-      setEditingItem(null);
-      fetchData();
-    } catch (error) {
-      console.error(error);
-      alert('Error saving data');
+    // Only use the effect for cleaning up the URL parameters
+    if (searchParams.get('add')) {
+      setSearchParams({}, { replace: true });
     }
-  };
+  }, [searchParams, setSearchParams]);
+  const [selectedEntity, setSelectedEntity] = useState(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  const handleEdit = (item) => {
-    setEditingItem(item);
-    setIsModalOpen(true);
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('Yakin ingin menghapus data ini?')) return;
-    try {
-      await api.delete(`/kelompok/${id}`);
-      fetchData();
-    } catch (error) {
-      console.error(error);
-      alert('Error deleting data');
-    }
-  };
-
-  const handleVerify = async (id, status) => {
-    try {
-      await api.post(`/kelompok/${id}/verify`, { status });
-      fetchData();
-    } catch (error) {
-      console.error(error);
-      alert('Failed to update status');
-    }
-  };
-
-  const filteredData = kelompoks.filter(k => {
-    const matchesSearch = k.nama?.toLowerCase().includes(searchTerm.toLowerCase()) || k.kode_kelompok?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || k.status === statusFilter;
-    return matchesSearch && matchesStatus;
+  const {
+    kelompoks,
+    isLoading,
+    createKelompok,
+    verifyKelompok,
+    isCreating
+  } = useKelompok({ 
+    name: searchTerm, 
+    status: statusFilter === 'all' ? undefined : statusFilter 
   });
+
+
+  const handleCreate = async (formData) => {
+    try {
+      await createKelompok(formData);
+      setIsCreateModalOpen(false);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleRowClick = (kelompok) => {
+    setSelectedEntity(kelompok);
+    setIsDrawerOpen(true);
+  };
+
+  const handleVerify = async (e, id, status) => {
+    e.stopPropagation(); // Prevent opening drawer
+    await verifyKelompok({ id, status });
+  };
+
+  const canManage = profile?.role === 'admin';
+  const canVerify = profile?.role === 'admin' || profile?.role === 'kecamatan_coordinator';
 
   return (
     <div className="space-y-6">
@@ -110,17 +98,19 @@ const KelompokManagement = () => {
               />
            </div>
            
-           <button 
-             onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
-             className="hidden lg:flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95"
-           >
-              <Plus size={18} /> Tambah Data
-           </button>
+           {canManage && (
+             <button 
+               onClick={() => setIsCreateModalOpen(true)}
+               className="hidden lg:flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95"
+             >
+                <Plus size={18} /> Tambah Data
+             </button>
+           )}
         </div>
       </div>
 
       {/* Filter Chips */}
-      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 lg:mx-0 lg:px-0">
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 lg:mx-0 lg:px-0 no-scrollbar">
          {['all', 'pending_verification', 'verified', 'rejected'].map(status => (
            <button
              key={status}
@@ -131,121 +121,166 @@ const KelompokManagement = () => {
                  : "bg-white text-slate-500 border-slate-100 hover:border-blue-200 hover:text-blue-600"
              }`}
            >
-             {status === 'all' ? 'Semua' : status.replace('_', ' ')}
+             {status === 'all' ? 'Semua Status' : status.replace('_', ' ').toUpperCase()}
            </button>
          ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
-        {filteredData.map((k) => (
-          <div key={k.id} className="bg-white p-6 lg:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-2xl hover:shadow-blue-200/30 transition-all group relative overflow-hidden flex flex-col">
-             <div className="flex justify-between items-start mb-6">
-                <div className="flex items-center gap-4">
-                   <div className="w-12 h-12 lg:w-14 lg:h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
-                      <Users size={24} />
-                   </div>
-                   <div className="min-w-0">
-                      <h3 className="text-lg lg:text-xl font-black text-slate-800 truncate">{k.nama}</h3>
-                      <p className="text-[10px] font-bold text-blue-600 tracking-widest uppercase">{k.kode_kelompok}</p>
-                   </div>
-                </div>
-             </div>
-
-             <div className="space-y-4 flex-1">
-                <div className="flex gap-3 mb-4">
-                   <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[10px] font-black rounded-full uppercase tracking-tighter">{k.jenis_kelompok}</span>
-                   <span className="px-3 py-1 bg-slate-50 text-slate-500 text-[10px] font-black rounded-full uppercase tracking-tighter">{k.jenis_kepemilikan}</span>
-                </div>
-
-                <div className="p-4 bg-slate-50 rounded-3xl space-y-3">
-                   <div className="flex items-start gap-2 text-slate-600 font-medium text-[11px] leading-relaxed">
-                      <MapPin size={12} className="text-blue-400 shrink-0 mt-0.5" />
-                      <span className="line-clamp-2">{k.alamat_lengkap}</span>
-                   </div>
-                   
-                   <div className="pt-3 border-t border-slate-100">
-                      <StatusBadge status={k.status} />
-                   </div>
-                </div>
-             </div>
-
-             <div className="mt-8 pt-5 border-t border-slate-50 flex items-center justify-between">
-                <div className="flex gap-2">
-                   {profile?.role === 'kecamatan_coordinator' && k.status === 'pending_verification' && (
-                     <>
-                       <button onClick={() => handleVerify(k.id, 'verified')} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm" title="Verify">
-                          <Check size={18} />
-                       </button>
-                       <button onClick={() => handleVerify(k.id, 'rejected')} className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-sm" title="Reject">
-                          <XCircle size={18} />
-                       </button>
-                     </>
-                   )}
-                </div>
-                <div className="flex gap-2">
-                   <button onClick={() => handleEdit(k)} className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all">
-                      <Edit2 size={16} />
-                   </button>
-                   <button onClick={() => handleDelete(k.id)} className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all">
-                      <Trash2 size={16} />
-                   </button>
-                </div>
-             </div>
-          </div>
-        ))}
+      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/50">
+                <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Identitas Kelompok</th>
+                <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis & Kepemilikan</th>
+                <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Lokasi</th>
+                <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status Verifikasi</th>
+                <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {isLoading ? (
+                [1,2,3,4].map(i => (
+                  <tr key={i} className="animate-pulse">
+                    <td colSpan={5} className="px-6 py-8"><div className="h-4 bg-slate-100 rounded-full w-full" /></td>
+                  </tr>
+                ))
+              ) : kelompoks.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-20 text-center">
+                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                       <Users size={32} className="text-slate-200" />
+                    </div>
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Data tidak ditemukan</p>
+                  </td>
+                </tr>
+              ) : kelompoks.map((k) => (
+                <tr 
+                  key={k.id} 
+                  onClick={() => handleRowClick(k)}
+                  className="border-b border-slate-50 hover:bg-blue-50/30 transition-all cursor-pointer group"
+                >
+                  <td className="px-6 py-5">
+                    <div className="flex items-center gap-4">
+                       <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                          <Users size={20} />
+                       </div>
+                       <div>
+                          <p className="font-bold text-slate-800 text-sm">{k.nama}</p>
+                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tighter">{k.kode_kelompok}</p>
+                       </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5">
+                    <div className="flex flex-col gap-1">
+                       <div className="flex items-center gap-2 text-xs text-slate-600 font-bold">
+                          <ShieldCheck size={12} className="text-blue-400" />
+                          {k.jenis_kelompok}
+                       </div>
+                       <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tight">
+                          <Globe size={12} className="text-slate-300" />
+                          {k.jenis_kepemilikan}
+                       </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5">
+                    <div className="flex items-start gap-2 max-w-xs">
+                       <MapPin size={14} className="text-slate-400 shrink-0 mt-0.5" />
+                       <span className="text-xs text-slate-600 font-medium line-clamp-1">{k.alamat_lengkap}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5">
+                    <StatusBadge status={k.status} />
+                  </td>
+                  <td className="px-6 py-5 text-right">
+                    <div className="flex justify-end items-center gap-2">
+                       {canVerify && k.status === 'pending_verification' && (
+                         <div className="flex gap-1 mr-2">
+                           <button 
+                             onClick={(e) => handleVerify(e, k.id, 'verified')} 
+                             className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
+                             title="Verifikasi"
+                           >
+                              <Check size={14} />
+                           </button>
+                           <button 
+                             onClick={(e) => handleVerify(e, k.id, 'rejected')} 
+                             className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                             title="Tolak"
+                           >
+                              <XCircle size={14} />
+                           </button>
+                         </div>
+                       )}
+                       <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-slate-300 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
+                          <ChevronRight size={18} />
+                       </div>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {filteredData.length === 0 && (
-         <div className="p-20 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-100">
-            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Filter size={40} className="text-slate-200" />
-            </div>
-            <p className="text-slate-400 font-bold">Tidak ada data ditemukan.</p>
-         </div>
-      )}
-
       {/* FAB (Mobile Only) */}
-      <button 
-        onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
-        className="lg:hidden fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-2xl shadow-blue-400 flex items-center justify-center active:scale-90 transition-transform z-50 ring-4 ring-white"
-      >
-         <Plus size={28} />
-      </button>
-
-      {/* Modal CRUD */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center p-0 lg:p-4">
-           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-           <div className="relative w-full lg:max-w-4xl bg-white rounded-t-[2.5rem] lg:rounded-[2.5rem] p-6 lg:p-0 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-20 lg:slide-in-from-bottom-4 duration-300">
-              <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 lg:hidden" />
-              <KelompokForm 
-                key={editingItem?.id || 'new'}
-                initialData={editingItem} 
-                onSave={handleSave} 
-                onCancel={() => setIsModalOpen(false)} 
-              />
-           </div>
-        </div>
+      {canManage && (
+        <button 
+          onClick={() => setIsCreateModalOpen(true)}
+          className="lg:hidden fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-2xl shadow-blue-400 flex items-center justify-center active:scale-90 transition-transform z-50 ring-4 ring-white"
+        >
+           <Plus size={28} />
+        </button>
       )}
+
+      {/* Create Modal */}
+      <FormModal
+        isOpen={isCreateModalOpen}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setInitialCoords(null);
+        }}
+        title="Tambah Kelompok Baru"
+        isLoading={isCreating}
+        onSubmit={() => document.getElementById('kelompok-form').requestSubmit()}
+        submitLabel="Simpan Data"
+      >
+        <KelompokForm 
+          formId="kelompok-form"
+          initialData={initialCoords ? { lat: initialCoords.lat, lng: initialCoords.lng } : null}
+          onSubmit={handleCreate} 
+        />
+      </FormModal>
+
+      {/* Detail & Edit Drawer */}
+      <EntityDetailDrawer 
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        entity={selectedEntity}
+        type="kelompok"
+        profile={profile}
+      />
     </div>
   );
 };
 
 const StatusBadge = ({ status }) => {
   const styles = {
-    pending_verification: 'text-amber-600',
-    verified: 'text-emerald-600',
-    rejected: 'text-red-600'
+    pending_verification: 'bg-amber-50 text-amber-600 border-amber-100',
+    verified: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+    rejected: 'bg-red-50 text-red-600 border-red-100'
   };
-  const icons = { pending_verification: Clock, verified: CheckCircle2, rejected: XCircle };
-  const Icon = icons[status] || Clock;
-  const label = status === 'pending_verification' ? 'MENUNGGU VERIFIKASI' : status?.toUpperCase() || 'UNKNOWN';
+  const labels = {
+    pending_verification: 'MENUNGGU VERIFIKASI',
+    verified: 'TERVERIFIKASI',
+    rejected: 'DITOLAK'
+  };
   
   return (
-    <div className={`flex items-center gap-2 text-[10px] font-black tracking-tight ${styles[status]}`}>
-       <Icon size={14} />
-       {label}
-    </div>
+    <span className={`px-3 py-1 text-[9px] font-black rounded-full uppercase tracking-widest border ${styles[status] || 'bg-slate-50 text-slate-400 border-slate-100'}`}>
+       {labels[status] || 'UNKNOWN'}
+    </span>
   );
 };
 

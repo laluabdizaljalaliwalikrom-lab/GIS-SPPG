@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents, Polyline, Tooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMapEvents, Polyline, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -49,7 +49,7 @@ const ResizeHandler = ({ isFullScreen }) => {
   return null;
 };
 
-const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen }) => {
+const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen, onMarkerClick }) => {
   const defaultCenter = [-8.625, 116.44]; // Center of Kecamatan Sikur, Lombok Timur
 
   const polylines = kelompoks
@@ -79,17 +79,17 @@ const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen }) =>
       <ResizeHandler isFullScreen={isFullScreen} />
 
       {sppgs.map(sppg => (
-        <Marker key={`sppg-${sppg.id}`} position={[sppg.lat, sppg.lng]} icon={sppgIcon}>
+        <Marker 
+          key={`sppg-${sppg.id}`} 
+          position={[sppg.lat, sppg.lng]} 
+          icon={sppgIcon}
+          eventHandlers={{
+            click: () => onMarkerClick(sppg, 'sppg')
+          }}
+        >
           <Tooltip permanent direction="top" offset={[0, -28]} className="custom-tooltip font-black text-[9px] uppercase tracking-tighter">
             {sppg.nama}
           </Tooltip>
-          <Popup className="rounded-2xl overflow-hidden">
-            <div className="p-1">
-               <p className="font-bold text-emerald-700 text-sm mb-1">{sppg.nama}</p>
-               <p className="text-xs text-slate-500 mb-1">Cap: {sppg.kapasitas_produksi} portions</p>
-               <span className="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full uppercase">{sppg.status_operasional}</span>
-            </div>
-          </Popup>
         </Marker>
       ))}
 
@@ -100,22 +100,17 @@ const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen }) =>
         }
 
         return (
-          <Marker key={`kelompok-${k.id}`} position={[k.lat, k.lng]} icon={icon}>
+          <Marker 
+            key={`kelompok-${k.id}`} 
+            position={[k.lat, k.lng]} 
+            icon={icon}
+            eventHandlers={{
+              click: () => onMarkerClick(k, 'kelompok')
+            }}
+          >
             <Tooltip permanent direction="top" offset={[0, -28]} className="custom-tooltip font-bold text-[8px] text-slate-600">
                {k.nama}
             </Tooltip>
-            <Popup>
-              <div className="p-1">
-                <p className="font-bold text-slate-800 text-sm mb-1">{k.nama}</p>
-                <p className="text-xs text-slate-500 mb-2">{k.jenis_kelompok} • {k.jenis_kepemilikan}</p>
-                <div className="pt-2 border-t border-slate-100">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Assignment</p>
-                  <p className="text-xs font-semibold text-emerald-600">
-                    {k.assigned_sppg_id ? sppgs.find(s=>s.id===k.assigned_sppg_id)?.nama : 'Unassigned'}
-                  </p>
-                </div>
-              </div>
-            </Popup>
           </Marker>
         );
       })}

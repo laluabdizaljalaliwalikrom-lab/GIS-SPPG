@@ -44,6 +44,7 @@ class KelompokPenerimaBase(BaseModel):
     pj_nama: str
     no_whatsapp: str
     email: str
+    status: Optional[str] = 'pending_verification'
     lat: float
     lng: float
     assigned_sppg_id: Optional[int] = None

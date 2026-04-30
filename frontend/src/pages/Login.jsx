@@ -15,7 +15,7 @@ const Login = () => {
     setLoading(true);
     setError(null);
     
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -24,6 +24,9 @@ const Login = () => {
       setError(error.message);
       setLoading(false);
     } else {
+      if (data.session) {
+        localStorage.setItem('access_token', data.session.access_token);
+      }
       navigate('/');
     }
   };

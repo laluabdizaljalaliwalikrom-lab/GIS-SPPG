@@ -21,8 +21,14 @@ def parse_point(pt: str):
     parts = pt.split(" ")
     return float(parts[0]), float(parts[1])
 
-def get_sppgs(db: Session):
-    sppgs = db.query(models.SPPGUnit).all()
+def get_user_profile(db: Session, user_id: str):
+    return db.query(models.Profile).filter(models.Profile.id == user_id).first()
+
+def get_sppgs(db: Session, skip: int = 0, limit: int = 100, name: str = None):
+    query = db.query(models.SPPGUnit)
+    if name:
+        query = query.filter(models.SPPGUnit.nama.ilike(f"%{name}%"))
+    sppgs = query.offset(skip).limit(limit).all()
     result = []
     for s in sppgs:
         pt = db.scalar(func.ST_AsText(s.geom))
@@ -45,8 +51,16 @@ def create_sppg(db: Session, sppg: schemas.SPPGUnitCreate):
     db.commit()
     return db_sppg
 
-def get_kelompoks(db: Session):
-    kelompoks = db.query(models.KelompokPenerima).all()
+def get_kelompoks(db: Session, skip: int = 0, limit: int = 100, name: str = None, status: str = None, type: str = None):
+    query = db.query(models.KelompokPenerima)
+    if name:
+        query = query.filter(models.KelompokPenerima.nama.ilike(f"%{name}%"))
+    if status:
+        query = query.filter(models.KelompokPenerima.status == status)
+    if type:
+        query = query.filter(models.KelompokPenerima.jenis_kelompok == type)
+        
+    kelompoks = query.offset(skip).limit(limit).all()
     result = []
     for k in kelompoks:
         pt = db.scalar(func.ST_AsText(k.geom))
@@ -54,15 +68,19 @@ def get_kelompoks(db: Session):
         k_dict = {k_key: v for k_key, v in k.__dict__.items() if not k_key.startswith('_')}
         k_dict['lat'] = lat
         k_dict['lng'] = lng
+        k_dict['status'] = k.status
         k_dict['detail'] = k.detail
         result.append(schemas.KelompokPenerimaResponse(**k_dict))
     return result
 
-def create_kelompok(db: Session, kelompok: schemas.KelompokPenerimaCreate):
+def create_kelompok(db: Session, kelompok: schemas.KelompokPenerimaCreate, current_user: models.Profile):
     geom = f"POINT({kelompok.lng} {kelompok.lat})"
-    k_data = kelompok.model_dump(exclude={'lat', 'lng', 'detail'})
-    # Default status to pending_verification
-    db_kelompok = models.KelompokPenerima(**k_data, geom=func.ST_GeogFromText(geom), status='pending_verification')
+    k_data = kelompok.model_dump(exclude={'lat', 'lng', 'detail', 'status'})
+    
+    # Logic: Admin creations are auto-verified
+    status = 'verified' if current_user.role == 'admin' else 'pending_verification'
+    
+    db_kelompok = models.KelompokPenerima(**k_data, geom=func.ST_GeogFromText(geom), status=status)
     db.add(db_kelompok)
     db.commit()
     db.refresh(db_kelompok)
@@ -82,7 +100,7 @@ def create_kelompok(db: Session, kelompok: schemas.KelompokPenerimaCreate):
 def update_sppg(db: Session, sppg_id: int, sppg: schemas.SPPGUnitCreate):
     db_sppg = db.query(models.SPPGUnit).filter(models.SPPGUnit.id == sppg_id).first()
     if db_sppg:
-        update_data = sppg.dict(exclude_unset=True)
+        update_data = sppg.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_sppg, key, value)
         # Update point
@@ -107,12 +125,17 @@ def delete_sppg(db: Session, sppg_id: int):
 def update_kelompok(db: Session, kelompok_id: int, kelompok: schemas.KelompokPenerimaCreate):
     db_k = db.query(models.KelompokPenerima).filter(models.KelompokPenerima.id == kelompok_id).first()
     if db_k:
-        update_data = kelompok.dict(exclude_unset=True)
+        update_data = kelompok.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             if key != 'detail':
                 setattr(db_k, key, value)
         if kelompok.detail:
-            db_k.detail = kelompok.detail
+            if db_k.detail:
+                detail_data = kelompok.detail.model_dump(exclude_unset=True)
+                for d_key, d_value in detail_data.items():
+                    setattr(db_k.detail, d_key, d_value)
+            else:
+                db_k.detail = models.KelompokDetail(**kelompok.detail.model_dump())
         # Update point
         db_k.geom = f'POINT({kelompok.lng} {kelompok.lat})'
         db.commit()

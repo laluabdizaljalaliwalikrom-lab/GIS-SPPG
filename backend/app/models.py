@@ -1,3 +1,4 @@
+# Force reload models
 from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geometry, Geography

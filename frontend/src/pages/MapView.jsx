@@ -1,7 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSPPG } from '../hooks/useSPPG';
+import { useKelompok } from '../hooks/useKelompok';
 import MapComponent from '../components/MapComponent';
-import api from '../api';
 import { useOutletContext, useNavigate } from 'react-router-dom';
+import EntityDetailDrawer from '../components/EntityDetailDrawer';
 import { 
   RefreshCw, 
   Layers, 
@@ -24,36 +27,28 @@ const LegendItem = ({ color, label }) => (
 );
 
 const MapView = () => {
-  const { refreshTrigger } = useOutletContext();
+  const queryClient = useQueryClient();
+  const { profile } = useOutletContext();
   const navigate = useNavigate();
-  const [sppgs, setSppgs] = useState([]);
-  const [kelompoks, setKelompoks] = useState([]);
   const [clickedLocation, setClickedLocation] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const sppgRes = await api.get('/sppg');
-      const kelompokRes = await api.get('/kelompok');
-      setSppgs(sppgRes.data);
-      setKelompoks(kelompokRes.data);
-    } catch (error) {
-      console.error("Error fetching data", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Drawer State
+  const [selectedEntity, setSelectedEntity] = useState(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  useEffect(() => {
-    const init = async () => {
-      await fetchData();
-    };
-    init();
-  }, [fetchData, refreshTrigger]);
+  // TanStack Query Hooks
+  const { sppgs, isLoading: loadingSPPG } = useSPPG();
+  const { kelompoks, isLoading: loadingKelompok } = useKelompok();
+
+  const loading = loadingSPPG || loadingKelompok;
+
+  const handleEntityClick = (entity, type) => {
+    setSelectedEntity({ ...entity, type });
+    setIsDrawerOpen(true);
+  };
 
   const filteredSppgs = sppgs.filter(s => 
     s.nama.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -62,7 +57,7 @@ const MapView = () => {
 
   return (
     <div className="fixed inset-0 lg:static lg:h-full flex flex-col bg-slate-50 overflow-hidden animate-in fade-in duration-700 lg:p-8 lg:pl-12">
-      {/* Top Header Section - Slimmer & Cleaner */}
+      {/* Top Header Section */}
       <div className="flex items-center justify-between p-3 lg:p-0 lg:mb-6 z-40 bg-white/80 backdrop-blur-md lg:bg-transparent lg:backdrop-blur-none border-b border-blue-100 lg:border-0 shadow-sm lg:shadow-none shrink-0">
         <div className="flex items-center gap-4">
            <div className="bg-blue-600 p-2.5 rounded-2xl shadow-lg shadow-blue-200 lg:hidden">
@@ -76,7 +71,10 @@ const MapView = () => {
         
         <div className="flex items-center gap-2 lg:gap-3">
           <button 
-            onClick={fetchData}
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ['sppgs'] });
+              queryClient.invalidateQueries({ queryKey: ['kelompoks'] });
+            }}
             title="Refresh Data"
             className="p-2.5 bg-white border border-blue-100 rounded-xl text-slate-600 hover:bg-blue-50 shadow-sm transition-all active:scale-95"
           >
@@ -94,16 +92,15 @@ const MapView = () => {
       </div>
 
       <div className="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 min-h-0 overflow-hidden relative">
-        {/* Map Container - Full screen on mobile */}
         <div className={`relative transition-all duration-700 ease-in-out bg-white rounded-[2rem] lg:rounded-[2.5rem] border border-blue-100 shadow-2xl shadow-blue-500/5 overflow-hidden group ${isFullScreen ? 'lg:w-full' : 'lg:w-2/3'} flex-1 h-full`}>
           <MapComponent 
               sppgs={sppgs} 
               kelompoks={kelompoks} 
               setClickedLocation={setClickedLocation} 
               isFullScreen={isFullScreen}
+              onMarkerClick={(entity, type) => handleEntityClick(entity, type)}
           />
           
-          {/* Mobile Overlay Toggle */}
           <button 
             onClick={() => setIsFullScreen(!isFullScreen)}
             className="lg:hidden absolute top-4 right-4 z-[1000] p-3 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/50 text-blue-600"
@@ -111,7 +108,6 @@ const MapView = () => {
             {isFullScreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
           </button>
 
-          {/* Floating Legend - Adjusted for Mobile Bottom Nav */}
           <div className="absolute bottom-32 lg:bottom-8 left-4 right-auto z-[1000] flex flex-col gap-3 pointer-events-none">
             {showLegend && (
               <div className="bg-white/95 backdrop-blur-xl p-4 lg:p-5 rounded-[2rem] pointer-events-auto w-fit lg:w-64 shadow-2xl border border-white/60 animate-in slide-in-from-bottom-10 lg:slide-in-from-left-10 duration-500">
@@ -137,14 +133,12 @@ const MapView = () => {
                 onClick={() => setShowLegend(true)}
                 className="pointer-events-auto w-10 h-10 lg:w-12 lg:h-12 bg-white/95 backdrop-blur-xl rounded-2xl flex items-center justify-center text-blue-600 shadow-xl border border-white/60 hover:scale-110 transition-all animate-in zoom-in-50"
               >
-                <Layers size={18} className="lg:hidden" />
-                <Layers size={20} className="hidden lg:block" />
+                <Layers size={20} />
               </button>
             )}
           </div>
         </div>
 
-        {/* Refined Side Data Panel - Hidden on Mobile */}
         {!isFullScreen && (
           <aside className="hidden lg:flex lg:w-1/3 flex-col gap-4 animate-in slide-in-from-right-10 duration-700 overflow-hidden pb-24 lg:pb-0">
              <div className="bg-white/70 backdrop-blur-md rounded-[2.5rem] border border-blue-100 shadow-2xl shadow-blue-500/5 p-6 flex flex-col h-full overflow-hidden">
@@ -157,7 +151,6 @@ const MapView = () => {
                   </div>
                 </div>
 
-                {/* Search in Side Panel */}
                 <div className="relative mb-6 shrink-0">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                   <input 
@@ -180,7 +173,11 @@ const MapView = () => {
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest leading-relaxed">Unit tidak ditemukan</p>
                       </div>
                    ) : filteredSppgs.map(sppg => (
-                     <div key={sppg.id} className="p-5 rounded-3xl border border-slate-100 bg-white hover:bg-blue-50/50 hover:border-blue-100 transition-all cursor-pointer group shadow-sm hover:shadow-md">
+                     <div 
+                        key={sppg.id} 
+                        onClick={() => handleEntityClick(sppg, 'sppg')}
+                        className="p-5 rounded-3xl border border-slate-100 bg-white hover:bg-blue-50/50 hover:border-blue-100 transition-all cursor-pointer group shadow-sm hover:shadow-md"
+                      >
                         <div className="flex items-start justify-between gap-4">
                            <div className="flex-1 min-w-0">
                               <p className="font-black text-slate-800 text-sm group-hover:text-blue-700 transition-colors truncate">{sppg.nama}</p>
@@ -201,7 +198,7 @@ const MapView = () => {
                            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                               <div 
                                 className="h-full bg-blue-600 rounded-full shadow-[0_0_8px_rgba(37,99,235,0.3)] transition-all duration-1000" 
-                                style={{ width: '70%' }} // Placeholder for actual allocation data
+                                style={{ width: '70%' }}
                               />
                            </div>
                         </div>
@@ -213,9 +210,8 @@ const MapView = () => {
         )}
       </div>
 
-      {/* Selected Location Panel - More Compact & Premium */}
       {clickedLocation && (
-         <div className="fixed bottom-24 lg:bottom-10 left-4 right-4 lg:left-auto lg:right-10 z-[2000] bg-white/95 backdrop-blur-xl p-8 rounded-[3rem] w-auto lg:w-80 shadow-[0_40px_80px_rgba(37,99,235,0.25)] border border-blue-100 animate-in slide-in-from-bottom-10 duration-500">
+         <div className="fixed bottom-24 lg:bottom-10 left-4 right-4 lg:left-auto lg:right-10 z-[1000] bg-white/95 backdrop-blur-xl p-8 rounded-[3rem] w-auto lg:w-80 shadow-[0_40px_80px_rgba(37,99,235,0.25)] border border-blue-100 animate-in slide-in-from-bottom-10 duration-500">
             <div className="flex justify-between items-start mb-6">
               <div>
                 <h3 className="font-black text-slate-800 flex items-center gap-3 text-xs uppercase tracking-[0.2em]">
@@ -240,7 +236,7 @@ const MapView = () => {
             </div>
 
             <button 
-              onClick={() => navigate('/dashboard/kelompok')}
+              onClick={() => navigate(`/dashboard/kelompok?lat=${clickedLocation.lat}&lng=${clickedLocation.lng}&add=true`)}
               className="w-full py-4 bg-blue-600 text-white text-[10px] font-black rounded-2xl shadow-xl shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-3 uppercase tracking-[0.2em]"
             >
               <Plus size={18} />
@@ -248,6 +244,15 @@ const MapView = () => {
             </button>
          </div>
       )}
+
+      {/* Detail Drawer Integration */}
+      <EntityDetailDrawer 
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        entity={selectedEntity}
+        type={selectedEntity?.type}
+        profile={profile}
+      />
     </div>
   );
 };

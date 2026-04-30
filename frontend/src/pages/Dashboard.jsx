@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
 import { 
   Map as MapIcon, 
@@ -28,14 +29,17 @@ const Dashboard = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isAllocating, setIsAllocating] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
     const fetchProfile = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      
+      if (session) {
+        localStorage.setItem('access_token', session.access_token);
+      } else {
         navigate('/login');
         return;
       }
@@ -76,8 +80,9 @@ const Dashboard = () => {
         icon: '🚀',
         duration: 4000
       });
-      // Trigger map refresh
-      setRefreshTrigger(prev => prev + 1);
+      // Invalidate queries to refresh map and tables
+      queryClient.invalidateQueries({ queryKey: ['sppgs'] });
+      queryClient.invalidateQueries({ queryKey: ['kelompoks'] });
     } catch (error) {
       console.error(error);
       toast.error(error.response?.data?.detail || 'Gagal menjalankan alokasi otomatis.', { id: toastId });
@@ -260,7 +265,7 @@ const Dashboard = () => {
         {/* Dynamic Content Scroll Area */}
         <div className="flex-1 overflow-y-auto pb-24 lg:pb-0 scroll-smooth flex flex-col">
           <div className={`flex-1 w-full ${location.pathname === '/dashboard/mapping' ? 'h-full' : 'p-4 lg:p-10 max-w-7xl mx-auto'}`}>
-             <Outlet context={{ profile, refreshTrigger }} />
+             <Outlet context={{ profile }} />
           </div>
         </div>
 
@@ -269,7 +274,7 @@ const Dashboard = () => {
           <button
             onClick={handleAutoAllocate}
             disabled={isAllocating}
-            className={`fixed bottom-32 right-6 lg:bottom-12 lg:right-12 z-[2000] h-12 lg:h-16 bg-blue-600 text-white rounded-full shadow-[0_10px_40px_rgba(37,99,235,0.4)] flex items-center justify-center transition-all duration-500 ring-4 ring-white active:scale-90 overflow-hidden ${
+            className={`fixed bottom-32 right-6 lg:bottom-12 lg:right-12 z-[1000] h-12 lg:h-16 bg-blue-600 text-white rounded-full shadow-[0_10px_40px_rgba(37,99,235,0.4)] flex items-center justify-center transition-all duration-500 ring-4 ring-white active:scale-90 overflow-hidden ${
               isAllocating ? 'animate-pulse cursor-not-allowed px-6' : 'hover:scale-105 px-3 lg:px-4 lg:hover:px-8'
             } ${isAllocating ? 'w-auto' : 'w-12 lg:w-16 lg:hover:w-auto'} group`}
           >
