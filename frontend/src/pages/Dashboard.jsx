@@ -105,6 +105,7 @@ const Dashboard = () => {
   ];
 
   const adminItems = [
+    { name: 'Landing Page', path: '/dashboard/landing-editor', icon: MapIcon },
     { name: 'Audit Log', path: '/dashboard/logs', icon: History },
     { name: 'Users', path: '/dashboard/users', icon: Shield },
   ];

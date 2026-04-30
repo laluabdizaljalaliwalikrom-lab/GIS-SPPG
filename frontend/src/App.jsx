@@ -10,6 +10,8 @@ import AuditLogs from './pages/AuditLogs';
 import UserManagement from './pages/UserManagement';
 import Settings from './pages/Settings';
 import StatsOverview from './pages/StatsOverview';
+import LandingPage from './pages/LandingPage';
+import LandingPageEditor from './pages/LandingPageEditor';
 
 const ProtectedRoute = ({ children }) => {
   const [session, setSession] = useState(null);
@@ -45,12 +47,13 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+
 function App() {
   return (
     <Router>
       <Routes>
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route 
           path="/dashboard" 
           element={
@@ -63,6 +66,7 @@ function App() {
           <Route path="mapping" element={<MapView />} />
           <Route path="sppg" element={<SPPGManagement />} />
           <Route path="kelompok" element={<KelompokManagement />} />
+          <Route path="landing-editor" element={<LandingPageEditor />} />
           <Route path="logs" element={<AuditLogs />} />
           <Route path="users" element={<UserManagement />} />
           <Route path="settings" element={<Settings />} />
