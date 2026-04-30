@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { motion } from 'framer-motion';
-import { Map as MapIcon, Phone, Globe, Heart, Shield, Users, ArrowRight } from 'lucide-react';
+import { Map as MapIcon, Phone, Globe, Heart, Shield, Users, ArrowRight, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const LandingPage = ({ previewData = null }) => {
