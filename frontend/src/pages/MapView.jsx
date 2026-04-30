@@ -124,8 +124,8 @@ const MapView = () => {
                   </button>
                 </div>
                 <div className="grid grid-cols-2 lg:grid-cols-1 gap-2 lg:gap-3">
-                   <LegendItem color="bg-blue-600" label="Unit SPPG" />
-                   <LegendItem color="bg-emerald-500" label="Sekolah" />
+                   <LegendItem color="bg-emerald-500" label="Unit SPPG" />
+                   <LegendItem color="bg-blue-600" label="Sekolah" />
                    <LegendItem color="bg-amber-500" label="Posyandu" />
                    <LegendItem color="bg-red-400" label="Menunggu" />
                 </div>

@@ -51,6 +51,20 @@ body {
   display: none;
 }
 
+/* Custom Leaflet Tooltip Styling */
+.custom-tooltip {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #1e293b !important;
+  white-space: nowrap !important;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 1), 0 0 10px rgba(255, 255, 255, 0.8) !important;
+}
+
+.custom-tooltip::before {
+  display: none !important;
+}
+
 /* Hide scrollbar for IE, Edge and Firefox */
 .no-scrollbar {
   -ms-overflow-style: none;  /* IE and Edge */

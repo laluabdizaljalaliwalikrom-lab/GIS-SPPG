@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, Polyline, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -18,10 +18,10 @@ L.Icon.Default.mergeOptions({
 const getIcon = (color) => new L.Icon({
   iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
+  iconSize: [18, 30],
+  iconAnchor: [9, 30],
+  popupAnchor: [1, -26],
+  shadowSize: [30, 30]
 });
 
 const sppgIcon = getIcon('green');
@@ -50,7 +50,7 @@ const ResizeHandler = ({ isFullScreen }) => {
 };
 
 const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen }) => {
-  const defaultCenter = [-0.789275, 113.921327]; // Indonesia approx center
+  const defaultCenter = [-8.625, 116.44]; // Center of Kecamatan Sikur, Lombok Timur
 
   const polylines = kelompoks
     .filter(k => k.assigned_sppg_id && k.status === 'verified')
@@ -70,7 +70,7 @@ const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen }) =>
     .filter(Boolean);
 
   return (
-    <MapContainer center={defaultCenter} zoom={5} className="leaflet-container">
+    <MapContainer center={defaultCenter} zoom={13} className="leaflet-container">
       <TileLayer
         attribution='&copy; OpenStreetMap contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -80,6 +80,9 @@ const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen }) =>
 
       {sppgs.map(sppg => (
         <Marker key={`sppg-${sppg.id}`} position={[sppg.lat, sppg.lng]} icon={sppgIcon}>
+          <Tooltip permanent direction="top" offset={[0, -28]} className="custom-tooltip font-black text-[9px] uppercase tracking-tighter">
+            {sppg.nama}
+          </Tooltip>
           <Popup className="rounded-2xl overflow-hidden">
             <div className="p-1">
                <p className="font-bold text-emerald-700 text-sm mb-1">{sppg.nama}</p>
@@ -98,6 +101,9 @@ const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen }) =>
 
         return (
           <Marker key={`kelompok-${k.id}`} position={[k.lat, k.lng]} icon={icon}>
+            <Tooltip permanent direction="top" offset={[0, -28]} className="custom-tooltip font-bold text-[8px] text-slate-600">
+               {k.nama}
+            </Tooltip>
             <Popup>
               <div className="p-1">
                 <p className="font-bold text-slate-800 text-sm mb-1">{k.nama}</p>

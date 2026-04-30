@@ -9,7 +9,8 @@ import {
   Lock, 
   Globe, 
   Layers, 
-  CheckCircle2
+  CheckCircle2,
+  Crosshair
 } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 import api from '../api';
@@ -199,7 +200,32 @@ const Settings = () => {
                       />
                       <div className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-300 uppercase tracking-widest">KILOMETER</div>
                     </div>
-                    <p className="text-[10px] text-slate-400 font-medium px-1">Radius ini digunakan sebagai batasan awal pada algoritma alokasi otomatis.</p>
+                  </div>
+
+                  {/* New Viewport Section */}
+                  <div className="pt-6 border-t border-slate-50 space-y-6">
+                    <div className="flex items-center gap-4 px-1">
+                       <Crosshair size={18} className="text-red-500" />
+                       <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Default Focus Area (Sikur)</label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                       <div className="space-y-2">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight px-1">Latitude</p>
+                          <input 
+                            type="text" 
+                            defaultValue="-8.625"
+                            className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                          />
+                       </div>
+                       <div className="space-y-2">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight px-1">Longitude</p>
+                          <input 
+                            type="text" 
+                            defaultValue="116.44"
+                            className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                          />
+                       </div>
+                    </div>
                   </div>
                 </div>
               </div>
