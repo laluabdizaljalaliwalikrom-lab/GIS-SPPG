@@ -38,6 +38,7 @@ const KelompokForm = ({ initialData, onSave, onCancel }) => {
       detail: {
         porsi_kecil: 0,
         porsi_besar: 0,
+        activity: 0,
         jumlah_guru: 0,
         jumlah_tendik: 0,
         jumlah_busui: 0,
@@ -62,71 +63,71 @@ const KelompokForm = ({ initialData, onSave, onCancel }) => {
   };
 
   return (
-    <div className="bg-white rounded-3xl p-8 max-h-[85vh] overflow-auto custom-scrollbar">
-      <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
+    <div className="bg-white rounded-t-[2.5rem] lg:rounded-[2.5rem] p-6 lg:p-10 max-h-[90vh] overflow-y-auto w-full max-w-4xl scrollbar-hide">
+      <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
-           <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center">
+           <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
               <Users size={24} />
            </div>
            <div>
-              <h2 className="text-2xl font-bold text-slate-800">
-                {initialData ? 'Edit Kelompok' : 'Tambah Kelompok Baru'}
+              <h2 className="text-xl lg:text-2xl font-black text-slate-800 tracking-tight">
+                {initialData ? 'Edit Kelompok' : 'Tambah Kelompok'}
               </h2>
-              <p className="text-sm text-slate-500">Lengkapi data profil dan detail kebutuhan gizi.</p>
+              <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mt-0.5">Kebutuhan Gizi Unit</p>
            </div>
         </div>
-        <button onClick={onCancel} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
-           <X size={24} className="text-slate-400" />
+        <button onClick={onCancel} className="p-2.5 bg-slate-50 text-slate-400 hover:text-red-500 rounded-xl transition-all">
+           <X size={20} />
         </button>
       </div>
 
       <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="space-y-8">
         {/* Section 1: Basic Info */}
-        <div className="space-y-4">
-           <h3 className="text-xs font-bold text-emerald-600 uppercase tracking-widest flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" /> Informasi Dasar
+        <div className="space-y-6">
+           <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
+              <span className="w-8 h-[2px] bg-blue-600" /> Profil Institusi
            </h3>
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                 <label className="text-xs font-bold text-slate-500 ml-1">Nama Kelompok</label>
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="space-y-1.5">
+                 <label className="text-xs font-bold text-slate-700 ml-1">Nama Lengkap</label>
                  <input 
                    type="text" name="nama" value={formData.nama} onChange={handleChange} required
-                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
-                   placeholder="Contoh: SD Negeri 01 Jakarta"
+                   className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
+                   placeholder="Masukkan nama kelompok..."
                  />
               </div>
-              <div className="space-y-1">
-                 <label className="text-xs font-bold text-slate-500 ml-1">Kode Kelompok</label>
+              <div className="space-y-1.5">
+                 <label className="text-xs font-bold text-slate-700 ml-1">Kode Unik</label>
                  <input 
                    type="text" name="kode_kelompok" value={formData.kode_kelompok} onChange={handleChange} required
-                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
-                   placeholder="K-001"
+                   className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm uppercase"
+                   placeholder="K-000"
                  />
               </div>
-              <div className="space-y-1">
-                 <label className="text-xs font-bold text-slate-500 ml-1">Jenis Kelompok</label>
-                 <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                 <label className="text-xs font-bold text-slate-700 ml-1">Tipe Kelompok</label>
+                 <div className="grid grid-cols-2 gap-3">
                     <button 
                       type="button"
                       onClick={() => setFormData(p => ({...p, jenis_kelompok: 'School'}))}
-                      className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all ${formData.jenis_kelompok === 'School' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
+                      className={`flex items-center justify-center gap-2 py-4 rounded-2xl border-2 transition-all ${formData.jenis_kelompok === 'School' ? 'border-blue-600 bg-blue-50 text-blue-600 shadow-lg shadow-blue-100' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
                     >
-                       <School size={18} /> <span className="font-bold text-sm">Sekolah</span>
+                       <School size={18} /> <span className="font-bold text-xs uppercase tracking-tight">Sekolah</span>
                     </button>
                     <button 
                       type="button"
                       onClick={() => setFormData(p => ({...p, jenis_kelompok: 'Posyandu'}))}
-                      className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all ${formData.jenis_kelompok === 'Posyandu' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
+                      className={`flex items-center justify-center gap-2 py-4 rounded-2xl border-2 transition-all ${formData.jenis_kelompok === 'Posyandu' ? 'border-blue-600 bg-blue-50 text-blue-600 shadow-lg shadow-blue-100' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
                     >
-                       <Activity size={18} /> <span className="font-bold text-sm">Posyandu</span>
+                       <Activity size={18} /> <span className="font-bold text-xs uppercase tracking-tight">Posyandu</span>
                     </button>
                  </div>
               </div>
-              <div className="space-y-1">
-                 <label className="text-xs font-bold text-slate-500 ml-1">Kepemilikan</label>
+              <div className="space-y-1.5">
+                 <label className="text-xs font-bold text-slate-700 ml-1">Status Kepemilikan</label>
                  <select 
                    name="jenis_kepemilikan" value={formData.jenis_kepemilikan} onChange={handleChange}
-                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+                   className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm appearance-none"
                  >
                     <option value="Negeri">Negeri</option>
                     <option value="Swasta">Swasta</option>
@@ -137,56 +138,58 @@ const KelompokForm = ({ initialData, onSave, onCancel }) => {
         </div>
 
         {/* Section 2: Contact & Location */}
-        <div className="space-y-4">
-           <h3 className="text-xs font-bold text-emerald-600 uppercase tracking-widest flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" /> Kontak & Lokasi
+        <div className="space-y-6">
+           <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
+              <span className="w-8 h-[2px] bg-blue-600" /> Alamat & Kontak
            </h3>
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                 <label className="text-xs font-bold text-slate-500 ml-1">Penanggung Jawab</label>
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="space-y-1.5">
+                 <label className="text-xs font-bold text-slate-700 ml-1">Nama P.J (Kontak)</label>
                  <input 
                    type="text" name="pj_nama" value={formData.pj_nama} onChange={handleChange}
-                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+                   className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
                  />
               </div>
-              <div className="space-y-1">
-                 <label className="text-xs font-bold text-slate-500 ml-1">No. WhatsApp</label>
+              <div className="space-y-1.5">
+                 <label className="text-xs font-bold text-slate-700 ml-1">WhatsApp / HP</label>
                  <input 
                    type="text" name="no_whatsapp" value={formData.no_whatsapp} onChange={handleChange}
-                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+                   className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
                  />
               </div>
-              <div className="md:col-span-2 space-y-1">
-                 <label className="text-xs font-bold text-slate-500 ml-1">Alamat Lengkap</label>
+              <div className="md:col-span-2 space-y-1.5">
+                 <label className="text-xs font-bold text-slate-700 ml-1">Alamat Domisili</label>
                  <textarea 
                    name="alamat_lengkap" value={formData.alamat_lengkap} onChange={handleChange} rows={2}
-                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+                   className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm resize-none"
                  />
               </div>
-              <div className="space-y-1">
-                 <label className="text-xs font-bold text-slate-500 ml-1">Latitude</label>
-                 <input 
-                   type="number" step="any" name="lat" value={formData.lat} onChange={handleChange}
-                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none font-mono text-sm"
-                 />
-              </div>
-              <div className="space-y-1">
-                 <label className="text-xs font-bold text-slate-500 ml-1">Longitude</label>
-                 <input 
-                   type="number" step="any" name="lng" value={formData.lng} onChange={handleChange}
-                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none font-mono text-sm"
-                 />
+              <div className="grid grid-cols-2 gap-4 md:col-span-2">
+                <div className="space-y-1.5">
+                   <label className="text-xs font-bold text-slate-700 ml-1 text-center block">Latitude</label>
+                   <input 
+                     type="number" step="any" name="lat" value={formData.lat} onChange={handleChange}
+                     className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-mono text-xs text-center"
+                   />
+                </div>
+                <div className="space-y-1.5">
+                   <label className="text-xs font-bold text-slate-700 ml-1 text-center block">Longitude</label>
+                   <input 
+                     type="number" step="any" name="lng" value={formData.lng} onChange={handleChange}
+                     className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-mono text-xs text-center"
+                   />
+                </div>
               </div>
            </div>
         </div>
 
         {/* Section 3: Detail Target Gizi */}
-        <div className="space-y-4">
-           <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100">
-              <h3 className="text-sm font-bold text-emerald-800 mb-6 flex items-center gap-2">
-                 Target Sasaran Gizi (Porti)
+        <div className="space-y-6">
+           <div className="p-6 lg:p-8 bg-blue-600 rounded-[2rem] shadow-xl shadow-blue-200 relative overflow-hidden">
+              <h3 className="text-sm font-black text-white mb-6 uppercase tracking-widest relative z-10 flex items-center gap-2">
+                 <Activity size={18} /> Target Porsi Gizi
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 relative z-10">
                  {formData.jenis_kelompok === 'School' ? (
                    <>
                      <DetailField label="Porsi Kecil" name="porsi_kecil" value={formData.detail.porsi_kecil} onChange={handleDetailChange} />
@@ -203,21 +206,24 @@ const KelompokForm = ({ initialData, onSave, onCancel }) => {
                    </>
                  )}
               </div>
+              
+              {/* Decorative Circle */}
+              <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
            </div>
         </div>
 
-        <div className="flex gap-4 pt-4">
+        <div className="flex flex-col-reverse lg:flex-row gap-4 pt-4">
            <button 
              type="button" onClick={onCancel}
-             className="flex-1 px-6 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+             className="flex-1 px-6 py-4 bg-slate-100 text-slate-500 font-bold rounded-2xl hover:bg-slate-200 transition-all uppercase tracking-widest text-xs"
            >
-             Batal
+             Batalkan
            </button>
            <button 
              type="submit"
-             className="flex-[2] px-6 py-4 bg-emerald-600 text-white font-bold rounded-2xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+             className="flex-[2] px-6 py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-xs active:scale-95"
            >
-             <Save size={20} />
+             <Save size={18} />
              Simpan Data Kelompok
            </button>
         </div>
@@ -228,10 +234,10 @@ const KelompokForm = ({ initialData, onSave, onCancel }) => {
 
 const DetailField = ({ label, name, value, onChange }) => (
   <div className="space-y-1.5">
-     <label className="text-[10px] font-black text-emerald-600/50 uppercase tracking-widest">{label}</label>
+     <label className="text-[10px] font-black text-blue-200 uppercase tracking-widest text-center block">{label}</label>
      <input 
        type="number" name={name} value={value} onChange={onChange}
-       className="w-full px-4 py-2 bg-white border border-emerald-100 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none font-bold text-emerald-900"
+       className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl focus:bg-white focus:text-blue-600 outline-none transition-all font-black text-white text-center shadow-inner"
      />
   </div>
 );

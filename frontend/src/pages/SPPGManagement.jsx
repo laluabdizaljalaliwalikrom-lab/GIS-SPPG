@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
 import { useOutletContext } from 'react-router-dom';
 import SPPGUnitForm from '../components/SPPGUnitForm';
@@ -10,7 +10,8 @@ import {
   Trash2, 
   MapPin, 
   User, 
-  Package
+  Package,
+  ArrowRight
 } from 'lucide-react';
 
 const SPPGManagement = () => {
@@ -20,21 +21,21 @@ const SPPGManagement = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const res = await api.get('/sppg');
       setSppgs(res.data);
     } catch (error) {
       console.error(error);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    const initFetch = async () => {
+    const init = async () => {
       await fetchData();
     };
-    initFetch();
-  }, []);
+    init();
+  }, [fetchData]);
 
   const handleSave = async (formData) => {
     try {
@@ -69,36 +70,36 @@ const SPPGManagement = () => {
   };
 
   const filteredData = sppgs.filter(s => 
-    s.nama.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    s.kode_sppg.toLowerCase().includes(searchTerm.toLowerCase())
+    s.nama?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    s.kode_sppg?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const canManage = profile?.role === 'admin' || profile?.role === 'sppg_head';
 
   return (
-    <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6 lg:pb-0">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-           <h1 className="text-3xl font-bold text-slate-800">Unit SPPG</h1>
-           <p className="text-slate-500 mt-1">Manajemen Satuan Pelayanan Pemenuhan Gizi.</p>
+           <h1 className="text-2xl lg:text-3xl font-black text-slate-800 tracking-tight">Daftar Unit SPPG</h1>
+           <p className="text-slate-500 font-medium text-sm lg:text-base">Manajemen Satuan Pelayanan Pemenuhan Gizi.</p>
         </div>
         
-        <div className="flex gap-3">
-           <div className="relative">
+        <div className="flex gap-2">
+           <div className="relative flex-1 lg:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
                 type="text" 
-                placeholder="Cari unit atau kode..." 
+                placeholder="Cari unit..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 w-64 shadow-sm"
+                className="w-full lg:w-64 pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 shadow-sm transition-all"
               />
            </div>
            
            {canManage && (
              <button 
                onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
-               className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all"
+               className="hidden lg:flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95"
              >
                 <Plus size={18} /> Tambah Unit
              </button>
@@ -106,91 +107,102 @@ const SPPGManagement = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
         {filteredData.map((s) => (
-          <div key={s.id} className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-emerald-200/20 transition-all group relative overflow-hidden">
+          <div key={s.id} className="bg-white p-6 lg:p-8 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-2xl hover:shadow-blue-200/30 transition-all group relative overflow-hidden flex flex-col">
              <div className="flex justify-between items-start mb-6">
                 <div className="flex items-center gap-4">
-                   <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center shrink-0 shadow-sm group-hover:scale-110 transition-transform">
-                      <Building2 size={28} />
+                   <div className="w-12 h-12 lg:w-14 lg:h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
+                      <Building2 size={24} className="lg:hidden" />
+                      <Building2 size={28} className="hidden lg:block" />
                    </div>
-                   <div>
-                      <h3 className="text-xl font-bold text-slate-800">{s.nama}</h3>
-                      <p className="text-xs font-bold text-emerald-600 tracking-widest uppercase">{s.kode_sppg}</p>
+                   <div className="min-w-0">
+                      <h3 className="text-lg lg:text-xl font-black text-slate-800 truncate">{s.nama}</h3>
+                      <p className="text-[10px] font-bold text-blue-600 tracking-widest uppercase">{s.kode_sppg}</p>
                    </div>
                 </div>
                 <div className="flex gap-1">
                    {canManage && (
                      <>
-                        <button onClick={() => handleEdit(s)} className="p-2 text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all">
-                           <Edit2 size={18} />
+                        <button onClick={() => handleEdit(s)} className="p-2 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all">
+                           <Edit2 size={16} />
                         </button>
                         <button onClick={() => handleDelete(s.id)} className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all">
-                           <Trash2 size={18} />
+                           <Trash2 size={16} />
                         </button>
                      </>
                    )}
                 </div>
              </div>
 
-             <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
-                <div className="space-y-1">
-                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Kepala Satuan</p>
-                   <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                      <User size={14} className="text-slate-300" />
-                      {s.nama_kepala}
-                   </div>
+             <div className="space-y-4 flex-1">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Kepala Unit</p>
+                    <div className="flex items-center gap-2 text-slate-700 font-bold text-xs truncate">
+                        <User size={12} className="text-blue-400" />
+                        {s.nama_kepala}
+                    </div>
+                  </div>
+                  <div className="space-y-1 text-right">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Kapasitas</p>
+                    <div className="flex items-center gap-2 justify-end text-slate-700 font-bold text-xs">
+                        <Package size={12} className="text-blue-400" />
+                        {s.kapasitas_produksi?.toLocaleString()}
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Kapasitas Produksi</p>
-                   <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                      <Package size={14} className="text-slate-300" />
-                      {s.kapasitas_produksi?.toLocaleString()} portions
-                   </div>
-                </div>
-                <div className="col-span-2 space-y-1">
-                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Alamat Desa</p>
-                   <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                      <MapPin size={14} className="text-slate-300 shrink-0" />
-                      <span className="truncate">{s.alamat_desa}</span>
+
+                <div className="p-3 bg-slate-50 rounded-2xl">
+                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Lokasi</p>
+                   <div className="flex items-start gap-2 text-slate-600 font-medium text-[11px] leading-relaxed">
+                      <MapPin size={12} className="text-blue-400 shrink-0 mt-0.5" />
+                      <span className="line-clamp-2">{s.alamat_desa}</span>
                    </div>
                 </div>
              </div>
 
-             <div className="mt-8 flex items-center justify-between pt-6 border-t border-slate-50">
-                <div className="flex -space-x-2">
-                   {[1,2,3].map(i => (
-                     <div key={i} className="w-8 h-8 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-slate-400">
-                        {String.fromCharCode(64 + i)}
-                     </div>
-                   ))}
-                   <div className="w-8 h-8 rounded-full bg-emerald-600 border-2 border-white flex items-center justify-center text-[10px] font-bold text-white">
-                      +
-                   </div>
-                </div>
-                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-widest">
+             <div className="mt-6 pt-5 border-t border-slate-50 flex items-center justify-between">
+                <span className={`text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-tighter ${s.status_operasional === 'Aktif' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
                   {s.status_operasional}
                 </span>
+                <button className="p-2 bg-slate-50 text-slate-400 rounded-full hover:bg-blue-600 hover:text-white transition-all shadow-sm">
+                   <ArrowRight size={16} />
+                </button>
              </div>
              
-             {/* Subtle bg pattern */}
-             <div className="absolute top-0 right-0 -mr-8 -mt-8 w-24 h-24 bg-emerald-50 rounded-full blur-2xl opacity-50 group-hover:opacity-100 transition-opacity" />
+             {/* Gradient Accent */}
+             <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50/50 rounded-full blur-3xl -mr-12 -mt-12 group-hover:bg-blue-100/50 transition-colors" />
           </div>
         ))}
       </div>
 
       {filteredData.length === 0 && (
-         <div className="p-20 text-center bg-white rounded-3xl border border-dashed border-slate-200">
-            <Building2 size={48} className="text-slate-200 mx-auto mb-4" />
-            <p className="text-slate-400 font-medium italic">No SPPG units found.</p>
+         <div className="p-20 text-center bg-white rounded-[2rem] border-2 border-dashed border-slate-100">
+            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Building2 size={40} className="text-slate-200" />
+            </div>
+            <p className="text-slate-400 font-bold">Tidak ada unit SPPG ditemukan.</p>
+            <p className="text-xs text-slate-300 mt-1">Coba gunakan kata kunci lain.</p>
          </div>
+      )}
+
+      {/* Floating Action Button (Mobile Only) */}
+      {canManage && (
+        <button 
+          onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
+          className="lg:hidden fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-2xl shadow-blue-400 flex items-center justify-center active:scale-90 transition-transform z-50 ring-4 ring-white"
+        >
+           <Plus size={28} />
+        </button>
       )}
 
       {/* Modal CRUD */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center p-0 lg:p-4">
            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-           <div className="relative w-full max-w-4xl animate-in zoom-in-95 duration-200">
+           <div className="relative w-full lg:max-w-4xl bg-white rounded-t-[2.5rem] lg:rounded-[2.5rem] p-6 lg:p-0 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-20 lg:slide-in-from-bottom-4 duration-300">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 lg:hidden" />
               <SPPGUnitForm 
                 initialData={editingItem} 
                 onSave={handleSave} 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
 import { useOutletContext } from 'react-router-dom';
 import KelompokForm from '../components/KelompokForm';
@@ -11,7 +11,9 @@ import {
   MapPin,
   Plus,
   Edit2,
-  Trash2
+  Trash2,
+  Filter,
+  Check
 } from 'lucide-react';
 
 const KelompokManagement = () => {
@@ -24,21 +26,21 @@ const KelompokManagement = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const res = await api.get('/kelompok');
       setKelompoks(res.data);
     } catch (error) {
       console.error(error);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    const initFetch = async () => {
+    const init = async () => {
       await fetchData();
     };
-    initFetch();
-  }, []);
+    init();
+  }, [fetchData]);
 
   const handleSave = async (formData) => {
     try {
@@ -83,132 +85,139 @@ const KelompokManagement = () => {
   };
 
   const filteredData = kelompoks.filter(k => {
-    const matchesSearch = k.nama.toLowerCase().includes(searchTerm.toLowerCase()) || k.kode_kelompok.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = k.nama?.toLowerCase().includes(searchTerm.toLowerCase()) || k.kode_kelompok?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || k.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   return (
-    <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-           <h1 className="text-3xl font-bold text-slate-800">Kelompok Penerima</h1>
-           <p className="text-slate-500 mt-1">Kelola dan verifikasi data kelompok penerima gizi.</p>
+           <h1 className="text-2xl lg:text-3xl font-black text-slate-800 tracking-tight">Kelompok Penerima</h1>
+           <p className="text-slate-500 font-medium text-sm lg:text-base">Kelola dan verifikasi data penerima gizi.</p>
         </div>
         
-        <div className="flex gap-3">
-           <div className="relative">
+        <div className="flex gap-2">
+           <div className="relative flex-1 lg:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
                 type="text" 
-                placeholder="Search name or code..." 
+                placeholder="Cari kelompok..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 w-64 shadow-sm"
+                className="w-full lg:w-64 pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 shadow-sm transition-all"
               />
            </div>
            
            <button 
              onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
-             className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all"
+             className="hidden lg:flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95"
            >
-              <Plus size={18} /> Tambah
+              <Plus size={18} /> Tambah Data
            </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 overflow-hidden">
-        <div className="p-4 border-b border-slate-50 flex gap-2 overflow-x-auto">
-           {['all', 'pending_verification', 'verified', 'rejected'].map(status => (
-             <button
-               key={status}
-               onClick={() => setStatusFilter(status)}
-               className={cn(
-                 "px-4 py-1.5 rounded-full text-xs font-bold transition-all border",
-                 statusFilter === status 
-                   ? "bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-100" 
-                   : "bg-white text-slate-500 border-slate-200 hover:border-emerald-300 hover:text-emerald-600"
-               )}
-             >
-               {status === 'all' ? 'Semua Data' : status.replace('_', ' ').toUpperCase()}
-             </button>
-           ))}
-        </div>
-
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-50/50 border-b border-slate-100">
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Kelompok Info</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Type & Ownership</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Status</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filteredData.map((k) => (
-              <tr key={k.id} className="hover:bg-slate-50/50 transition-colors group">
-                <td className="px-6 py-5">
-                   <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                         <Users size={20} />
-                      </div>
-                      <div>
-                         <p className="font-bold text-slate-800">{k.nama}</p>
-                         <p className="text-xs text-slate-400 flex items-center gap-1">
-                            <MapPin size={10} /> {k.alamat_lengkap}
-                         </p>
-                      </div>
-                   </div>
-                </td>
-                <td className="px-6 py-5">
-                   <div className="space-y-1">
-                      <span className="px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-md uppercase">{k.jenis_kelompok}</span>
-                      <p className="text-xs text-slate-500">{k.jenis_kepemilikan}</p>
-                   </div>
-                </td>
-                <td className="px-6 py-5">
-                   <StatusBadge status={k.status} />
-                </td>
-                <td className="px-6 py-5">
-                   <div className="flex justify-end gap-2">
-                      {profile?.role === 'kecamatan_coordinator' && k.status === 'pending_verification' && (
-                        <>
-                          <button onClick={() => handleVerify(k.id, 'verified')} className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100" title="Verify">
-                             <CheckCircle2 size={18} />
-                          </button>
-                          <button onClick={() => handleVerify(k.id, 'rejected')} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100" title="Reject">
-                             <XCircle size={18} />
-                          </button>
-                        </>
-                      )}
-                      <button onClick={() => handleEdit(k)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Edit">
-                         <Edit2 size={18} />
-                      </button>
-                      <button onClick={() => handleDelete(k.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Delete">
-                         <Trash2 size={18} />
-                      </button>
-                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        
-        {filteredData.length === 0 && (
-          <div className="p-20 text-center">
-             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users size={32} className="text-slate-200" />
-             </div>
-             <p className="text-slate-400 font-medium">No groups found matching your criteria.</p>
-          </div>
-        )}
+      {/* Filter Chips */}
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 lg:mx-0 lg:px-0">
+         {['all', 'pending_verification', 'verified', 'rejected'].map(status => (
+           <button
+             key={status}
+             onClick={() => setStatusFilter(status)}
+             className={`px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${
+               statusFilter === status 
+                 ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100" 
+                 : "bg-white text-slate-500 border-slate-100 hover:border-blue-200 hover:text-blue-600"
+             }`}
+           >
+             {status === 'all' ? 'Semua' : status.replace('_', ' ')}
+           </button>
+         ))}
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
+        {filteredData.map((k) => (
+          <div key={k.id} className="bg-white p-6 lg:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-2xl hover:shadow-blue-200/30 transition-all group relative overflow-hidden flex flex-col">
+             <div className="flex justify-between items-start mb-6">
+                <div className="flex items-center gap-4">
+                   <div className="w-12 h-12 lg:w-14 lg:h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
+                      <Users size={24} />
+                   </div>
+                   <div className="min-w-0">
+                      <h3 className="text-lg lg:text-xl font-black text-slate-800 truncate">{k.nama}</h3>
+                      <p className="text-[10px] font-bold text-blue-600 tracking-widest uppercase">{k.kode_kelompok}</p>
+                   </div>
+                </div>
+             </div>
+
+             <div className="space-y-4 flex-1">
+                <div className="flex gap-3 mb-4">
+                   <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[10px] font-black rounded-full uppercase tracking-tighter">{k.jenis_kelompok}</span>
+                   <span className="px-3 py-1 bg-slate-50 text-slate-500 text-[10px] font-black rounded-full uppercase tracking-tighter">{k.jenis_kepemilikan}</span>
+                </div>
+
+                <div className="p-4 bg-slate-50 rounded-3xl space-y-3">
+                   <div className="flex items-start gap-2 text-slate-600 font-medium text-[11px] leading-relaxed">
+                      <MapPin size={12} className="text-blue-400 shrink-0 mt-0.5" />
+                      <span className="line-clamp-2">{k.alamat_lengkap}</span>
+                   </div>
+                   
+                   <div className="pt-3 border-t border-slate-100">
+                      <StatusBadge status={k.status} />
+                   </div>
+                </div>
+             </div>
+
+             <div className="mt-8 pt-5 border-t border-slate-50 flex items-center justify-between">
+                <div className="flex gap-2">
+                   {profile?.role === 'kecamatan_coordinator' && k.status === 'pending_verification' && (
+                     <>
+                       <button onClick={() => handleVerify(k.id, 'verified')} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm" title="Verify">
+                          <Check size={18} />
+                       </button>
+                       <button onClick={() => handleVerify(k.id, 'rejected')} className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-sm" title="Reject">
+                          <XCircle size={18} />
+                       </button>
+                     </>
+                   )}
+                </div>
+                <div className="flex gap-2">
+                   <button onClick={() => handleEdit(k)} className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all">
+                      <Edit2 size={16} />
+                   </button>
+                   <button onClick={() => handleDelete(k.id)} className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all">
+                      <Trash2 size={16} />
+                   </button>
+                </div>
+             </div>
+          </div>
+        ))}
+      </div>
+
+      {filteredData.length === 0 && (
+         <div className="p-20 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-100">
+            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Filter size={40} className="text-slate-200" />
+            </div>
+            <p className="text-slate-400 font-bold">Tidak ada data ditemukan.</p>
+         </div>
+      )}
+
+      {/* FAB (Mobile Only) */}
+      <button 
+        onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
+        className="lg:hidden fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-2xl shadow-blue-400 flex items-center justify-center active:scale-90 transition-transform z-50 ring-4 ring-white"
+      >
+         <Plus size={28} />
+      </button>
 
       {/* Modal CRUD */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center p-0 lg:p-4">
            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-           <div className="relative w-full max-w-4xl animate-in zoom-in-95 duration-200">
+           <div className="relative w-full lg:max-w-4xl bg-white rounded-t-[2.5rem] lg:rounded-[2.5rem] p-6 lg:p-0 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-20 lg:slide-in-from-bottom-4 duration-300">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 lg:hidden" />
               <KelompokForm 
                 key={editingItem?.id || 'new'}
                 initialData={editingItem} 
@@ -224,22 +233,20 @@ const KelompokManagement = () => {
 
 const StatusBadge = ({ status }) => {
   const styles = {
-    pending_verification: 'bg-amber-50 text-amber-600 border-amber-100',
-    verified: 'bg-emerald-50 text-emerald-600 border-emerald-100',
-    rejected: 'bg-red-50 text-red-600 border-red-100'
+    pending_verification: 'text-amber-600',
+    verified: 'text-emerald-600',
+    rejected: 'text-red-600'
   };
   const icons = { pending_verification: Clock, verified: CheckCircle2, rejected: XCircle };
   const Icon = icons[status] || Clock;
-  const label = status?.replace('_', ' ').toUpperCase() || 'UNKNOWN';
+  const label = status === 'pending_verification' ? 'MENUNGGU VERIFIKASI' : status?.toUpperCase() || 'UNKNOWN';
   
   return (
-    <div className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-bold", styles[status])}>
-       <Icon size={12} />
+    <div className={`flex items-center gap-2 text-[10px] font-black tracking-tight ${styles[status]}`}>
+       <Icon size={14} />
        {label}
     </div>
   );
 };
-
-const cn = (...inputs) => inputs.filter(Boolean).join(' ');
 
 export default KelompokManagement;

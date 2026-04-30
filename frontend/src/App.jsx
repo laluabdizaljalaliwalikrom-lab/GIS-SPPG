@@ -8,6 +8,7 @@ import SPPGManagement from './pages/SPPGManagement';
 import KelompokManagement from './pages/KelompokManagement';
 import AuditLogs from './pages/AuditLogs';
 import UserManagement from './pages/UserManagement';
+import Settings from './pages/Settings';
 import StatsOverview from './pages/StatsOverview';
 
 const ProtectedRoute = ({ children }) => {
@@ -49,8 +50,9 @@ function App() {
     <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route 
-          path="/" 
+          path="/dashboard" 
           element={
             <ProtectedRoute>
               <Dashboard />
@@ -58,11 +60,13 @@ function App() {
           }
         >
           <Route index element={<StatsOverview />} />
-          <Route path="map" element={<MapView />} />
+          <Route path="mapping" element={<MapView />} />
           <Route path="sppg" element={<SPPGManagement />} />
           <Route path="kelompok" element={<KelompokManagement />} />
           <Route path="logs" element={<AuditLogs />} />
           <Route path="users" element={<UserManagement />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="profile" element={<div className="animate-in fade-in duration-500"><h1 className="text-3xl font-black text-slate-800 tracking-tight">Profil Pengguna</h1><p className="text-slate-500 font-medium mt-1">Pengaturan akun dan preferensi sistem.</p><div className="mt-8 p-12 border-2 border-dashed border-blue-100 rounded-[3rem] text-center"><p className="text-blue-400 font-bold">Fitur ini akan segera hadir.</p></div></div>} />
         </Route>
       </Routes>
     </Router>

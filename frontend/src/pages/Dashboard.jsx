@@ -1,63 +1,90 @@
 import { useState, useEffect } from 'react';
+import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-import { useNavigate, Outlet, useLocation, Link } from 'react-router-dom';
 import { 
-  LayoutDashboard, 
   Map as MapIcon, 
-  Building2, 
   Users, 
-  History, 
-  Bell, 
   LogOut, 
-  ChevronLeft, 
-  ChevronRight, 
-  Menu,
-  User as UserIcon,
-  UserCog
+  Menu, 
+  X,
+  Database,
+  History,
+  Shield,
+  Briefcase,
+  User,
+  Zap,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  LayoutDashboard,
+  Settings as SettingsIcon
 } from 'lucide-react';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-function cn(...inputs) {
-  return twMerge(clsx(...inputs));
-}
+import toast, { Toaster } from 'react-hot-toast';
+import api from '../api';
 
 const Dashboard = () => {
-  const [collapsed, setCollapsed] = useState(false);
   const [profile, setProfile] = useState(null);
-  const [notifications, setNotifications] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isAllocating, setIsAllocating] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
-    const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+    const fetchProfile = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
         navigate('/login');
         return;
       }
-      
-      // Fetch profile for role
-      const { data: profile } = await supabase
+
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('id', session.user.id)
         .single();
-      
-      setProfile(profile);
 
-      // Fetch pending verifications count for badge
-      if (profile?.role === 'admin' || profile?.role === 'kecamatan_coordinator') {
-        const { count } = await supabase
-          .from('kelompok_penerima')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'pending_verification');
-        setNotifications(count || 0);
+      if (error) {
+        console.error(error);
+      } else {
+        setProfile(data);
       }
+      setLoading(false);
     };
 
-    checkUser();
+    fetchProfile();
   }, [navigate]);
+
+  const handleAutoAllocate = async () => {
+    setIsAllocating(true);
+    const toastId = toast.loading('Processing PostGIS Spatial Analysis...', {
+       style: {
+          borderRadius: '1.5rem',
+          background: '#1e293b',
+          color: '#fff',
+          fontWeight: 'bold',
+          padding: '1rem 1.5rem'
+       }
+    });
+
+    try {
+      const res = await api.post('/allocate');
+      toast.success(`Berhasil! ${res.data.assigned_count} kelompok telah dialokasikan.`, { 
+        id: toastId,
+        icon: '🚀',
+        duration: 4000
+      });
+      // Trigger map refresh
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error(error);
+      toast.error(error.response?.data?.detail || 'Gagal menjalankan alokasi otomatis.', { id: toastId });
+    } finally {
+      setIsAllocating(false);
+    }
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -65,113 +92,235 @@ const Dashboard = () => {
   };
 
   const menuItems = [
-    { name: 'Dashboard', path: '/', icon: LayoutDashboard, roles: ['admin', 'sppg_head', 'kecamatan_coordinator'] },
-    { name: 'Mapping', path: '/map', icon: MapIcon, roles: ['admin', 'sppg_head', 'kecamatan_coordinator'] },
-    { name: 'SPPG Units', path: '/sppg', icon: Building2, roles: ['admin', 'sppg_head'] },
-    { name: 'Kelompok Penerima', path: '/kelompok', icon: Users, roles: ['admin', 'kecamatan_coordinator'], badge: notifications },
-    { name: 'Audit Trail', path: '/logs', icon: History, roles: ['admin'] },
-    { name: 'User Management', path: '/users', icon: UserCog, roles: ['admin'] },
+    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Mapping', path: '/dashboard/mapping', icon: MapIcon },
+    { name: 'Unit SPPG', path: '/dashboard/sppg', icon: Briefcase },
+    { name: 'Kelompok', path: '/dashboard/kelompok', icon: Users },
+    { name: 'Settings', path: '/dashboard/settings', icon: SettingsIcon },
   ];
 
-  const filteredMenu = menuItems.filter(item => profile && item.roles.includes(profile.role));
+  const adminItems = [
+    { name: 'Audit Log', path: '/dashboard/logs', icon: History },
+    { name: 'Users', path: '/dashboard/users', icon: Shield },
+  ];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  const isMapPage = location.pathname === '/dashboard/mapping';
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
-      {/* Sidebar */}
-      <aside 
-        className={cn(
-          "bg-white border-r border-slate-200 h-full flex flex-col sidebar-transition z-30 shadow-sm",
-          collapsed ? "w-20" : "w-72"
-        )}
-      >
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-emerald-200">
-            <LayoutDashboard className="text-white" size={20} />
+    <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden">
+      <Toaster position="top-center" reverseOrder={false} />
+      
+      {/* Desktop Sidebar */}
+      <aside className={`fixed inset-y-0 left-0 z-50 bg-white border-r border-blue-100 shadow-xl transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isCollapsed ? 'w-24' : 'w-72'}`}>
+        <div className="h-full flex flex-col p-4 lg:p-6 relative">
+          {/* Collapse Toggle Button (Desktop Only) */}
+          <button 
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="hidden lg:flex absolute -right-4 top-12 w-8 h-8 bg-white border border-blue-100 rounded-full items-center justify-center text-blue-600 shadow-lg hover:scale-110 transition-all z-50"
+          >
+            {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
+
+          <div className={`flex items-center gap-3 mb-10 px-2 transition-all ${isCollapsed ? 'justify-center' : ''}`}>
+            <div className="bg-blue-600 p-2.5 rounded-2xl shadow-lg shadow-blue-200 shrink-0">
+              <Database className="text-white" size={24} />
+            </div>
+            {!isCollapsed && (
+              <div className="animate-in fade-in duration-300">
+                <h1 className="text-xl font-black tracking-tight text-slate-800 uppercase">GIS SPPG</h1>
+                <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Navigation</p>
+              </div>
+            )}
           </div>
-          {!collapsed && <span className="font-bold text-xl text-slate-800 tracking-tight">GIS-SPPG</span>}
+
+          <nav className="flex-1 space-y-2 overflow-y-auto no-scrollbar py-4">
+            <div className={`px-4 mb-4 ${isCollapsed ? 'flex justify-center px-0' : ''}`}>
+              {isCollapsed ? (
+                <div className="w-4 h-0.5 bg-slate-100 rounded-full" />
+              ) : (
+                <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.25em]">Menu Utama</p>
+              )}
+            </div>
+            {menuItems.map((item) => {
+              const isActive = location.pathname === item.path;
+              return (
+                <Link
+                  key={item.name}
+                  to={item.path}
+                  onClick={() => setIsSidebarOpen(false)}
+                  className={`flex items-center rounded-2xl transition-all duration-300 group relative ${
+                    isActive 
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 font-bold' 
+                      : 'text-slate-400 hover:bg-blue-50 hover:text-blue-600'
+                  } ${isCollapsed ? 'w-12 h-12 mx-auto justify-center' : 'gap-4 px-4 py-3.5'}`}
+                >
+                  <item.icon size={20} className={`${isActive ? 'text-white' : 'group-hover:text-blue-600'} transition-all duration-300 ${isCollapsed ? 'shrink-0' : ''}`} />
+                  {!isCollapsed && <span className="text-sm truncate animate-in slide-in-from-left-2 duration-300">{item.name}</span>}
+                  
+                  {/* Tooltip for collapsed state */}
+                  {isCollapsed && (
+                    <div className="absolute left-full ml-4 px-3 py-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[60] whitespace-nowrap shadow-xl">
+                       {item.name}
+                    </div>
+                  )}
+                </Link>
+              );
+            })}
+
+            {profile?.role === 'admin' && (
+              <>
+                <div className={`px-4 mt-10 mb-4 ${isCollapsed ? 'flex justify-center px-0' : ''}`}>
+                  {isCollapsed ? (
+                    <div className="w-4 h-0.5 bg-slate-100 rounded-full" />
+                  ) : (
+                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.25em]">Administrasi</p>
+                  )}
+                </div>
+                {adminItems.map((item) => {
+                  const isActive = location.pathname === item.path;
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.path}
+                      onClick={() => setIsSidebarOpen(false)}
+                      className={`flex items-center rounded-2xl transition-all duration-300 group relative ${
+                        isActive 
+                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 font-bold' 
+                          : 'text-slate-400 hover:bg-blue-50 hover:text-blue-600'
+                      } ${isCollapsed ? 'w-12 h-12 mx-auto justify-center' : 'gap-4 px-4 py-3.5'}`}
+                    >
+                      <item.icon size={20} className={`${isActive ? 'text-white' : 'group-hover:text-blue-600'} transition-all duration-300 ${isCollapsed ? 'shrink-0' : ''}`} />
+                      {!isCollapsed && <span className="text-sm truncate animate-in slide-in-from-left-2 duration-300">{item.name}</span>}
+                      
+                      {/* Tooltip for collapsed state */}
+                      {isCollapsed && (
+                        <div className="absolute left-full ml-4 px-3 py-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[60] whitespace-nowrap shadow-xl">
+                           {item.name}
+                        </div>
+                      )}
+                    </Link>
+                  );
+                })}
+              </>
+            )}
+          </nav>
+
+          <div className="mt-auto pt-6 border-t border-slate-50 space-y-4">
+            <div className={`flex items-center gap-3 p-3 rounded-[1.5rem] bg-slate-50/50 transition-all ${isCollapsed ? 'justify-center p-2' : ''}`}>
+              <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center shrink-0 shadow-sm">
+                <User size={20} />
+              </div>
+              {!isCollapsed && (
+                <div className="flex-1 min-w-0 animate-in fade-in duration-500">
+                  <p className="text-sm font-black text-slate-800 truncate">{profile?.full_name || 'User'}</p>
+                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest leading-none mt-1">{profile?.role?.replace('_', ' ')}</p>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={handleLogout}
+              className={`flex items-center rounded-2xl text-slate-400 hover:bg-red-50 hover:text-red-600 transition-all duration-300 group relative ${isCollapsed ? 'w-12 h-12 mx-auto justify-center' : 'gap-4 px-4 py-3.5 w-full'}`}
+            >
+              <LogOut size={20} className="group-hover:text-red-600 transition-all duration-300" />
+              {!isCollapsed && <span className="text-sm font-black animate-in fade-in duration-500">Logout</span>}
+              
+              {isCollapsed && (
+                <div className="absolute left-full ml-4 px-3 py-2 bg-red-600 text-white text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[60] whitespace-nowrap shadow-xl">
+                   Logout
+                </div>
+              )}
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col relative min-w-0 lg:pl-6">
+        {/* Mobile Header */}
+        <header className="lg:hidden flex items-center justify-between p-4 bg-white border-b border-slate-100 sticky top-0 z-30 shadow-sm">
+          <div className="flex items-center gap-2">
+            <div className="bg-blue-600 p-1.5 rounded-lg shadow-sm">
+              <Database className="text-white" size={16} />
+            </div>
+            <span className="font-black text-lg tracking-tight text-slate-800 uppercase">GIS SPPG</span>
+          </div>
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-slate-600 bg-slate-50 rounded-xl border border-slate-100">
+             {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </header>
+
+        {/* Dynamic Content Scroll Area */}
+        <div className="flex-1 overflow-y-auto pb-24 lg:pb-0 scroll-smooth flex flex-col">
+          <div className={`flex-1 w-full ${location.pathname === '/dashboard/mapping' ? 'h-full' : 'p-4 lg:p-10 max-w-7xl mx-auto'}`}>
+             <Outlet context={{ profile, refreshTrigger }} />
+          </div>
         </div>
 
-        <nav className="flex-1 px-4 space-y-1 mt-4">
-          {filteredMenu.map((item) => {
+        {/* Auto Allocation Action Button (Map Page & Admin Only) */}
+        {isMapPage && profile?.role === 'admin' && (
+          <button
+            onClick={handleAutoAllocate}
+            disabled={isAllocating}
+            className={`fixed bottom-32 right-6 lg:bottom-12 lg:right-12 z-[2000] h-12 lg:h-16 bg-blue-600 text-white rounded-full shadow-[0_10px_40px_rgba(37,99,235,0.4)] flex items-center justify-center transition-all duration-500 ring-4 ring-white active:scale-90 overflow-hidden ${
+              isAllocating ? 'animate-pulse cursor-not-allowed px-6' : 'hover:scale-105 px-3 lg:px-4 lg:hover:px-8'
+            } ${isAllocating ? 'w-auto' : 'w-12 lg:w-16 lg:hover:w-auto'} group`}
+          >
+             <div className="flex items-center gap-3">
+                {isAllocating ? (
+                  <Loader2 size={20} className="animate-spin lg:hidden" />
+                ) : (
+                  <Zap size={20} fill="currentColor" className="transition-transform group-hover:rotate-12 lg:hidden" />
+                )}
+                
+                {isAllocating ? (
+                  <Loader2 size={28} className="animate-spin hidden lg:block" />
+                ) : (
+                  <Zap size={28} fill="currentColor" className="transition-transform group-hover:rotate-12 hidden lg:block" />
+                )}
+                
+                {/* Desktop Text Label - Shows on hover or when allocating */}
+                <span className={`font-black text-[10px] lg:text-xs uppercase tracking-[0.2em] transition-all duration-500 whitespace-nowrap ${
+                  isAllocating ? 'block' : 'hidden lg:group-hover:block'
+                }`}>
+                  {isAllocating ? 'Analyzing...' : 'Run Allocation'}
+                </span>
+             </div>
+          </button>
+        )}
+
+        {/* Mobile Bottom Navigation */}
+        <nav className="lg:hidden fixed bottom-6 left-6 right-6 bg-white/90 backdrop-blur-xl border border-white/20 rounded-3xl p-2 z-40 flex justify-around items-center shadow-[0_20px_50px_rgba(37,99,235,0.15)] ring-1 ring-slate-900/5">
+          {menuItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
-              <Link
-                key={item.name}
-                to={item.path}
-                className={cn(
-                  "nav-item relative group",
-                  isActive ? "active" : ""
-                )}
+              <Link 
+                key={item.name} 
+                to={item.path} 
+                className={`flex flex-col items-center gap-1 py-2 px-4 rounded-2xl transition-all duration-300 ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 scale-105' : 'text-slate-400'}`}
               >
-                <item.icon size={20} className={cn(isActive ? "text-emerald-600" : "text-slate-400 group-hover:text-slate-600")} />
-                {!collapsed && (
-                  <span className="flex-1">{item.name}</span>
-                )}
-                {item.badge > 0 && !collapsed && (
-                  <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    {item.badge}
-                  </span>
-                )}
-                {item.badge > 0 && collapsed && (
-                  <div className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white" />
-                )}
-                {collapsed && (
-                  <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
-                    {item.name}
-                  </div>
-                )}
+                <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                <span className={`text-[10px] font-bold uppercase tracking-tight ${isActive ? 'block' : 'hidden md:block'}`}>{item.name}</span>
               </Link>
             );
           })}
         </nav>
-
-        <div className="p-4 border-t border-slate-100">
-          <div className={cn("flex items-center gap-3 p-3 rounded-2xl bg-slate-50", collapsed && "justify-center")}>
-            <div className="w-10 h-10 bg-slate-200 rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
-              <UserIcon size={20} className="text-slate-500" />
-            </div>
-            {!collapsed && (
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-slate-800 truncate">{profile?.full_name || 'Loading...'}</p>
-                <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">{profile?.role?.replace('_', ' ')}</p>
-              </div>
-            )}
-          </div>
-          <button 
-            onClick={handleLogout}
-            className={cn(
-              "w-full mt-3 flex items-center gap-3 p-3 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all",
-              collapsed && "justify-center"
-            )}
-          >
-            <LogOut size={20} />
-            {!collapsed && <span className="font-semibold text-sm">Sign Out</span>}
-          </button>
-        </div>
-      </aside>
-
-      {/* Toggle Button */}
-      <button 
-        onClick={() => setCollapsed(!collapsed)}
-        className="fixed bottom-6 left-6 z-50 p-3 bg-white border border-slate-200 rounded-2xl shadow-xl hover:bg-slate-50 md:flex hidden"
-      >
-        {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-      </button>
-
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col h-full relative">
-        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-20 shadow-sm md:hidden">
-            <div className="flex items-center gap-3">
-               <Menu size={24} className="text-slate-600" onClick={() => setCollapsed(!collapsed)}/>
-               <span className="font-bold text-lg text-slate-800">GIS-SPPG</span>
-            </div>
-            <Bell size={20} className="text-slate-400" />
-        </header>
-        
-        <div className="flex-1 overflow-auto p-8 relative">
-           <Outlet context={{ profile, notifications }} />
-        </div>
       </main>
+
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
     </div>
   );
 };

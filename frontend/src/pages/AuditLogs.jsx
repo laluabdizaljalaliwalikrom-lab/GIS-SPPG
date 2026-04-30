@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { 
   History, 
   User, 
   Calendar, 
   Info,
-  Search
+  Search,
+  Filter,
+  Database
 } from 'lucide-react';
 
 const AuditLogs = () => {
@@ -13,10 +15,10 @@ const AuditLogs = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    const fetchLogs = async () => {
-      // In a real app, we'd fetch from audit_logs table
-      // Since we just set it up, let's try to fetch what's there
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    try {
+      // We attempt the join, but handle failures gracefully
       const { data, error } = await supabase
         .from('audit_logs')
         .select(`
@@ -28,114 +30,140 @@ const AuditLogs = () => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error(error);
+        console.error("Query Error:", error);
+        // Fallback: fetch without profiles if join fails
+        const { data: simpleData } = await supabase
+          .from('audit_logs')
+          .select('*')
+          .order('created_at', { ascending: false });
+        setLogs(simpleData || []);
       } else {
-        setLogs(data);
+        setLogs(data || []);
       }
+    } catch (err) {
+      console.error(err);
+    } finally {
       setLoading(false);
-    };
-
-    fetchLogs();
+    }
   }, []);
 
+  useEffect(() => {
+    const init = async () => {
+      await fetchLogs();
+    };
+    init();
+  }, [fetchLogs]);
+
   const filteredLogs = logs.filter(log => 
-    log.action.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    log.details.toLowerCase().includes(searchTerm.toLowerCase())
+    (log.action?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
+    (log.details?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
   return (
-    <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-           <h1 className="text-3xl font-bold text-slate-800">System Audit Trail</h1>
-           <p className="text-slate-500 mt-1">Rekaman riwayat aktivitas administratif sistem.</p>
+           <h1 className="text-2xl lg:text-3xl font-black text-slate-800 tracking-tight">Audit Trail</h1>
+           <p className="text-slate-500 font-medium text-sm lg:text-base">Rekaman riwayat aktivitas administratif sistem.</p>
         </div>
         
-        <div className="relative">
+        <div className="relative w-full lg:w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             type="text" 
-            placeholder="Search logs..." 
+            placeholder="Cari aktivitas..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 w-64 shadow-sm"
+            className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
           />
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-48">Timestamp</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-40">User</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-32">Action</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Details</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {filteredLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4 text-slate-500 font-medium">
-                     <div className="flex items-center gap-2">
-                        <Calendar size={14} className="text-slate-300" />
-                        {new Date(log.created_at).toLocaleString()}
-                     </div>
-                  </td>
-                  <td className="px-6 py-4">
-                     <div className="flex items-center gap-2 font-bold text-slate-700">
-                        <div className="w-6 h-6 bg-slate-100 rounded-md flex items-center justify-center text-[10px] text-slate-400">
-                           <User size={12} />
+      <div className="grid grid-cols-1 gap-4">
+        {loading ? (
+          [1,2,3].map(i => (
+            <div key={i} className="h-24 bg-white rounded-3xl animate-pulse border border-slate-100" />
+          ))
+        ) : filteredLogs.map((log) => (
+          <div key={log.id} className="bg-white p-5 lg:p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all group overflow-hidden">
+             <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8">
+                {/* Status Column */}
+                <div className="flex items-center gap-4 lg:w-48 shrink-0">
+                   <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${getActionColor(log.action)}`}>
+                      <History size={20} />
+                   </div>
+                   <div className="min-w-0">
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-400">Action</p>
+                      <p className={`text-sm font-black ${getActionTextColor(log.action)}`}>{log.action}</p>
+                   </div>
+                </div>
+
+                {/* Details Column */}
+                <div className="flex-1 min-w-0 border-l border-slate-50 pl-4 lg:pl-8">
+                   <div className="flex items-start gap-3">
+                      <div className="mt-1">
+                        <Info size={14} className="text-blue-400" />
+                      </div>
+                      <div>
+                        <p className="text-slate-600 font-medium text-sm leading-relaxed">{log.details}</p>
+                        <div className="flex items-center gap-4 mt-2">
+                           <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                              <User size={12} />
+                              {log.profiles?.full_name || 'System / Auto'}
+                           </span>
+                           <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                              <Calendar size={12} />
+                              {new Date(log.created_at).toLocaleString('id-ID')}
+                           </span>
                         </div>
-                        {log.profiles?.full_name || 'System'}
-                     </div>
-                  </td>
-                  <td className="px-6 py-4">
-                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${getActionStyle(log.action)}`}>
-                        {log.action}
-                     </span>
-                  </td>
-                  <td className="px-6 py-4">
-                     <div className="flex items-center gap-2 text-slate-600">
-                        <Info size={14} className="text-slate-300 shrink-0" />
-                        <span className="truncate max-w-md">{log.details}</span>
-                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                      </div>
+                   </div>
+                </div>
 
-        {loading && (
-          <div className="p-12 text-center text-slate-400 flex flex-col items-center gap-2">
-             <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-             <p className="font-medium">Fetching logs...</p>
-          </div>
-        )}
-
-        {!loading && filteredLogs.length === 0 && (
-          <div className="p-12 text-center">
-             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-200">
-                <History size={32} />
+                {/* Meta Column */}
+                <div className="hidden lg:flex flex-col items-end gap-1 shrink-0 px-8 border-l border-slate-50">
+                   <div className="flex items-center gap-2 text-[10px] font-black text-slate-300">
+                      <Database size={12} />
+                      {log.target_table}
+                   </div>
+                   <div className="text-[10px] font-mono text-slate-300">ID: {log.target_id}</div>
+                </div>
              </div>
-             <p className="text-slate-400 font-medium italic">No activity recorded yet.</p>
           </div>
-        )}
+        ))}
       </div>
+
+      {!loading && filteredLogs.length === 0 && (
+        <div className="p-20 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-100">
+           <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+             <Filter size={40} className="text-slate-200" />
+           </div>
+           <p className="text-slate-400 font-bold">Belum ada catatan aktivitas.</p>
+        </div>
+      )}
     </div>
   );
 };
 
-const getActionStyle = (action) => {
+const getActionColor = (action) => {
   switch (action) {
-    case 'CREATE': return 'bg-emerald-50 text-emerald-600';
-    case 'UPDATE': return 'bg-blue-50 text-blue-600';
+    case 'CREATE': return 'bg-blue-50 text-blue-600';
+    case 'UPDATE': return 'bg-amber-50 text-amber-600';
     case 'DELETE': return 'bg-red-50 text-red-600';
-    case 'ALLOCATE': return 'bg-amber-50 text-amber-600';
-    case 'VERIFY': return 'bg-purple-50 text-purple-600';
-    default: return 'bg-slate-100 text-slate-600';
+    case 'ALLOCATE': return 'bg-blue-600 text-white';
+    case 'VERIFY': return 'bg-emerald-50 text-emerald-600';
+    default: return 'bg-slate-50 text-slate-400';
+  }
+};
+
+const getActionTextColor = (action) => {
+  switch (action) {
+    case 'CREATE': return 'text-blue-600';
+    case 'UPDATE': return 'text-amber-600';
+    case 'DELETE': return 'text-red-600';
+    case 'ALLOCATE': return 'text-blue-800';
+    case 'VERIFY': return 'text-emerald-600';
+    default: return 'text-slate-500';
   }
 };
 

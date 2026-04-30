@@ -1,20 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
 import { useOutletContext } from 'react-router-dom';
 import { 
-  Users, 
   UserCog, 
   Shield, 
   ShieldCheck, 
   Search, 
   Edit2, 
   Trash2, 
-  X,
   CheckCircle2,
   Plus,
   Mail,
   Lock,
-  Save
+  Save,
+  User as UserIcon
 } from 'lucide-react';
 
 const UserManagement = () => {
@@ -25,7 +24,7 @@ const UserManagement = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get('/users');
@@ -35,14 +34,14 @@ const UserManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    const initFetch = async () => {
+    const init = async () => {
       await fetchData();
     };
-    initFetch();
-  }, []);
+    init();
+  }, [fetchData]);
 
   const handleSave = async (formData) => {
     try {
@@ -81,95 +80,95 @@ const UserManagement = () => {
   );
 
   return (
-    <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-           <h1 className="text-3xl font-bold text-slate-800">User Management</h1>
-           <p className="text-slate-500 mt-1">Kelola hak akses dan peran pengguna sistem.</p>
+           <h1 className="text-2xl lg:text-3xl font-black text-slate-800 tracking-tight">Manajemen User</h1>
+           <p className="text-slate-500 font-medium text-sm lg:text-base">Kelola hak akses dan peran pengguna sistem.</p>
         </div>
         
-        <div className="flex gap-3">
-           <div className="relative">
+        <div className="flex gap-2">
+           <div className="relative flex-1 lg:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
                 type="text" 
-                placeholder="Cari nama atau role..." 
+                placeholder="Cari user..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 w-64 shadow-sm"
+                className="w-full lg:w-64 pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
               />
            </div>
            <button 
              onClick={() => { setEditingUser(null); setIsModalOpen(true); }}
-             className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all"
+             className="hidden lg:flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
            >
               <Plus size={18} /> Tambah User
            </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 overflow-hidden">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-50/50 border-b border-slate-100">
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">User Info</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Role</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Status</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {loading ? (
-              <tr>
-                <td colSpan="4" className="px-6 py-20 text-center text-slate-400">Loading users...</td>
-              </tr>
-            ) : filteredUsers.map((u) => (
-              <tr key={u.id} className="hover:bg-slate-50/50 transition-colors group">
-                <td className="px-6 py-5">
-                   <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-slate-100 text-slate-500 rounded-xl flex items-center justify-center shrink-0">
-                         <Users size={20} />
-                      </div>
-                      <div>
-                         <p className="font-bold text-slate-800">{u.full_name || 'No Name'}</p>
-                         <p className="text-[10px] text-slate-400 font-mono">{u.id}</p>
-                      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+        {loading ? (
+          [1,2,3].map(i => (
+            <div key={i} className="h-48 bg-white rounded-[2rem] animate-pulse border border-slate-100" />
+          ))
+        ) : filteredUsers.map((u) => (
+          <div key={u.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-2xl hover:shadow-blue-200/30 transition-all group relative overflow-hidden flex flex-col">
+             <div className="flex justify-between items-start mb-6">
+                <div className="flex items-center gap-4">
+                   <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
+                      <UserIcon size={24} />
                    </div>
-                </td>
-                <td className="px-6 py-5">
-                   <RoleBadge role={u.role} />
-                </td>
-                <td className="px-6 py-5">
-                   <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-xs uppercase tracking-wider">
-                      <CheckCircle2 size={14} /> Active
+                   <div className="min-w-0">
+                      <h3 className="text-base font-black text-slate-800 truncate">{u.full_name || 'No Name'}</h3>
+                      <p className="text-[9px] font-mono text-slate-400 truncate">{u.id}</p>
                    </div>
-                </td>
-                <td className="px-6 py-5">
-                   <div className="flex justify-end gap-2">
-                      <button 
-                        onClick={() => { setEditingUser(u); setIsModalOpen(true); }}
-                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                      >
-                         <Edit2 size={18} />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(u.id)}
-                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                      >
-                         <Trash2 size={18} />
-                      </button>
-                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </div>
+             </div>
+
+             <div className="flex-1 space-y-4">
+                <RoleBadge role={u.role} />
+                
+                <div className="flex items-center gap-2 text-emerald-600 font-black text-[10px] tracking-widest uppercase bg-emerald-50 w-fit px-3 py-1 rounded-full">
+                   <CheckCircle2 size={12} /> Akun Aktif
+                </div>
+             </div>
+
+             <div className="mt-6 pt-5 border-t border-slate-50 flex justify-end gap-2">
+                <button 
+                  onClick={() => { setEditingUser(u); setIsModalOpen(true); }}
+                  className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                >
+                   <Edit2 size={18} />
+                </button>
+                <button 
+                  onClick={() => handleDelete(u.id)}
+                  className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                >
+                   <Trash2 size={18} />
+                </button>
+             </div>
+             
+             {/* Gradient Accent */}
+             <div className="absolute top-0 right-0 w-20 h-20 bg-blue-50/50 rounded-full blur-3xl -mr-10 -mt-10" />
+          </div>
+        ))}
       </div>
 
+      {/* FAB (Mobile Only) */}
+      <button 
+        onClick={() => { setEditingUser(null); setIsModalOpen(true); }}
+        className="lg:hidden fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-2xl shadow-blue-400 flex items-center justify-center active:scale-90 transition-transform z-50 ring-4 ring-white"
+      >
+         <Plus size={28} />
+      </button>
+
+      {/* Modal CRUD */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center p-0 lg:p-4">
            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-           <div className="relative w-full max-w-lg animate-in zoom-in-95 duration-200">
+           <div className="relative w-full lg:max-w-lg bg-white rounded-t-[2.5rem] lg:rounded-[2.5rem] p-6 lg:p-10 shadow-2xl animate-in slide-in-from-bottom-20 lg:slide-in-from-bottom-4 duration-300">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 lg:hidden" />
               <UserEditForm 
                 user={editingUser} 
                 onSave={handleSave} 
@@ -184,16 +183,16 @@ const UserManagement = () => {
 
 const RoleBadge = ({ role }) => {
   const configs = {
-    admin: { label: 'Admin', color: 'bg-red-50 text-red-600 border-red-100', icon: ShieldCheck },
+    admin: { label: 'Administrator', color: 'bg-red-50 text-red-600 border-red-100', icon: ShieldCheck },
     sppg_head: { label: 'Head of SPPG', color: 'bg-emerald-50 text-emerald-600 border-emerald-100', icon: Shield },
     kecamatan_coordinator: { label: 'Coordinator', color: 'bg-blue-50 text-blue-600 border-blue-100', icon: UserCog }
   };
   const config = configs[role] || { label: role, color: 'bg-slate-50 text-slate-500 border-slate-100', icon: Shield };
   const Icon = config.icon;
   return (
-    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-bold ${config.color}`}>
+    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-tight ${config.color}`}>
        <Icon size={12} />
-       {config.label.toUpperCase()}
+       {config.label}
     </div>
   );
 };
@@ -207,47 +206,42 @@ const UserEditForm = ({ user, onSave, onCancel }) => {
   });
 
   return (
-    <div className="bg-white rounded-3xl p-8 shadow-2xl">
-       <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
-          <div className="flex items-center gap-4">
-             <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center">
-                {user ? <UserCog size={24} /> : <Plus size={24} />}
-             </div>
-             <div>
-                <h2 className="text-2xl font-bold text-slate-800">{user ? 'Edit User Role' : 'Tambah User Baru'}</h2>
-                <p className="text-sm text-slate-500">{user ? 'Ubah peran dan hak akses user.' : 'Daftarkan pengguna baru ke sistem.'}</p>
-             </div>
+    <div className="space-y-8">
+       <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
+             {user ? <UserCog size={24} /> : <Plus size={24} />}
           </div>
-          <button onClick={onCancel} className="p-2 hover:bg-slate-100 rounded-xl">
-             <X size={24} className="text-slate-400" />
-          </button>
+          <div>
+             <h2 className="text-xl font-black text-slate-800 tracking-tight">{user ? 'Edit Akses' : 'Tambah User'}</h2>
+             <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-0.5">Pengaturan Keamanan</p>
+          </div>
        </div>
 
        <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="space-y-6">
           {!user && (
             <>
-              <div className="space-y-2">
-                 <label className="text-sm font-bold text-slate-700 ml-1">Email Address</label>
+              <div className="space-y-1.5">
+                 <label className="text-xs font-bold text-slate-700 ml-1">Email Address</label>
                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input 
                       type="email" required
                       value={formData.email}
                       onChange={(e) => setFormData(p => ({...p, email: e.target.value}))}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
                       placeholder="user@example.com"
                     />
                  </div>
               </div>
-              <div className="space-y-2">
-                 <label className="text-sm font-bold text-slate-700 ml-1">Password</label>
+              <div className="space-y-1.5">
+                 <label className="text-xs font-bold text-slate-700 ml-1">Password</label>
                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input 
                       type="password" required
                       value={formData.password}
                       onChange={(e) => setFormData(p => ({...p, password: e.target.value}))}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
                       placeholder="••••••••"
                     />
                  </div>
@@ -255,23 +249,23 @@ const UserEditForm = ({ user, onSave, onCancel }) => {
             </>
           )}
 
-          <div className="space-y-2">
-             <label className="text-sm font-bold text-slate-700 ml-1">Full Name</label>
+          <div className="space-y-1.5">
+             <label className="text-xs font-bold text-slate-700 ml-1">Nama Lengkap Pengguna</label>
              <input 
                type="text" required
                value={formData.full_name}
                onChange={(e) => setFormData(p => ({...p, full_name: e.target.value}))}
-               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+               className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
                placeholder="John Doe"
              />
           </div>
 
-          <div className="space-y-2">
-             <label className="text-sm font-bold text-slate-700 ml-1">Assigned Role</label>
+          <div className="space-y-1.5">
+             <label className="text-xs font-bold text-slate-700 ml-1">Peran dalam Sistem</label>
              <select 
                value={formData.role}
                onChange={(e) => setFormData(p => ({...p, role: e.target.value}))}
-               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+               className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm appearance-none"
              >
                 <option value="admin">System Administrator</option>
                 <option value="sppg_head">Head of SPPG Unit</option>
@@ -279,11 +273,11 @@ const UserEditForm = ({ user, onSave, onCancel }) => {
              </select>
           </div>
 
-          <div className="flex gap-4 pt-4">
-             <button type="button" onClick={onCancel} className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-colors">Batal</button>
-             <button type="submit" className="flex-[2] py-4 bg-emerald-600 text-white font-bold rounded-2xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2">
-                <Save size={20} />
-                {user ? 'Update Profile' : 'Daftarkan User'}
+          <div className="flex flex-col-reverse lg:flex-row gap-3 pt-4">
+             <button type="button" onClick={onCancel} className="flex-1 py-4 bg-slate-100 text-slate-500 font-bold rounded-2xl hover:bg-slate-200 transition-all uppercase tracking-widest text-xs">Batal</button>
+             <button type="submit" className="flex-[2] py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-xs">
+                <Save size={18} />
+                {user ? 'Simpan Profil' : 'Daftarkan User'}
              </button>
           </div>
        </form>

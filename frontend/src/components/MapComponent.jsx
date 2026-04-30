@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -37,7 +38,18 @@ const MapEvents = ({ setClickedLocation }) => {
   return null;
 };
 
-const MapComponent = ({ sppgs, kelompoks, setClickedLocation }) => {
+const ResizeHandler = ({ isFullScreen }) => {
+  const map = useMapEvents({});
+  useEffect(() => {
+    // Invalidate size when layout changes to fix partial map rendering
+    setTimeout(() => {
+      map.invalidateSize({ animate: true });
+    }, 800); // Wait for 700ms CSS transition to finish
+  }, [isFullScreen, map]);
+  return null;
+};
+
+const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen }) => {
   const defaultCenter = [-0.789275, 113.921327]; // Indonesia approx center
 
   const polylines = kelompoks
@@ -64,6 +76,7 @@ const MapComponent = ({ sppgs, kelompoks, setClickedLocation }) => {
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <MapEvents setClickedLocation={setClickedLocation} />
+      <ResizeHandler isFullScreen={isFullScreen} />
 
       {sppgs.map(sppg => (
         <Marker key={`sppg-${sppg.id}`} position={[sppg.lat, sppg.lng]} icon={sppgIcon}>
