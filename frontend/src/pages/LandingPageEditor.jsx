@@ -65,25 +65,25 @@ const LandingPageEditor = () => {
 
   return (
     <div className="max-w-4xl animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
-      <div className="flex items-center justify-between mb-10">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-10 gap-6">
         <div>
           <h1 className="text-3xl font-black text-slate-800 tracking-tight">Landing Page Editor</h1>
-          <p className="text-slate-500 font-medium mt-1">Kelola konten halaman publik secara dinamis.</p>
+          <p className="text-slate-500 font-medium mt-1">Kelola konten official Badan Gizi Nasional.</p>
         </div>
         <div className="flex gap-3">
           <button
             onClick={() => setShowPreview(true)}
-            className="px-6 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm active:scale-95"
+            className="flex-1 lg:flex-none px-6 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95"
           >
             <Eye size={18} /> Preview
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-6 py-3 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all flex items-center gap-2 shadow-lg shadow-blue-200 active:scale-95 disabled:opacity-50"
+            className="flex-1 lg:flex-none px-6 py-3 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-200 active:scale-95 disabled:opacity-50"
           >
             {saving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={18} />}
-            Simpan Perubahan
+            Simpan
           </button>
         </div>
       </div>
