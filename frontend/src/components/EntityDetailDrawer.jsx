@@ -182,6 +182,14 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                         subValue={entity.email ? 'Email Address' : 'WhatsApp Number'}
                       />
                     )}
+                    {type === 'kelompok' && entity.assigned_sppg_id && (
+                      <InfoCard 
+                        icon={Layers} 
+                        label="SPPG Terpilih" 
+                        value={sppgs?.find(s => s.id === entity.assigned_sppg_id)?.nama || 'Memuat...'} 
+                        subValue={sppgs?.find(s => s.id === entity.assigned_sppg_id)?.kode_sppg || 'Unit Penyalur'}
+                      />
+                    )}
                   </div>
 
                   {/* SPPG Specific: Production Capacity */}
@@ -285,13 +293,34 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                     </button>
                   )}
                   {type === 'kelompok' && canEdit && (
-                    <button 
-                      onClick={() => setIsAssignModalOpen(true)}
-                      className="flex-1 px-8 py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px] active:scale-95"
-                    >
-                      <Layers size={18} />
-                      Assign to SPPG
-                    </button>
+                    <div className="flex gap-2 flex-1">
+                      <button 
+                        onClick={() => setIsAssignModalOpen(true)}
+                        className="flex-1 px-4 py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-[10px] active:scale-95"
+                      >
+                        <Layers size={18} />
+                        {entity.assigned_sppg_id ? 'Reassign' : 'Assign to SPPG'}
+                      </button>
+                      
+                      {entity.assigned_sppg_id && (
+                        <button 
+                          onClick={async () => {
+                            if (window.confirm(`Unassign ${entity.nama} dari SPPG saat ini?`)) {
+                              await assignKelompok({ 
+                                id: entity.id, 
+                                sppgId: null, 
+                                groupName: entity.nama, 
+                                sppgName: 'None' 
+                              });
+                            }
+                          }}
+                          className="px-4 py-4 bg-red-50 text-red-600 border border-red-100 font-black rounded-2xl hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-[10px] active:scale-95"
+                          title="Hapus Assignment"
+                        >
+                          <XCircle size={18} />
+                        </button>
+                      )}
+                    </div>
                   )}
                   {!canEdit && (
                     <button 

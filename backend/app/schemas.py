@@ -68,7 +68,7 @@ class AllocationRequest(BaseModel):
 
 class ManualAssignRequest(BaseModel):
     group_id: int
-    sppg_id: int
+    sppg_id: Optional[int] = None
 
 class ProfileBase(BaseModel):
     full_name: Optional[str] = None

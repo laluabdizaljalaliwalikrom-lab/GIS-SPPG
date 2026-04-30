@@ -188,9 +188,28 @@ def verify_kelompok(db: Session, kelompok_id: int, status: str):
 
 def assign_manual(db: Session, req: schemas.ManualAssignRequest):
     k = db.query(models.KelompokPenerima).filter(models.KelompokPenerima.id == req.group_id).first()
-    sppg = db.query(models.SPPGUnit).filter(models.SPPGUnit.id == req.sppg_id).first()
     
-    if k and sppg:
+    if not k:
+        return None
+
+    if not req.sppg_id or req.sppg_id == 0:
+        old_sppg_id = k.assigned_sppg_id
+        k.assigned_sppg_id = None
+        db.commit()
+        db.refresh(k)
+        
+        db.execute(text("INSERT INTO audit_logs (action, target_table, target_id, details) VALUES (:action, :table, :id, :details)"), 
+                   {
+                       "action": "UNASSIGN", 
+                       "table": "kelompok_penerima", 
+                       "id": k.id, 
+                       "details": f"Unassigned {k.nama} (previously from SPPG ID {old_sppg_id})"
+                   })
+        db.commit()
+        return k
+
+    sppg = db.query(models.SPPGUnit).filter(models.SPPGUnit.id == req.sppg_id).first()
+    if sppg:
         k.assigned_sppg_id = req.sppg_id
         db.commit()
         db.refresh(k)
