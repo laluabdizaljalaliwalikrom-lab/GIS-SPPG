@@ -293,16 +293,16 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                     </button>
                   )}
                   {type === 'kelompok' && canEdit && (
-                    <div className="flex gap-2 flex-1">
-                      <button 
-                        onClick={() => setIsAssignModalOpen(true)}
-                        className="flex-1 px-4 py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-[10px] active:scale-95"
-                      >
-                        <Layers size={18} />
-                        {entity.assigned_sppg_id ? 'Reassign' : 'Assign to SPPG'}
-                      </button>
-                      
-                      {entity.assigned_sppg_id && (
+                    <div className="flex-1">
+                      {!entity.assigned_sppg_id ? (
+                        <button 
+                          onClick={() => setIsAssignModalOpen(true)}
+                          className="w-full px-8 py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px] active:scale-95"
+                        >
+                          <Layers size={18} />
+                          Assign to SPPG
+                        </button>
+                      ) : (
                         <button 
                           onClick={async () => {
                             if (window.confirm(`Unassign ${entity.nama} dari SPPG saat ini?`)) {
@@ -314,10 +314,10 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                               });
                             }
                           }}
-                          className="px-4 py-4 bg-red-50 text-red-600 border border-red-100 font-black rounded-2xl hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-[10px] active:scale-95"
-                          title="Hapus Assignment"
+                          className="w-full px-8 py-4 bg-red-50 text-red-600 border-2 border-red-100 font-black rounded-2xl hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px] active:scale-95 group"
                         >
-                          <XCircle size={18} />
+                          <XCircle size={18} className="group-hover:scale-110 transition-transform" />
+                          Unassign SPPG
                         </button>
                       )}
                     </div>
