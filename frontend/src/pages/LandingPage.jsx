@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { motion } from 'framer-motion';
-import { Map as MapIcon, Phone, Globe, Heart, Shield, Users, ArrowRight, ChevronRight, LogIn } from 'lucide-react';
+import { Map as MapIcon, Phone, Globe, Heart, Shield, Users, ArrowRight, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const LandingPage = ({ previewData = null }) => {
@@ -65,15 +65,13 @@ const LandingPage = ({ previewData = null }) => {
                <span className="text-[8px] font-black text-blue-500 uppercase tracking-widest mt-1">Badan Gizi Nasional</span>
             </div>
           </div>
-          <div className="hidden lg:flex items-center gap-10">
-            <a href="#misi" className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-widest transition-colors">Misi</a>
-            <a href="#program" className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-widest transition-colors">Program</a>
-            <a href="#sasaran" className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-widest transition-colors">Sasaran</a>
-            <Link to="/login" className="flex items-center gap-2 text-xs font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest transition-colors">
-              <LogIn size={16} />
-              Login
-            </Link>
-            <Link to="/login" className="px-7 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 shadow-xl shadow-blue-200">
+          <div className="flex items-center gap-4 lg:gap-10">
+            <div className="hidden lg:flex items-center gap-10">
+              <a href="#misi" className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-widest transition-colors">Misi</a>
+              <a href="#program" className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-widest transition-colors">Program</a>
+              <a href="#sasaran" className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-widest transition-colors">Sasaran</a>
+            </div>
+            <Link to="/login" className="px-5 py-2.5 lg:px-7 lg:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[9px] lg:text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 shadow-xl shadow-blue-200">
               Portal Admin
             </Link>
           </div>
