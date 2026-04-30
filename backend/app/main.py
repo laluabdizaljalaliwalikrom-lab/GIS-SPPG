@@ -75,9 +75,11 @@ def verify_kelompok(id: int, req: dict, db: Session = Depends(get_db), current_u
     print(f"DEBUG: verify_kelompok called for ID: {id}, Status: {status}")
     return crud.verify_kelompok(db, id, status)
 
-@app.post("/api/assign-manual")
-def assign_manual(req: schemas.ManualAssignRequest, db: Session = Depends(get_db)):
-    return crud.assign_manual(db, req)
+@app.patch("/api/kelompok/{id}/assign")
+def assign_manual(id: int, req: dict, db: Session = Depends(get_db), current_user: models.Profile = Depends(coordinator_only)):
+    sppg_id = req.get("sppg_id")
+    assign_req = schemas.ManualAssignRequest(group_id=id, sppg_id=sppg_id)
+    return crud.assign_manual(db, assign_req)
 
 @app.post("/api/allocate")
 def allocate_automatic(db: Session = Depends(get_db)):

@@ -23,6 +23,7 @@ class SPPGUnitCreate(SPPGUnitBase):
 
 class SPPGUnitResponse(SPPGUnitBase):
     id: int
+    remaining_capacity: Optional[int] = 0
     model_config = ConfigDict(from_attributes=True)
 
 class KelompokDetailBase(BaseModel):

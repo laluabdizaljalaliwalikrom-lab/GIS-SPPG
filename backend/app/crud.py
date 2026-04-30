@@ -29,6 +29,23 @@ def get_sppgs(db: Session, skip: int = 0, limit: int = 100, name: str = None):
     if name:
         query = query.filter(models.SPPGUnit.nama.ilike(f"%{name}%"))
     sppgs = query.offset(skip).limit(limit).all()
+    
+    # Calculate current allocations for all SPPGs in one go
+    allocations = db.query(
+        models.KelompokPenerima.assigned_sppg_id,
+        func.sum(
+            func.coalesce(models.KelompokDetail.porsi_kecil, 0) +
+            func.coalesce(models.KelompokDetail.porsi_besar, 0) +
+            func.coalesce(models.KelompokDetail.jumlah_busui, 0) +
+            func.coalesce(models.KelompokDetail.jumlah_bumil, 0) +
+            func.coalesce(models.KelompokDetail.jumlah_balita_non_paud, 0)
+        ).label('total_allocated')
+    ).join(models.KelompokDetail, models.KelompokPenerima.id == models.KelompokDetail.kelompok_id)\
+     .filter(models.KelompokPenerima.assigned_sppg_id != None)\
+     .group_by(models.KelompokPenerima.assigned_sppg_id).all()
+    
+    alloc_map = {a.assigned_sppg_id: a.total_allocated for a in allocations}
+
     result = []
     for s in sppgs:
         pt = db.scalar(func.ST_AsText(s.geom))
@@ -36,6 +53,10 @@ def get_sppgs(db: Session, skip: int = 0, limit: int = 100, name: str = None):
         s_dict = {k: v for k, v in s.__dict__.items() if not k.startswith('_')}
         s_dict['lat'] = lat
         s_dict['lng'] = lng
+        
+        allocated = alloc_map.get(s.id, 0)
+        s_dict['remaining_capacity'] = max(0, s.kapasitas_produksi - allocated)
+        
         result.append(schemas.SPPGUnitResponse(**s_dict))
     return result
 
@@ -167,10 +188,22 @@ def verify_kelompok(db: Session, kelompok_id: int, status: str):
 
 def assign_manual(db: Session, req: schemas.ManualAssignRequest):
     k = db.query(models.KelompokPenerima).filter(models.KelompokPenerima.id == req.group_id).first()
-    if k:
+    sppg = db.query(models.SPPGUnit).filter(models.SPPGUnit.id == req.sppg_id).first()
+    
+    if k and sppg:
         k.assigned_sppg_id = req.sppg_id
         db.commit()
         db.refresh(k)
+        
+        # Record in audit_logs
+        db.execute(text("INSERT INTO audit_logs (action, target_table, target_id, details) VALUES (:action, :table, :id, :details)"), 
+                   {
+                       "action": "MANUAL_ASSIGN", 
+                       "table": "kelompok_penerima", 
+                       "id": k.id, 
+                       "details": f"Manually assigned {k.nama} to {sppg.nama}"
+                   })
+        db.commit()
     return k
 
 def allocate_automatic(db: Session):

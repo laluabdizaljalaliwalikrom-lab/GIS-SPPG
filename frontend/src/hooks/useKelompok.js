@@ -103,6 +103,22 @@ export const useKelompok = (filters = {}) => {
     },
   });
 
+  // Manual Assign Kelompok
+  const assignMutation = useMutation({
+    mutationFn: async ({ id, sppgId, groupName, sppgName }) => {
+      const { data } = await api.patch(`/kelompok/${id}/assign`, { sppg_id: sppgId });
+      return { data, groupName, sppgName };
+    },
+    onSuccess: ({ groupName, sppgName }) => {
+      queryClient.invalidateQueries({ queryKey: ['kelompoks'] });
+      queryClient.invalidateQueries({ queryKey: ['sppgs'] });
+      toast.success(`Kelompok ${groupName} successfully assigned to ${sppgName}`);
+    },
+    onError: (err) => {
+      toast.error(`Gagal melakukan assignment: ${err.message}`);
+    },
+  });
+
   return {
     kelompoks,
     isLoading,
@@ -111,8 +127,10 @@ export const useKelompok = (filters = {}) => {
     updateKelompok: updateMutation.mutateAsync,
     deleteKelompok: deleteMutation.mutateAsync,
     verifyKelompok: verifyMutation.mutateAsync,
+    assignKelompok: assignMutation.mutateAsync,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+    isAssigning: assignMutation.isPending,
   };
 };

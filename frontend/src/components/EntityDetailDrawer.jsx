@@ -23,7 +23,11 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
   const [isEditing, setIsEditing] = useState(false);
   
   const { updateSPPG, deleteSPPG, isUpdating: isUpdatingSPPG } = useSPPG();
-  const { updateKelompok, deleteKelompok, verifyKelompok, isUpdating: isUpdatingKelompok } = useKelompok();
+  const { updateKelompok, deleteKelompok, verifyKelompok, assignKelompok, isUpdating: isUpdatingKelompok, isAssigning } = useKelompok();
+  const { sppgs } = useSPPG();
+
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [sppgSearch, setSppgSearch] = useState('');
 
   const isUpdating = type === 'sppg' ? isUpdatingSPPG : isUpdatingKelompok;
 
@@ -280,6 +284,15 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                       Edit Informasi
                     </button>
                   )}
+                  {type === 'kelompok' && canEdit && (
+                    <button 
+                      onClick={() => setIsAssignModalOpen(true)}
+                      className="flex-1 px-8 py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px] active:scale-95"
+                    >
+                      <Layers size={18} />
+                      Assign to SPPG
+                    </button>
+                  )}
                   {!canEdit && (
                     <button 
                       onClick={onClose}
@@ -292,6 +305,82 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
               )}
             </div>
           </motion.div>
+          
+          {/* Assignment Modal */}
+          <AnimatePresence>
+            {isAssignModalOpen && (
+              <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setIsAssignModalOpen(false)}
+                  className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                />
+                <motion.div 
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden"
+                >
+                  <div className="p-8 bg-emerald-600 text-white">
+                    <h3 className="text-xl font-black mb-1">Assign to SPPG</h3>
+                    <p className="text-emerald-100 text-xs">Pilih unit SPPG untuk alokasi kelompok ini.</p>
+                  </div>
+                  <div className="p-6">
+                    <input 
+                      type="text"
+                      placeholder="Cari SPPG..."
+                      value={sppgSearch}
+                      onChange={(e) => setSppgSearch(e.target.value)}
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-600 outline-none transition-all mb-4 text-sm font-medium"
+                    />
+                    <div className="max-h-64 overflow-y-auto space-y-2 custom-scrollbar pr-2">
+                      {Array.isArray(sppgs) && sppgs
+                        .filter(s => s.nama && s.nama.toLowerCase().includes(sppgSearch.toLowerCase()))
+                        .map(s => (
+                          <button
+                            key={s.id}
+                            onClick={async () => {
+                              try {
+                                await assignKelompok({ 
+                                  id: entity.id, 
+                                  sppgId: s.id, 
+                                  groupName: entity.nama, 
+                                  sppgName: s.nama 
+                                });
+                                setIsAssignModalOpen(false);
+                                onClose();
+                              } catch (e) {
+                                console.error(e);
+                              }
+                            }}
+                            disabled={isAssigning}
+                            className="w-full p-4 flex items-center justify-between bg-slate-50 hover:bg-emerald-50 border border-transparent hover:border-emerald-200 rounded-2xl transition-all group"
+                          >
+                            <div className="text-left">
+                              <p className="font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">{s.nama}</p>
+                              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Kapasitas Sisa: <span className="text-emerald-600">{(s.remaining_capacity || 0).toLocaleString()}</span></p>
+                            </div>
+                            <Save size={18} className="text-slate-300 group-hover:text-emerald-600 transition-colors" />
+                          </button>
+                        ))
+                      }
+                      {(!Array.isArray(sppgs) || sppgs.length === 0) && <p className="text-center py-8 text-slate-400 text-sm italic">Tidak ada SPPG tersedia.</p>}
+                    </div>
+                  </div>
+                  <div className="p-6 bg-slate-50 flex gap-3">
+                    <button 
+                      onClick={() => setIsAssignModalOpen(false)}
+                      className="flex-1 py-4 bg-white border border-slate-200 text-slate-500 font-black rounded-2xl hover:bg-slate-100 transition-all uppercase tracking-widest text-[10px]"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
         </>
       )}
     </AnimatePresence>
