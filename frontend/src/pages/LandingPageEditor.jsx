@@ -1,32 +1,30 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { toast } from 'react-hot-toast';
-import { Save, Eye, Layout, Type, AlignLeft, Info, X } from 'lucide-react';
+import { Save, Eye, Layout, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import LandingPage from './LandingPage';
+import { useLandingConfig } from '../hooks/useLandingConfig';
+import { useQueryClient } from '@tanstack/react-query';
 
 const LandingPageEditor = () => {
-  const [configs, setConfigs] = useState([]);
+  const queryClient = useQueryClient();
+  const { data: configs = [], isLoading: loading } = useLandingConfig();
   const [formData, setFormData] = useState({});
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
+  // Initialize form data when config loads
   useEffect(() => {
-    fetchConfigs();
-  }, []);
-
-  const fetchConfigs = async () => {
-    const { data, error } = await supabase.from('landing_config').select('*').order('section_name');
-    if (error) {
-      toast.error('Gagal mengambil data konfigurasi');
-    } else {
-      setConfigs(data);
-      const initialForm = data.reduce((acc, item) => ({ ...acc, [item.key]: item.value }), {});
-      setFormData(initialForm);
+    if (configs.length > 0 && Object.keys(formData).length === 0) {
+      const initialForm = configs.reduce((acc, item) => ({ ...acc, [item.key]: item.value }), {});
+      // Use setTimeout to avoid synchronous setState warning
+      const timer = setTimeout(() => {
+        setFormData(initialForm);
+      }, 0);
+      return () => clearTimeout(timer);
     }
-    setLoading(false);
-  };
+  }, [configs, formData]);
 
   const handleInputChange = (key, value) => {
     setFormData(prev => ({ ...prev, [key]: value }));
@@ -46,7 +44,7 @@ const LandingPageEditor = () => {
       if (error) throw error;
       
       toast.success('Konfigurasi landing page berhasil disimpan!');
-      fetchConfigs();
+      queryClient.invalidateQueries({ queryKey: ['landing_config'] });
     } catch (error) {
       console.error(error);
       toast.error('Gagal menyimpan konfigurasi: ' + error.message);
@@ -129,24 +127,24 @@ const LandingPageEditor = () => {
       <AnimatePresence>
         {showPreview && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4 lg:p-10">
-             <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="relative w-full h-full bg-white rounded-[3rem] shadow-2xl overflow-hidden border-4 border-white"
-             >
-                <div className="absolute top-6 right-6 z-[70]">
-                  <button 
-                    onClick={() => setShowPreview(false)}
-                    className="p-3 bg-slate-900 text-white rounded-2xl shadow-xl hover:scale-110 transition-all active:scale-95"
-                  >
-                    <X size={24} />
-                  </button>
-                </div>
-                <div className="w-full h-full overflow-y-auto no-scrollbar">
-                   <LandingPage previewData={formData} />
-                </div>
-             </motion.div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="relative w-full h-full bg-white rounded-[3rem] shadow-2xl overflow-hidden border-4 border-white"
+            >
+              <div className="absolute top-6 right-6 z-[70]">
+                <button
+                  onClick={() => setShowPreview(false)}
+                  className="p-3 bg-slate-900 text-white rounded-2xl shadow-xl hover:scale-110 transition-all active:scale-95"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              <div className="w-full h-full overflow-y-auto no-scrollbar">
+                <LandingPage previewData={formData} />
+              </div>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>
