@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'https://gis-sppg.onrender.com',
+  baseURL: 'https://gis-sppg.onrender.com/api',
 });
 
 api.interceptors.request.use((config) => {
