@@ -71,7 +71,7 @@ const Login = () => {
       </div>
 
       {/* Right Side: Login Form */}
-      <div className="flex-1 flex flex-col justify-center p-8 lg:p-24 relative bg-white">
+      <div className="flex-1 flex flex-col justify-center p-8 pt-24 lg:p-24 relative bg-white">
         <div className="absolute top-10 left-10 lg:hidden">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -118,7 +118,7 @@ const Login = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-14 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 transition-all font-medium text-sm text-slate-700"
-                    placeholder="nama@instansi.go.id"
+                    placeholder="nama@gmail.com"
                     required
                   />
                 </div>
