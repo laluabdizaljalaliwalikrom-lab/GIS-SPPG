@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents, Polyline, Tooltip, Popup, GeoJSON } from 'react-leaflet';
 import sikurGeoJSON from '../assets/sikur.json';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Plus, Target } from 'lucide-react';
+import { Plus, Target, Layers, Eye, EyeOff } from 'lucide-react';
 
 // Fix for default icons
 import iconMarker from 'leaflet/dist/images/marker-icon.png';
@@ -80,8 +80,20 @@ const CustomZoomControl = ({ sppgs, kelompoks }) => {
     }
   };
 
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      L.DomEvent.disableClickPropagation(containerRef.current);
+      L.DomEvent.disableScrollPropagation(containerRef.current);
+    }
+  }, []);
+
   return (
-    <div className="absolute top-4 left-4 z-[1000] flex flex-col gap-2">
+    <div 
+      ref={containerRef}
+      className="absolute top-4 left-4 z-[1000] flex flex-col gap-2"
+    >
       <button
         onClick={(e) => { e.stopPropagation(); map.zoomIn(); }}
         className="w-8 h-8 lg:w-9 lg:h-9 bg-white/95 backdrop-blur-xl rounded-xl flex items-center justify-center text-slate-700 shadow-xl border border-white/60 hover:bg-blue-600 hover:text-white transition-all active:scale-95"
@@ -105,7 +117,84 @@ const CustomZoomControl = ({ sppgs, kelompoks }) => {
   );
 };
 
-const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen, onMarkerClick }) => {
+const LayerControl = ({ visibility, setVisibility }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const layers = [
+    { id: 'sppg', label: 'Unit SPPG', color: 'bg-emerald-500' },
+    { id: 'school', label: 'Sekolah (Verified)', color: 'bg-blue-600' },
+    { id: 'posyandu', label: 'Posyandu (Verified)', color: 'bg-amber-500' },
+    { id: 'pending', label: 'Menunggu Verifikasi', color: 'bg-red-500' },
+    { id: 'boundary', label: 'Batas Wilayah', color: 'bg-blue-400' },
+    { id: 'lines', label: 'Garis Penugasan', color: 'bg-blue-500/50' },
+  ];
+
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      L.DomEvent.disableClickPropagation(containerRef.current);
+      L.DomEvent.disableScrollPropagation(containerRef.current);
+    }
+  }, []);
+
+  return (
+    <div 
+      ref={containerRef}
+      className="absolute top-[72px] lg:top-4 right-4 z-[1000] flex flex-col items-end gap-2"
+    >
+      <button 
+        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+        title="Map Layers"
+        className={`w-8 h-8 lg:w-10 lg:h-10 rounded-xl lg:rounded-2xl flex items-center justify-center transition-all shadow-xl border border-white/60 backdrop-blur-xl ${
+          isOpen ? 'bg-blue-600 text-white' : 'bg-white/95 text-slate-700 hover:bg-slate-50'
+        }`}
+      >
+        <Layers size={isOpen ? 18 : 20} />
+      </button>
+
+      {isOpen && (
+        <div className="w-56 lg:w-64 bg-white/95 backdrop-blur-2xl rounded-[1.5rem] lg:rounded-[2rem] shadow-2xl border border-white/60 p-4 lg:p-5 animate-in fade-in slide-in-from-top-2 duration-300">
+          <p className="text-[9px] lg:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 lg:mb-4 ml-1">Map Layers</p>
+          <div className="space-y-1 lg:space-y-2">
+            {layers.map(layer => (
+              <button
+                key={layer.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setVisibility(prev => ({ ...prev, [layer.id]: !prev[layer.id] }));
+                }}
+                className="w-full flex items-center justify-between p-2.5 lg:p-3 rounded-xl lg:rounded-2xl hover:bg-slate-50 transition-colors group text-left"
+              >
+                <div className="flex items-center gap-2 lg:gap-3">
+                  <div className={`w-2 lg:w-2.5 h-2 lg:h-2.5 rounded-full ${layer.color} shadow-sm`} />
+                  <span className={`text-[10px] lg:text-[11px] font-bold ${visibility[layer.id] ? 'text-slate-700' : 'text-slate-400 line-through decoration-2 opacity-50'}`}>
+                    {layer.label}
+                  </span>
+                </div>
+                {visibility[layer.id] ? (
+                  <Eye size={12} className="text-blue-500 lg:w-[14px] lg:h-[14px]" />
+                ) : (
+                  <EyeOff size={12} className="text-slate-300 lg:w-[14px] lg:h-[14px]" />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const MapComponent = ({ sppgs = [], kelompoks = [], setClickedLocation, isFullScreen, onMarkerClick }) => {
+  const [visibility, setVisibility] = useState({
+    sppg: true,
+    school: true,
+    posyandu: true,
+    pending: true,
+    boundary: true,
+    lines: true
+  });
   const defaultCenter = [-8.625, 116.44]; // Center of Kecamatan Sikur, Lombok Timur
 
   const polylines = kelompoks
@@ -141,33 +230,36 @@ const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen, onMa
       <MapEvents setClickedLocation={setClickedLocation} />
       <ResizeHandler isFullScreen={isFullScreen} />
       <CustomZoomControl sppgs={sppgs} kelompoks={kelompoks} />
+      <LayerControl visibility={visibility} setVisibility={setVisibility} />
 
       {/* High-Precision Kecamatan Sikur Boundary from GeoJSON with Village Labels */}
-      <GeoJSON 
-        data={sikurGeoJSON}
-        onEachFeature={(feature, layer) => {
-          if (feature.properties && (feature.properties.kel_desa || feature.properties.ori_name)) {
-            layer.bindTooltip(feature.properties.kel_desa || feature.properties.ori_name, {
-              permanent: true,
-              direction: 'center',
-              className: 'village-label-tooltip',
-              sticky: true
-            });
-          }
-        }}
-        style={{
-          color: '#3b82f6',
-          weight: 1.5,
-          fillColor: '#3b82f6',
-          fillOpacity: 0.04,
-          dashArray: '5, 8',
-          lineCap: 'round',
-          lineJoin: 'round'
-        }}
-        interactive={false}
-      />
+      {visibility.boundary && (
+        <GeoJSON 
+          data={sikurGeoJSON}
+          onEachFeature={(feature, layer) => {
+            if (feature.properties && (feature.properties.kel_desa || feature.properties.ori_name)) {
+              layer.bindTooltip(feature.properties.kel_desa || feature.properties.ori_name, {
+                permanent: true,
+                direction: 'center',
+                className: 'village-label-tooltip',
+                sticky: true
+              });
+            }
+          }}
+          style={{
+            color: '#3b82f6',
+            weight: 1.5,
+            fillColor: '#3b82f6',
+            fillOpacity: 0.04,
+            dashArray: '5, 8',
+            lineCap: 'round',
+            lineJoin: 'round'
+          }}
+          interactive={false}
+        />
+      )}
 
-      {sppgs.filter(s => s.lat && s.lng).map(sppg => (
+      {visibility.sppg && sppgs.filter(s => s.lat && s.lng).map(sppg => (
         <Marker
           key={`sppg-${sppg.id}`}
           position={[sppg.lat, sppg.lng]}
@@ -183,10 +275,25 @@ const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen, onMa
       ))}
 
       {kelompoks.map(k => {
+        if (!k.lat || !k.lng) return null;
+        
+        let isVisible = false;
         let icon = pendingIcon;
+        
         if (k.status === 'verified') {
-          icon = k.jenis_kelompok === 'School' ? verifiedSchoolIcon : verifiedPosyanduIcon;
+          if (k.jenis_kelompok === 'School') {
+            isVisible = visibility.school;
+            icon = verifiedSchoolIcon;
+          } else {
+            isVisible = visibility.posyandu;
+            icon = verifiedPosyanduIcon;
+          }
+        } else {
+          isVisible = visibility.pending;
+          icon = pendingIcon;
         }
+
+        if (!isVisible) return null;
 
         return (
           <Marker
@@ -204,7 +311,7 @@ const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen, onMa
         );
       })}
 
-      {polylines.map((line, idx) => (
+      {visibility.lines && polylines.map((line, idx) => (
         <Polyline
           key={`line-${idx}`}
           positions={line.positions}

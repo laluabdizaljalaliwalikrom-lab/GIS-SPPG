@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import L from 'leaflet';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSPPG } from '../hooks/useSPPG';
 import { useKelompok } from '../hooks/useKelompok';
@@ -7,8 +8,7 @@ import { useOutletContext, useNavigate } from 'react-router-dom';
 import EntityDetailDrawer from '../components/EntityDetailDrawer';
 import { 
   RefreshCw, 
-  Layers, 
-  Crosshair, 
+  Crosshair,
   Plus, 
   X, 
   Maximize2, 
@@ -19,21 +19,23 @@ import {
   Search
 } from 'lucide-react';
 
-const LegendItem = ({ color, label }) => (
-  <div className="flex items-center gap-3 px-1">
-     <div className={`w-3 h-3 rounded-full ${color} ring-4 ring-white shadow-sm shrink-0`} />
-     <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em]">{label}</span>
-  </div>
-);
+
 
 const MapView = () => {
   const queryClient = useQueryClient();
   const { profile } = useOutletContext();
   const navigate = useNavigate();
   const [clickedLocation, setClickedLocation] = useState(null);
-  const [showLegend, setShowLegend] = useState(false);
+
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const mobileFullBtnRef = useRef(null);
+
+  useEffect(() => {
+    if (mobileFullBtnRef.current) {
+      L.DomEvent.disableClickPropagation(mobileFullBtnRef.current);
+    }
+  }, []);
 
   // Drawer State
   const [selectedEntity, setSelectedEntity] = useState(null);
@@ -102,41 +104,14 @@ const MapView = () => {
           />
           
           <button 
-            onClick={() => setIsFullScreen(!isFullScreen)}
+            ref={mobileFullBtnRef}
+            onClick={(e) => { e.stopPropagation(); setIsFullScreen(!isFullScreen); }}
             className="lg:hidden absolute top-4 right-4 z-[1000] p-3 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/50 text-blue-600"
           >
             {isFullScreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
           </button>
 
-          <div className="absolute bottom-32 lg:bottom-8 left-4 right-auto z-[1000] flex flex-col gap-3 pointer-events-none">
-            {showLegend && (
-              <div className="bg-white/95 backdrop-blur-xl p-4 lg:p-5 rounded-[2rem] pointer-events-auto w-fit lg:w-64 shadow-2xl border border-white/60 animate-in slide-in-from-bottom-10 lg:slide-in-from-left-10 duration-500">
-                <div className="flex items-center justify-between mb-3 lg:mb-4 px-1">
-                  <h3 className="font-black text-slate-800 flex items-center gap-3 text-[8px] lg:text-[9px] uppercase tracking-[0.2em]">
-                    <Layers size={14} className="text-blue-600" /> Legenda Peta
-                  </h3>
-                  <button onClick={() => setShowLegend(false)} className="p-1.5 bg-slate-100 rounded-lg text-slate-400 hover:text-red-500 transition-colors">
-                    <X size={12} />
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 lg:grid-cols-1 gap-2 lg:gap-3">
-                   <LegendItem color="bg-emerald-500" label="Unit SPPG" />
-                   <LegendItem color="bg-blue-600" label="Sekolah" />
-                   <LegendItem color="bg-amber-500" label="Posyandu" />
-                   <LegendItem color="bg-red-400" label="Menunggu" />
-                </div>
-              </div>
-            )}
 
-            {!showLegend && (
-              <button 
-                onClick={() => setShowLegend(true)}
-                className="pointer-events-auto w-10 h-10 lg:w-12 lg:h-12 bg-white/95 backdrop-blur-xl rounded-2xl flex items-center justify-center text-blue-600 shadow-xl border border-white/60 hover:scale-110 transition-all animate-in zoom-in-50"
-              >
-                <Layers size={20} />
-              </button>
-            )}
-          </div>
         </div>
 
         {!isFullScreen && (
