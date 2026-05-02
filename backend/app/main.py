@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from . import crud, models, schemas
@@ -6,6 +6,8 @@ from .database import engine, get_db
 from .dependencies import coordinator_only, admin_only
 import logging
 import os
+import pandas as pd
+import io
 from dotenv import load_dotenv
 
 # Load .env from root
@@ -37,6 +39,22 @@ def create_sppg(sppg: schemas.SPPGUnitCreate, db: Session = Depends(get_db), _ =
             return s
     raise HTTPException(status_code=500, detail="Failed to fetch created SPPG")
 
+@app.post("/api/sppg/import")
+async def import_sppg_file(file: UploadFile = File(...), db: Session = Depends(get_db), _ = Depends(coordinator_only)):
+    try:
+        contents = await file.read()
+        if file.filename.endswith('.csv'):
+            df = pd.read_csv(io.BytesIO(contents))
+        else:
+            df = pd.read_excel(io.BytesIO(contents))
+        
+        # Standardize column names to lowercase
+        df.columns = [c.lower() for c in df.columns]
+        data = df.to_dict(orient='records')
+        return crud.import_sppgs(db, data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Gagal memproses file: {str(e)}")
+
 @app.get("/api/kelompok", response_model=list[schemas.KelompokPenerimaResponse])
 def read_kelompoks(skip: int = 0, limit: int = 100, name: str = None, status: str = None, type: str = None, db: Session = Depends(get_db)):
     return crud.get_kelompoks(db, skip=skip, limit=limit, name=name, status=status, type=type)
@@ -50,6 +68,22 @@ def create_kelompok(kelompok: schemas.KelompokPenerimaCreate, db: Session = Depe
         if k.id == db_k.id:
             return k
     raise HTTPException(status_code=500, detail="Failed to fetch created Kelompok")
+
+@app.post("/api/kelompok/import")
+async def import_kelompok_file(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: models.Profile = Depends(coordinator_only)):
+    try:
+        contents = await file.read()
+        if file.filename.endswith('.csv'):
+            df = pd.read_csv(io.BytesIO(contents))
+        else:
+            df = pd.read_excel(io.BytesIO(contents))
+        
+        # Standardize column names to lowercase
+        df.columns = [c.lower() for c in df.columns]
+        data = df.to_dict(orient='records')
+        return crud.import_kelompoks(db, data, current_user)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Gagal memproses file: {str(e)}")
 
 @app.put("/api/sppg/{sppg_id}", response_model=schemas.SPPGUnitResponse)
 def update_sppg(sppg_id: int, sppg: schemas.SPPGUnitCreate, db: Session = Depends(get_db), _ = Depends(coordinator_only)):
@@ -72,7 +106,6 @@ def delete_kelompok(kelompok_id: int, db: Session = Depends(get_db), _ = Depends
 @app.post("/api/kelompok/{id}/verify")
 def verify_kelompok(id: int, req: dict, db: Session = Depends(get_db), current_user: models.Profile = Depends(coordinator_only)):
     status = req.get("status")
-    print(f"DEBUG: verify_kelompok called for ID: {id}, Status: {status}")
     return crud.verify_kelompok(db, id, status)
 
 @app.patch("/api/kelompok/{id}/assign")

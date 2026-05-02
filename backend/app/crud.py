@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, asc, text
 from . import models, schemas
 import os
+from datetime import date
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -341,3 +342,75 @@ def create_user(db: Session, user_data: schemas.UserCreate):
     db.commit()
     
     return db_profile
+def import_sppgs(db: Session, data: list[dict]):
+    results = {"success": 0, "failed": 0, "errors": []}
+    for i, row in enumerate(data):
+        try:
+            geom = f"POINT({row['longitude']} {row['latitude']})"
+            db_sppg = models.SPPGUnit(
+                nama=row.get('nama'),
+                kode_sppg=row.get('kode_sppg', f"SPPG-{i+100}"),
+                alamat_desa=row.get('alamat_desa') or row.get('alamat', ''),
+                status_operasional=row.get('status_operasional', 'Aktif'),
+                tanggal_operasional=row.get('tanggal_operasional', date.today()),
+                nama_kepala=row.get('nama_kepala', '-'),
+                pengawas_keuangan=row.get('pengawas_keuangan'),
+                pengawas_gizi=row.get('pengawas_gizi'),
+                pic_yayasan=row.get('pic_yayasan'),
+                nama_yayasan=row.get('nama_yayasan'),
+                kapasitas_produksi=row.get('kapasitas_produksi', 0),
+                geom=func.ST_GeogFromText(geom)
+            )
+            db.add(db_sppg)
+            db.commit()
+            db.refresh(db_sppg)
+            
+            db.execute(text("INSERT INTO audit_logs (action, target_table, target_id, details) VALUES (:action, :table, :id, :details)"), 
+                       {"action": "IMPORT_SPPG", "table": "sppg_units", "id": db_sppg.id, "details": f"Imported SPPG {db_sppg.nama}"})
+            db.commit()
+            results["success"] += 1
+        except Exception as e:
+            db.rollback()
+            results["failed"] += 1
+            results["errors"].append(f"Baris {i+1}: {str(e)}")
+    return results
+
+def import_kelompoks(db: Session, data: list[dict], current_user: models.Profile):
+    results = {"success": 0, "failed": 0, "errors": []}
+    status = 'verified' if current_user.role == 'admin' else 'pending_verification'
+    
+    for i, row in enumerate(data):
+        try:
+            geom = f"POINT({row['longitude']} {row['latitude']})"
+            db_kelompok = models.KelompokPenerima(
+                nama=row['nama'],
+                alamat=row.get('alamat', ''),
+                jenis_kelompok=row.get('jenis_kelompok', 'Sekolah'),
+                status=status,
+                geom=func.ST_GeogFromText(geom)
+            )
+            db.add(db_kelompok)
+            db.commit()
+            db.refresh(db_kelompok)
+            
+            # Create Detail
+            db_detail = models.KelompokDetail(
+                kelompok_id=db_kelompok.id,
+                porsi_kecil=row.get('porsi_kecil', 0),
+                porsi_besar=row.get('porsi_besar', 0),
+                jumlah_busui=row.get('jumlah_busui', 0),
+                jumlah_bumil=row.get('jumlah_bumil', 0),
+                jumlah_balita_non_paud=row.get('jumlah_balita_non_paud', 0)
+            )
+            db.add(db_detail)
+            db.commit()
+            
+            db.execute(text("INSERT INTO audit_logs (action, target_table, target_id, details) VALUES (:action, :table, :id, :details)"), 
+                       {"action": "IMPORT_KELOMPOK", "table": "kelompok_penerima", "id": db_kelompok.id, "details": f"Imported Kelompok {db_kelompok.nama}"})
+            db.commit()
+            results["success"] += 1
+        except Exception as e:
+            db.rollback()
+            results["failed"] += 1
+            results["errors"].append(f"Baris {i+1}: {str(e)}")
+    return results

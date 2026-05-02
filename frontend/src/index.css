@@ -53,12 +53,27 @@ body {
 
 /* Custom Leaflet Tooltip Styling */
 .custom-tooltip {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
+  background: white !important;
+  border: 1px solid rgba(37, 99, 235, 0.1) !important;
+  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.1) !important;
   color: #1e293b !important;
   white-space: nowrap !important;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 1), 0 0 10px rgba(255, 255, 255, 0.8) !important;
+  padding: 4px 8px !important;
+  border-radius: 8px !important;
+}
+
+.futuristic-line {
+  stroke-dasharray: 1, 10;
+  animation: dash 20s linear infinite;
+}
+
+@keyframes dash {
+  from {
+    stroke-dashoffset: 1000;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 .custom-tooltip::before {

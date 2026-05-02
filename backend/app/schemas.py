@@ -10,10 +10,10 @@ class SPPGUnitBase(BaseModel):
     status_operasional: str
     tanggal_operasional: date
     nama_kepala: str
-    pengawas_keuangan: str
-    pengawas_gizi: str
-    pic_yayasan: str
-    nama_yayasan: str
+    pengawas_keuangan: Optional[str] = None
+    pengawas_gizi: Optional[str] = None
+    pic_yayasan: Optional[str] = None
+    nama_yayasan: Optional[str] = None
     kapasitas_produksi: int
     lat: float
     lng: float

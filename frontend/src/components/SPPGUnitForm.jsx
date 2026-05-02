@@ -10,10 +10,10 @@ const sppgSchema = z.object({
   status_operasional: z.enum(['Aktif', 'Maintenance', 'Non-Aktif']),
   tanggal_operasional: z.string(),
   nama_kepala: z.string().min(3, 'Nama kepala minimal 3 karakter'),
-  pengawas_keuangan: z.string().optional(),
-  pengawas_gizi: z.string().optional(),
-  pic_yayasan: z.string().optional(),
-  nama_yayasan: z.string().optional(),
+  pengawas_keuangan: z.string().optional().nullable(),
+  pengawas_gizi: z.string().optional().nullable(),
+  pic_yayasan: z.string().optional().nullable(),
+  nama_yayasan: z.string().optional().nullable(),
   kapasitas_produksi: z.number().min(1, 'Kapasitas minimal 1'),
   lat: z.number(),
   lng: z.number()
@@ -29,6 +29,10 @@ const SPPGUnitForm = ({ initialData, onSubmit, formId }) => {
       status_operasional: 'Aktif',
       tanggal_operasional: new Date().toISOString().split('T')[0],
       nama_kepala: '',
+      pengawas_gizi: '',
+      pengawas_keuangan: '',
+      nama_yayasan: '',
+      pic_yayasan: '',
       kapasitas_produksi: 1000,
       lat: -8.625,
       lng: 116.44
@@ -120,6 +124,15 @@ const SPPGUnitForm = ({ initialData, onSubmit, formId }) => {
                <input 
                  {...register('nama_yayasan')}
                  className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
+                 placeholder="Nama Yayasan"
+               />
+            </div>
+            <div className="space-y-1.5">
+               <label className="text-xs font-bold text-slate-700 ml-1">P.I.C Yayasan</label>
+               <input 
+                 {...register('pic_yayasan')}
+                 className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
+                 placeholder="Nama PIC"
                />
             </div>
          </div>

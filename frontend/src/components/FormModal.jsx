@@ -28,29 +28,29 @@ const FormModal = ({
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl border border-blue-100 overflow-hidden flex flex-col max-h-[90vh]"
+            className="relative w-full max-w-2xl bg-blue-600 rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden shadow-[0_0_0_1px_#2563eb]"
           >
             {/* Header */}
-            <div className="p-6 lg:p-8 border-b border-slate-50 flex items-center justify-between shrink-0">
+            <div className="p-8 bg-blue-600 text-white flex items-center justify-between shrink-0">
               <div>
-                <h3 className="text-xl font-black text-slate-800 tracking-tight">{title}</h3>
-                <div className="w-12 h-1 bg-blue-600 rounded-full mt-1.5" />
+                <h3 className="text-xl font-black tracking-tight">{title}</h3>
+                <p className="text-blue-100 text-[10px] font-black uppercase tracking-[0.2em] mt-1 opacity-80">Input Formulir Data</p>
               </div>
               <button
                 onClick={onClose}
-                className="p-3 bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
+                className="p-3 bg-white/10 text-white hover:bg-white/20 rounded-2xl transition-all"
               >
                 <X size={20} />
               </button>
             </div>
 
             {/* Form Content - Scrollable */}
-            <div className="flex-1 overflow-y-auto p-6 lg:p-8 no-scrollbar">
+            <div className="flex-1 overflow-y-auto p-6 lg:p-8 no-scrollbar bg-white">
               {children}
             </div>
 
             {/* Footer */}
-            <div className="p-6 lg:p-8 border-t border-slate-50 bg-slate-50/30 flex justify-end gap-3 shrink-0">
+            <div className="p-6 lg:p-8 border-t border-slate-50 bg-white flex justify-end gap-3 shrink-0 rounded-b-[2.5rem]">
               <button
                 type="button"
                 onClick={onClose}

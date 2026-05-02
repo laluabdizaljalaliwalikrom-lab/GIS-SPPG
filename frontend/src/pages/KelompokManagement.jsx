@@ -4,7 +4,9 @@ import KelompokForm from '../components/KelompokForm';
 import FormModal from '../components/FormModal';
 import EntityDetailDrawer from '../components/EntityDetailDrawer';
 import { useKelompok } from '../hooks/useKelompok';
+import ExcelImportButton from '../components/ExcelImportButton';
 import { 
+// ... existing imports ...
   Users, 
   XCircle, 
   Search, 
@@ -94,17 +96,25 @@ const KelompokManagement = () => {
                 placeholder="Cari kelompok..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full lg:w-64 pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 shadow-sm transition-all"
+                className="w-full lg:w-64 pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 shadow-sm transition-all text-sm"
               />
            </div>
            
            {canManage && (
-             <button 
-               onClick={() => setIsCreateModalOpen(true)}
-               className="hidden lg:flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95"
-             >
-                <Plus size={18} /> Tambah Data
-             </button>
+             <div className="flex gap-2">
+                <ExcelImportButton 
+                  endpoint="/api/kelompok/import" 
+                  onSuccess={() => window.location.reload()} 
+                  title="Import Kelompok Penerima"
+                  type="kelompok"
+                />
+                <button 
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="hidden lg:flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 text-xs"
+                >
+                   <Plus size={16} /> Tambah Data
+                </button>
+             </div>
            )}
         </div>
       </div>

@@ -107,10 +107,10 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-0 right-0 h-full w-full max-w-xl bg-white shadow-2xl z-[9999] flex flex-col"
+            className="fixed top-0 right-0 h-full w-full max-w-xl bg-blue-600 shadow-2xl z-[9999] flex flex-col shadow-[0_0_0_1px_#2563eb]"
           >
             {/* Header */}
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-blue-600 text-white">
+            <div className="p-6 flex items-center justify-between bg-blue-600 text-white">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md shadow-inner">
                    {type === 'sppg' ? <Layers size={24} /> : <Activity size={24} />}
@@ -126,7 +126,7 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-white">
               {isEditing ? (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500">
                   <EntityDetailForm 
@@ -236,7 +236,7 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
             </div>
 
             {/* Sticky Action Footer */}
-            <div className="p-6 lg:p-8 bg-slate-50/80 backdrop-blur-md border-t border-slate-200 flex gap-4">
+            <div className="p-6 lg:p-8 bg-white border-t border-slate-100 flex gap-4">
               {isEditing ? (
                 <>
                   <button 

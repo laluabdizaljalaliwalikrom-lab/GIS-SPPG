@@ -8,3 +8,6 @@ pydantic==2.6.4
 pydantic-settings==2.2.1
 supabase==2.4.3
 python-jose[cryptography]
+pandas==2.2.1
+openpyxl==3.1.2
+python-multipart==0.0.9

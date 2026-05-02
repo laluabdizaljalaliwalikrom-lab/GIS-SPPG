@@ -16,10 +16,10 @@ class SPPGUnit(Base):
     status_operasional = Column(String)
     tanggal_operasional = Column(Date)
     nama_kepala = Column(String)
-    pengawas_keuangan = Column(String)
-    pengawas_gizi = Column(String)
-    pic_yayasan = Column(String)
-    nama_yayasan = Column(String)
+    pengawas_keuangan = Column(String, nullable=True)
+    pengawas_gizi = Column(String, nullable=True)
+    pic_yayasan = Column(String, nullable=True)
+    nama_yayasan = Column(String, nullable=True)
     kapasitas_produksi = Column(Integer)
 
     # Relationship back to KelompokPenerima
