@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents, Polyline, Tooltip, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Plus } from 'lucide-react';
+import { Plus, Target } from 'lucide-react';
 
 // Fix for default icons
 import iconMarker from 'leaflet/dist/images/marker-icon.png';
@@ -22,9 +22,9 @@ const createCustomIcon = (color, type) => {
     <div class="relative flex items-center justify-center">
       <div class="absolute w-8 h-8 ${color === 'emerald' ? 'bg-emerald-400/30' : color === 'blue' ? 'bg-blue-400/30' : color === 'amber' ? 'bg-amber-400/30' : 'bg-red-400/30'} rounded-full animate-ping"></div>
       <div class="relative w-6 h-6 ${color === 'emerald' ? 'bg-emerald-500' : color === 'blue' ? 'bg-blue-600' : color === 'amber' ? 'bg-amber-500' : 'bg-red-500'} rounded-xl shadow-lg border-2 border-white flex items-center justify-center text-white">
-        ${type === 'sppg' ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M16 10h.01"/><path d="M8 14h.01"/><path d="M16 14h.01"/><path d="M15 18h.01"/><path d="M9 18h.01"/></svg>' : 
-          type === 'school' ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>' : 
-          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>'}
+        ${type === 'sppg' ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M16 10h.01"/><path d="M8 14h.01"/><path d="M16 14h.01"/><path d="M15 18h.01"/><path d="M9 18h.01"/></svg>' :
+      type === 'school' ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>' :
+        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>'}
       </div>
     </div>
   `;
@@ -62,21 +62,41 @@ const ResizeHandler = ({ isFullScreen }) => {
   return null;
 };
 
-const CustomZoomControl = () => {
+const CustomZoomControl = ({ sppgs, kelompoks }) => {
   const map = useMapEvents({});
+
+  const fitAll = (e) => {
+    e.stopPropagation();
+    const markers = [
+      ...sppgs.map(s => [s.lat, s.lng]),
+      ...kelompoks.map(k => [k.lat, k.lng])
+    ].filter(pos => pos[0] && pos[1]);
+
+    if (markers.length > 0) {
+      map.fitBounds(markers, { padding: [50, 50], animate: true });
+    }
+  };
+
   return (
     <div className="absolute top-4 left-4 z-[1000] flex flex-col gap-2">
-      <button 
+      <button
         onClick={(e) => { e.stopPropagation(); map.zoomIn(); }}
         className="w-8 h-8 lg:w-9 lg:h-9 bg-white/95 backdrop-blur-xl rounded-xl flex items-center justify-center text-slate-700 shadow-xl border border-white/60 hover:bg-blue-600 hover:text-white transition-all active:scale-95"
       >
         <Plus size={16} />
       </button>
-      <button 
+      <button
         onClick={(e) => { e.stopPropagation(); map.zoomOut(); }}
         className="w-8 h-8 lg:w-9 lg:h-9 bg-white/95 backdrop-blur-xl rounded-xl flex items-center justify-center text-slate-700 shadow-xl border border-white/60 hover:bg-blue-600 hover:text-white transition-all active:scale-95"
       >
         <div className="w-3 h-0.5 bg-current rounded-full" />
+      </button>
+      <button
+        onClick={fitAll}
+        title="Focus All Markers"
+        className="w-8 h-8 lg:w-9 lg:h-9 bg-white/95 backdrop-blur-xl rounded-xl flex items-center justify-center text-blue-600 shadow-xl border border-white/60 hover:bg-blue-600 hover:text-white transition-all active:scale-95"
+      >
+        <Target size={16} />
       </button>
     </div>
   );
@@ -93,7 +113,7 @@ const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen, onMa
         const start = L.latLng(sppg.lat, sppg.lng);
         const end = L.latLng(k.lat, k.lng);
         const distance = start.distanceTo(end);
-        
+
         return {
           id: k.id,
           sppgName: sppg.nama,
@@ -117,12 +137,12 @@ const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen, onMa
       />
       <MapEvents setClickedLocation={setClickedLocation} />
       <ResizeHandler isFullScreen={isFullScreen} />
-      <CustomZoomControl />
+      <CustomZoomControl sppgs={sppgs} kelompoks={kelompoks} />
 
-      {sppgs.map(sppg => (
-        <Marker 
-          key={`sppg-${sppg.id}`} 
-          position={[sppg.lat, sppg.lng]} 
+      {sppgs.filter(s => s.lat && s.lng).map(sppg => (
+        <Marker
+          key={`sppg-${sppg.id}`}
+          position={[sppg.lat, sppg.lng]}
           icon={sppgIcon}
           eventHandlers={{
             click: () => onMarkerClick(sppg, 'sppg')
@@ -137,38 +157,38 @@ const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen, onMa
       {kelompoks.map(k => {
         let icon = pendingIcon;
         if (k.status === 'verified') {
-           icon = k.jenis_kelompok === 'School' ? verifiedSchoolIcon : verifiedPosyanduIcon;
+          icon = k.jenis_kelompok === 'School' ? verifiedSchoolIcon : verifiedPosyanduIcon;
         }
 
         return (
-          <Marker 
-            key={`kelompok-${k.id}`} 
-            position={[k.lat, k.lng]} 
+          <Marker
+            key={`kelompok-${k.id}`}
+            position={[k.lat, k.lng]}
             icon={icon}
             eventHandlers={{
               click: () => onMarkerClick(k, 'kelompok')
             }}
           >
             <Tooltip permanent direction="top" offset={[0, -28]} className="custom-tooltip font-bold text-[8px] text-slate-600">
-               {k.nama}
+              {k.nama}
             </Tooltip>
           </Marker>
         );
       })}
 
       {polylines.map((line, idx) => (
-        <Polyline 
-          key={`line-${idx}`} 
-          positions={line.positions} 
-          color="#3b82f6" 
-          weight={6} 
-          opacity={0.8} 
-          dashArray="1, 10" 
+        <Polyline
+          key={`line-${idx}`}
+          positions={line.positions}
+          color="#3b82f6"
+          weight={6}
+          opacity={0.8}
+          dashArray="1, 10"
           lineCap="round"
           className="futuristic-line cursor-pointer"
         >
           <Tooltip sticky direction="top" className="custom-tooltip font-black text-[10px] text-blue-600">
-             {line.distance} KM
+            {line.distance} KM
           </Tooltip>
           <Popup>
             <div className="p-3 min-w-[180px]">

@@ -281,25 +281,21 @@ const Dashboard = () => {
           <button
             onClick={handleAutoAllocate}
             disabled={isAllocating}
-            className={`fixed bottom-32 right-6 lg:bottom-12 lg:right-12 z-[1000] h-12 lg:h-16 bg-blue-600 text-white rounded-full shadow-[0_10px_40px_rgba(37,99,235,0.4)] flex items-center justify-center transition-all duration-500 ring-4 ring-white active:scale-90 overflow-hidden ${
-              isAllocating ? 'animate-pulse cursor-not-allowed px-6' : 'hover:scale-105 px-3 lg:px-4 lg:hover:px-8'
-            } ${isAllocating ? 'w-auto' : 'w-12 lg:w-16 lg:hover:w-auto'} group`}
+            className={`fixed bottom-32 right-6 lg:bottom-12 lg:right-12 z-[1000] h-10 lg:h-12 bg-blue-600 text-white rounded-full shadow-[0_10px_40px_rgba(37,99,235,0.4)] flex items-center justify-center transition-all duration-500 ring-2 ring-white active:scale-90 overflow-hidden ${
+              isAllocating ? 'animate-pulse cursor-not-allowed px-5' : 'hover:scale-105 px-3 lg:px-4 lg:hover:px-6'
+            } ${isAllocating ? 'w-auto' : 'w-10 lg:w-12 lg:hover:w-auto'} group`}
           >
-             <div className="flex items-center gap-3">
-                {isAllocating ? (
-                  <Loader2 size={20} className="animate-spin lg:hidden" />
-                ) : (
-                  <Zap size={20} fill="currentColor" className="transition-transform group-hover:rotate-12 lg:hidden" />
-                )}
-                
-                {isAllocating ? (
-                  <Loader2 size={28} className="animate-spin hidden lg:block" />
-                ) : (
-                  <Zap size={28} fill="currentColor" className="transition-transform group-hover:rotate-12 hidden lg:block" />
-                )}
+             <div className="flex items-center gap-2.5">
+                <div className={isAllocating ? 'block' : 'block'}>
+                   {isAllocating ? (
+                     <Loader2 size={18} className="animate-spin" />
+                   ) : (
+                     <Zap size={18} fill="currentColor" className="transition-transform group-hover:rotate-12" />
+                   )}
+                </div>
                 
                 {/* Desktop Text Label - Shows on hover or when allocating */}
-                <span className={`font-black text-[10px] lg:text-xs uppercase tracking-[0.2em] transition-all duration-500 whitespace-nowrap ${
+                <span className={`font-black text-[9px] lg:text-[10px] uppercase tracking-[0.2em] transition-all duration-500 whitespace-nowrap ${
                   isAllocating ? 'block' : 'hidden lg:group-hover:block'
                 }`}>
                   {isAllocating ? 'Analyzing...' : 'Run Allocation'}
