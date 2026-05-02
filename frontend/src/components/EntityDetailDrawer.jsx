@@ -40,6 +40,7 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
 
   // RBAC Logic
   const canEdit = profile?.role === 'admin' || 
+                 profile?.role === 'kecamatan_coordinator' ||
                  (profile?.role === 'sppg_head' && type === 'sppg' && profile?.sppg_id === entity.id);
   const canDelete = profile?.role === 'admin';
   const canVerify = (profile?.role === 'admin' || profile?.role === 'kecamatan_coordinator') && 

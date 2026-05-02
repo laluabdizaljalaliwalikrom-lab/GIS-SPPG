@@ -235,13 +235,15 @@ const MapView = () => {
               </div>
             </div>
 
-            <button 
-              onClick={() => navigate(`/dashboard/kelompok?lat=${clickedLocation.lat}&lng=${clickedLocation.lng}&add=true`)}
-              className="w-full py-4 bg-blue-600 text-white text-[10px] font-black rounded-2xl shadow-xl shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-3 uppercase tracking-[0.2em]"
-            >
-              <Plus size={18} />
-              Tambah Kelompok
-            </button>
+            {(profile?.role === 'admin' || profile?.role === 'kecamatan_coordinator') && (
+              <button 
+                onClick={() => navigate(`/dashboard/kelompok?lat=${clickedLocation.lat}&lng=${clickedLocation.lng}&add=true`)}
+                className="w-full py-4 bg-blue-600 text-white text-[10px] font-black rounded-2xl shadow-xl shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-3 uppercase tracking-[0.2em]"
+              >
+                <Plus size={18} />
+                Tambah Kelompok
+              </button>
+            )}
          </div>
       )}
 

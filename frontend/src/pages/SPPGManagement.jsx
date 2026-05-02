@@ -43,7 +43,7 @@ const SPPGManagement = () => {
     setIsDrawerOpen(true);
   };
 
-  const canManage = profile?.role === 'admin';
+  const canManage = profile?.role === 'admin' || profile?.role === 'kecamatan_coordinator';
 
   return (
     <div className="space-y-6">

@@ -77,7 +77,7 @@ const KelompokManagement = () => {
     await verifyKelompok({ id, status });
   };
 
-  const canManage = profile?.role === 'admin';
+  const canManage = profile?.role === 'admin' || profile?.role === 'kecamatan_coordinator';
   const canVerify = profile?.role === 'admin' || profile?.role === 'kecamatan_coordinator';
 
   return (
