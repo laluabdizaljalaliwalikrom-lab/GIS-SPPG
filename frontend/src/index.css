@@ -101,3 +101,23 @@ body {
 .nav-item:not(.active) {
   @apply text-slate-500 hover:bg-slate-100 hover:text-slate-900;
 }
+
+/* Village Label Styling */
+.village-label-tooltip {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #3b82f6 !important;
+  font-weight: 800 !important;
+  font-size: 9px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.1em !important;
+  opacity: 0.6 !important;
+  pointer-events: none !important;
+  white-space: nowrap !important;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.5) !important;
+}
+
+.village-label-tooltip::before {
+  display: none !important;
+}

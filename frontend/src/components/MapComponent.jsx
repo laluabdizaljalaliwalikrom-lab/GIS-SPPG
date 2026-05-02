@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents, Polyline, Tooltip, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMapEvents, Polyline, Tooltip, Popup, GeoJSON } from 'react-leaflet';
+import sikurGeoJSON from '../assets/sikur.json';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Plus, Target } from 'lucide-react';
@@ -41,6 +42,8 @@ const sppgIcon = createCustomIcon('emerald', 'sppg');
 const verifiedSchoolIcon = createCustomIcon('blue', 'school');
 const verifiedPosyanduIcon = createCustomIcon('amber', 'posyandu');
 const pendingIcon = createCustomIcon('red', 'pending');
+
+// Boundary data is now loaded from sikur.json asset
 
 const MapEvents = ({ setClickedLocation }) => {
   useMapEvents({
@@ -138,6 +141,31 @@ const MapComponent = ({ sppgs, kelompoks, setClickedLocation, isFullScreen, onMa
       <MapEvents setClickedLocation={setClickedLocation} />
       <ResizeHandler isFullScreen={isFullScreen} />
       <CustomZoomControl sppgs={sppgs} kelompoks={kelompoks} />
+
+      {/* High-Precision Kecamatan Sikur Boundary from GeoJSON with Village Labels */}
+      <GeoJSON 
+        data={sikurGeoJSON}
+        onEachFeature={(feature, layer) => {
+          if (feature.properties && (feature.properties.kel_desa || feature.properties.ori_name)) {
+            layer.bindTooltip(feature.properties.kel_desa || feature.properties.ori_name, {
+              permanent: true,
+              direction: 'center',
+              className: 'village-label-tooltip',
+              sticky: true
+            });
+          }
+        }}
+        style={{
+          color: '#3b82f6',
+          weight: 1.5,
+          fillColor: '#3b82f6',
+          fillOpacity: 0.04,
+          dashArray: '5, 8',
+          lineCap: 'round',
+          lineJoin: 'round'
+        }}
+        interactive={false}
+      />
 
       {sppgs.filter(s => s.lat && s.lng).map(sppg => (
         <Marker
