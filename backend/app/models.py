@@ -1,8 +1,10 @@
 # Force reload models
-from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey
+from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geometry, Geography
 from .database import Base
+
+
 
 class SPPGUnit(Base):
     __tablename__ = "sppg_units"
@@ -29,6 +31,7 @@ class SPPGUnit(Base):
 
     # Relationship back to KelompokPenerima
     kelompok_penerima = relationship("KelompokPenerima", back_populates="sppg")
+    answers = relationship("SPPGPointAnswer", back_populates="sppg", cascade="all, delete-orphan")
 
 class KelompokPenerima(Base):
     __tablename__ = "kelompok_penerima"
@@ -87,3 +90,20 @@ class AuditLog(Base):
     target_id = Column(Integer, nullable=True)
     details = Column(String)
     created_at = Column(Date)
+
+class RaportPoint(Base):
+    __tablename__ = "raport_points"
+    id = Column(Integer, primary_key=True, index=True)
+    category = Column(String) # 'infrastruktur', 'sdm', 'kepuasan'
+    text = Column(String)
+
+class SPPGPointAnswer(Base):
+    __tablename__ = "sppg_point_answers"
+    id = Column(Integer, primary_key=True, index=True)
+    sppg_id = Column(Integer, ForeignKey("sppg_units.id"))
+    point_id = Column(Integer, ForeignKey("raport_points.id"))
+    is_fulfilled = Column(Boolean, default=False)
+
+    sppg = relationship("SPPGUnit", back_populates="answers")
+    point = relationship("RaportPoint")
+

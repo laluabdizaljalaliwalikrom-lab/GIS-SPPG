@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import EntityDetailForm from './EntityDetailForm';
+import SPPGChecklist from './SPPGChecklist';
+
 import { useSPPG } from '../hooks/useSPPG';
 import { useKelompok } from '../hooks/useKelompok';
 import { toast } from 'react-hot-toast';
@@ -238,7 +240,24 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                               color="bg-amber-500"
                             />
                           </div>
+
+                          {/* Checklist Section */}
+                          <div className="mt-10 pt-10 border-t border-slate-100">
+                             <div className="flex items-center justify-between mb-6">
+                               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Evaluasi Kriteria Raport</p>
+                               {(profile?.role === 'admin' || profile?.role === 'kecamatan_coordinator') && (
+                                 <span className="text-[9px] font-bold text-blue-600 italic">Auth Required</span>
+                               )}
+                             </div>
+                             
+                             {(profile?.role === 'admin' || profile?.role === 'kecamatan_coordinator') ? (
+                               <SPPGChecklist sppgId={entity.id} key={entity.id} />
+                             ) : (
+                               <p className="text-xs text-slate-400 italic">Hanya koordinator yang dapat mengisi checklist raport.</p>
+                             )}
+                          </div>
                         </div>
+
                       </div>
                     </div>
                   )}

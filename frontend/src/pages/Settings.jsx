@@ -10,11 +10,13 @@ import {
   Globe, 
   Layers, 
   CheckCircle2,
-  Crosshair
+  Crosshair,
+  ClipboardCheck
 } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 import api from '../api';
 import toast from 'react-hot-toast';
+import RaportPointManager from '../components/RaportPointManager';
 
 const ProfileForm = ({ profile }) => {
   const [loading, setLoading] = useState(false);
@@ -230,6 +232,8 @@ const Settings = () => {
                 </div>
               </div>
             )}
+
+            {activeTab === 'raport' && <RaportPointManager />}
 
             {activeTab === 'system' && (
               <div className="animate-in fade-in slide-in-from-right-4 duration-500">

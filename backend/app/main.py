@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List
 from sqlalchemy.orm import Session
 from . import crud, models, schemas
 from .database import engine, get_db
@@ -137,3 +138,27 @@ def update_user(user_id: str, profile: schemas.ProfileBase, db: Session = Depend
 def delete_user(user_id: str, db: Session = Depends(get_db)):
     crud.delete_user(db, user_id)
     return {"status": "success"}
+
+# Raport Points API
+@app.get("/api/raport-points", response_model=List[schemas.RaportPointResponse])
+def get_raport_points(db: Session = Depends(get_db)):
+    return crud.get_raport_points(db)
+
+@app.post("/api/raport-points", response_model=schemas.RaportPointResponse)
+def create_raport_point(point: schemas.RaportPointCreate, db: Session = Depends(get_db), _ = Depends(admin_only)):
+    return crud.create_raport_point(db, point)
+
+@app.delete("/api/raport-points/{point_id}")
+def delete_raport_point(point_id: int, db: Session = Depends(get_db), _ = Depends(admin_only)):
+    crud.delete_raport_point(db, point_id)
+    return {"status": "success"}
+
+# SPPG Checklist API
+@app.get("/api/sppg/{sppg_id}/checklist", response_model=List[schemas.SPPGPointAnswerResponse])
+def get_sppg_checklist(sppg_id: int, db: Session = Depends(get_db)):
+    return crud.get_sppg_answers(db, sppg_id)
+
+@app.put("/api/sppg/{sppg_id}/checklist")
+def update_sppg_checklist(sppg_id: int, checklist: schemas.SPPGChecklistUpdate, db: Session = Depends(get_db), _ = Depends(coordinator_only)):
+    return crud.update_sppg_checklist(db, sppg_id, checklist)
+

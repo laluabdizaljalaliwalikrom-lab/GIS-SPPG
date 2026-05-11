@@ -414,3 +414,79 @@ def import_kelompoks(db: Session, data: list[dict], current_user: models.Profile
             results["failed"] += 1
             results["errors"].append(f"Baris {i+1}: {str(e)}")
     return results
+
+# Raport Points CRUD
+def get_raport_points(db: Session):
+    return db.query(models.RaportPoint).all()
+
+def create_raport_point(db: Session, point: schemas.RaportPointCreate):
+    db_point = models.RaportPoint(**point.model_dump())
+    db.add(db_point)
+    db.commit()
+    db.refresh(db_point)
+    return db_point
+
+def delete_raport_point(db: Session, point_id: int):
+    db_point = db.query(models.RaportPoint).filter(models.RaportPoint.id == point_id).first()
+    if db_point:
+        db.delete(db_point)
+        db.commit()
+    return db_point
+
+# SPPG Checklist Answers
+def get_sppg_answers(db: Session, sppg_id: int):
+    return db.query(models.SPPGPointAnswer).filter(models.SPPGPointAnswer.sppg_id == sppg_id).all()
+
+def update_sppg_checklist(db: Session, sppg_id: int, checklist: schemas.SPPGChecklistUpdate):
+    # Remove old answers for the points provided (or all points for this SPPG)
+    # Actually, let's just update or create.
+    for ans in checklist.answers:
+        db_ans = db.query(models.SPPGPointAnswer).filter(
+            models.SPPGPointAnswer.sppg_id == sppg_id,
+            models.SPPGPointAnswer.point_id == ans.point_id
+        ).first()
+        
+        if db_ans:
+            db_ans.is_fulfilled = ans.is_fulfilled
+        else:
+            db_ans = models.SPPGPointAnswer(
+                sppg_id=sppg_id,
+                point_id=ans.point_id,
+                is_fulfilled=ans.is_fulfilled
+            )
+            db.add(db_ans)
+    
+    db.commit()
+    
+    # Recalculate scores for this SPPG
+    recalculate_sppg_scores(db, sppg_id)
+    
+    return get_sppg_answers(db, sppg_id)
+
+def recalculate_sppg_scores(db: Session, sppg_id: int):
+    sppg = db.query(models.SPPGUnit).filter(models.SPPGUnit.id == sppg_id).first()
+    if not sppg:
+        return
+    
+    points = db.query(models.RaportPoint).all()
+    answers = db.query(models.SPPGPointAnswer).filter(models.SPPGPointAnswer.sppg_id == sppg_id).all()
+    ans_map = {a.point_id: a.is_fulfilled for a in answers}
+    
+    categories = ['infrastruktur', 'sdm', 'kepuasan']
+    scores = {}
+    
+    for cat in categories:
+        cat_points = [p for p in points if p.category == cat]
+        if not cat_points:
+            scores[f"{cat}_score"] = 0
+            continue
+        
+        fulfilled_count = sum(1 for p in cat_points if ans_map.get(p.id, False))
+        scores[f"{cat}_score"] = int((fulfilled_count / len(cat_points)) * 100)
+    
+    sppg.infrastruktur_score = scores['infrastruktur_score']
+    sppg.sdm_score = scores['sdm_score']
+    sppg.kepuasan_score = scores['kepuasan_score']
+    
+    db.commit()
+

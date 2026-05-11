@@ -79,6 +79,61 @@ export const useSPPG = (filters = {}) => {
     },
   });
 
+  // Raport Points
+  const { data: raportPoints = [], isLoading: loadingPoints } = useQuery({
+    queryKey: ['raport-points'],
+    queryFn: async () => {
+      const { data } = await api.get('/raport-points');
+      return data;
+    },
+  });
+
+  const createPointMutation = useMutation({
+    mutationFn: async (point) => {
+      const { data } = await api.post('/raport-points', point);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['raport-points'] });
+      toast.success('Poin raport berhasil ditambahkan!');
+    },
+  });
+
+  const deletePointMutation = useMutation({
+    mutationFn: async (id) => {
+      await api.delete(`/raport-points/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['raport-points'] });
+      toast.success('Poin raport berhasil dihapus!');
+    },
+  });
+
+  // Checklist Answers
+  const useChecklist = (sppgId) => {
+    return useQuery({
+      queryKey: ['sppg-checklist', sppgId],
+      queryFn: async () => {
+        if (!sppgId) return [];
+        const { data } = await api.get(`/sppg/${sppgId}/checklist`);
+        return data;
+      },
+      enabled: !!sppgId,
+    });
+  };
+
+  const updateChecklistMutation = useMutation({
+    mutationFn: async ({ sppgId, answers }) => {
+      const { data } = await api.put(`/sppg/${sppgId}/checklist`, { answers });
+      return data;
+    },
+    onSuccess: (_, { sppgId }) => {
+      queryClient.invalidateQueries({ queryKey: ['sppg-checklist', sppgId] });
+      queryClient.invalidateQueries({ queryKey: ['sppgs'] });
+      toast.success('Checklist raport berhasil diperbarui!');
+    },
+  });
+
   return {
     sppgs,
     isLoading,
@@ -89,5 +144,14 @@ export const useSPPG = (filters = {}) => {
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+    
+    // Checklist & Points
+    raportPoints,
+    loadingPoints,
+    createPoint: createPointMutation.mutateAsync,
+    deletePoint: deletePointMutation.mutateAsync,
+    useChecklist,
+    updateChecklist: updateChecklistMutation.mutateAsync,
+    isUpdatingChecklist: updateChecklistMutation.isPending
   };
 };

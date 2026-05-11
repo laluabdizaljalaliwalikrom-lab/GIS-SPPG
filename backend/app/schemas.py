@@ -84,3 +84,30 @@ class UserCreate(ProfileBase):
 class ProfileResponse(ProfileBase):
     id: Union[str, UUID]
     model_config = ConfigDict(from_attributes=True)
+
+class RaportPointBase(BaseModel):
+    category: str
+    text: str
+
+class RaportPointCreate(RaportPointBase):
+    pass
+
+class RaportPointResponse(RaportPointBase):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+
+class SPPGPointAnswerBase(BaseModel):
+    point_id: int
+    is_fulfilled: bool
+
+class SPPGPointAnswerCreate(SPPGPointAnswerBase):
+    sppg_id: int
+
+class SPPGPointAnswerResponse(SPPGPointAnswerBase):
+    id: int
+    sppg_id: int
+    model_config = ConfigDict(from_attributes=True)
+
+class SPPGChecklistUpdate(BaseModel):
+    answers: List[SPPGPointAnswerBase]
+
