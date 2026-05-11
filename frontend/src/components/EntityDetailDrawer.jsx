@@ -193,19 +193,53 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                     )}
                   </div>
 
-                  {/* SPPG Specific: Production Capacity */}
+                  {/* SPPG Specific: Production Capacity & Raport */}
                   {type === 'sppg' && (
-                    <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 relative overflow-hidden group">
-                      <div className="relative z-10">
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-6">
-                          <AlertCircle size={14} className="text-blue-500" /> Kapasitas Produksi
-                        </h4>
-                        <div className="flex items-baseline gap-3">
-                          <span className="text-5xl font-black text-slate-800 tracking-tighter">{entity.kapasitas_produksi.toLocaleString()}</span>
-                          <span className="text-slate-400 font-bold text-sm uppercase tracking-widest">Porsi / Hari</span>
+                    <div className="space-y-6">
+                      <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 relative overflow-hidden group">
+                        <div className="relative z-10">
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-6">
+                            <AlertCircle size={14} className="text-blue-500" /> Kapasitas Produksi
+                          </h4>
+                          <div className="flex items-baseline gap-3">
+                            <span className="text-5xl font-black text-slate-800 tracking-tighter">{entity.kapasitas_produksi.toLocaleString()}</span>
+                            <span className="text-slate-400 font-bold text-sm uppercase tracking-widest">Porsi / Hari</span>
+                          </div>
+                        </div>
+                        <Layers className="absolute -bottom-6 -right-6 text-slate-200/50 w-32 h-32 rotate-12 group-hover:scale-110 transition-transform duration-700" />
+                      </div>
+
+                      {/* Raport SPPG Section */}
+                      <div className="p-8 bg-white rounded-[2.5rem] border-2 border-blue-50 shadow-xl shadow-blue-500/5 relative overflow-hidden">
+                        <div className="relative z-10">
+                          <div className="flex items-center justify-between mb-8">
+                            <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] flex items-center gap-2">
+                              <Activity size={16} /> Raport Kinerja SPPG
+                            </h4>
+                            <div className="px-3 py-1 bg-blue-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest">
+                              SCORE: {Math.round(((entity.infrastruktur_score || 0) + (entity.sdm_score || 0) + (entity.kepuasan_score || 0)) / 3)}%
+                            </div>
+                          </div>
+
+                          <div className="space-y-6">
+                            <ScoreBar 
+                              label="Kelengkapan Infrastruktur" 
+                              score={entity.infrastruktur_score || 0} 
+                              color="bg-emerald-500"
+                            />
+                            <ScoreBar 
+                              label="Manajemen SDM" 
+                              score={entity.sdm_score || 0} 
+                              color="bg-blue-500"
+                            />
+                            <ScoreBar 
+                              label="Kepuasan Penerima Manfaat" 
+                              score={entity.kepuasan_score || 0} 
+                              color="bg-amber-500"
+                            />
+                          </div>
                         </div>
                       </div>
-                      <Layers className="absolute -bottom-6 -right-6 text-slate-200/50 w-32 h-32 rotate-12 group-hover:scale-110 transition-transform duration-700" />
                     </div>
                   )}
 
@@ -416,6 +450,23 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
     </AnimatePresence>
   );
 };
+
+const ScoreBar = ({ label, score, color }) => (
+  <div className="space-y-2">
+    <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+      <span className="text-slate-400">{label}</span>
+      <span className="text-slate-800">{score}%</span>
+    </div>
+    <div className="h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+      <motion.div 
+        initial={{ width: 0 }}
+        animate={{ width: `${score}%` }}
+        transition={{ duration: 1, ease: "easeOut" }}
+        className={`h-full ${color} rounded-full shadow-[0_0_10px_rgba(37,99,235,0.2)]`}
+      />
+    </div>
+  </div>
+);
 
 const InfoCard = ({ icon: Icon, label, value, subValue }) => (
   <div className="flex gap-5 p-5 rounded-[2rem] border border-slate-100 bg-white hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-300 group">

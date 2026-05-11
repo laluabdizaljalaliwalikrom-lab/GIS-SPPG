@@ -277,21 +277,16 @@ const MapComponent = ({ sppgs = [], kelompoks = [], setClickedLocation, isFullSc
       {kelompoks.map(k => {
         if (!k.lat || !k.lng) return null;
         
-        let isVisible = false;
-        let icon = pendingIcon;
-        
-        if (k.status === 'verified') {
-          if (k.jenis_kelompok === 'School') {
-            isVisible = visibility.school;
-            icon = verifiedSchoolIcon;
-          } else {
-            isVisible = visibility.posyandu;
-            icon = verifiedPosyanduIcon;
-          }
-        } else {
-          isVisible = visibility.pending;
-          icon = pendingIcon;
-        }
+        const isVerified = k.status === 'verified';
+        const isSchool = k.jenis_kelompok === 'School';
+
+        const isVisible = isVerified
+          ? (isSchool ? visibility.school : visibility.posyandu)
+          : visibility.pending;
+
+        const icon = isVerified
+          ? (isSchool ? verifiedSchoolIcon : verifiedPosyanduIcon)
+          : pendingIcon;
 
         if (!isVisible) return null;
 

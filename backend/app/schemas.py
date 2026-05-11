@@ -17,6 +17,9 @@ class SPPGUnitBase(BaseModel):
     kapasitas_produksi: int
     lat: float
     lng: float
+    infrastruktur_score: Optional[int] = 0
+    sdm_score: Optional[int] = 0
+    kepuasan_score: Optional[int] = 0
 
 class SPPGUnitCreate(SPPGUnitBase):
     pass

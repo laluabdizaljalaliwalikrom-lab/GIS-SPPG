@@ -21,6 +21,11 @@ class SPPGUnit(Base):
     pic_yayasan = Column(String, nullable=True)
     nama_yayasan = Column(String, nullable=True)
     kapasitas_produksi = Column(Integer)
+    
+    # Raport fields
+    infrastruktur_score = Column(Integer, default=0)
+    sdm_score = Column(Integer, default=0)
+    kepuasan_score = Column(Integer, default=0)
 
     # Relationship back to KelompokPenerima
     kelompok_penerima = relationship("KelompokPenerima", back_populates="sppg")

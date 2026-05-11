@@ -16,7 +16,10 @@ const sppgSchema = z.object({
   nama_yayasan: z.string().optional().nullable(),
   kapasitas_produksi: z.number().min(1, 'Kapasitas minimal 1'),
   lat: z.number(),
-  lng: z.number()
+  lng: z.number(),
+  infrastruktur_score: z.number().min(0).max(100).optional().default(0),
+  sdm_score: z.number().min(0).max(100).optional().default(0),
+  kepuasan_score: z.number().min(0).max(100).optional().default(0)
 });
 
 const SPPGUnitForm = ({ initialData, onSubmit, formId }) => {
@@ -35,7 +38,10 @@ const SPPGUnitForm = ({ initialData, onSubmit, formId }) => {
       pic_yayasan: '',
       kapasitas_produksi: 1000,
       lat: -8.625,
-      lng: 116.44
+      lng: 116.44,
+      infrastruktur_score: 0,
+      sdm_score: 0,
+      kepuasan_score: 0
     }
   });
 
@@ -168,6 +174,42 @@ const SPPGUnitForm = ({ initialData, onSubmit, formId }) => {
                  {...register('lng', { valueAsNumber: true })}
                  className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-mono text-xs"
                />
+            </div>
+         </div>
+      </div>
+      
+      {/* Section 4: Raport Kinerja */}
+      <div className="space-y-6">
+         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
+            <span className="w-8 h-[2px] bg-blue-600" /> Penilaian Raport SPPG (0-100)
+         </h3>
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="space-y-1.5">
+               <label className="text-xs font-bold text-slate-700 ml-1">Infrastruktur</label>
+               <input 
+                 type="number"
+                 {...register('infrastruktur_score', { valueAsNumber: true })}
+                 className="w-full px-4 py-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-600 outline-none transition-all font-black text-emerald-700"
+               />
+               {errors.infrastruktur_score && <p className="text-[10px] text-red-500 font-bold ml-1">{errors.infrastruktur_score.message}</p>}
+            </div>
+            <div className="space-y-1.5">
+               <label className="text-xs font-bold text-slate-700 ml-1">Manajemen SDM</label>
+               <input 
+                 type="number"
+                 {...register('sdm_score', { valueAsNumber: true })}
+                 className="w-full px-4 py-4 bg-blue-50/50 border border-blue-100 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-black text-blue-700"
+               />
+               {errors.sdm_score && <p className="text-[10px] text-red-500 font-bold ml-1">{errors.sdm_score.message}</p>}
+            </div>
+            <div className="space-y-1.5">
+               <label className="text-xs font-bold text-slate-700 ml-1">Kepuasan</label>
+               <input 
+                 type="number"
+                 {...register('kepuasan_score', { valueAsNumber: true })}
+                 className="w-full px-4 py-4 bg-amber-50/50 border border-amber-100 rounded-2xl focus:ring-4 focus:ring-amber-500/10 focus:border-amber-600 outline-none transition-all font-black text-amber-700"
+               />
+               {errors.kepuasan_score && <p className="text-[10px] text-red-500 font-bold ml-1">{errors.kepuasan_score.message}</p>}
             </div>
          </div>
       </div>
