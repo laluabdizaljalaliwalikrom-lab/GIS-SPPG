@@ -266,3 +266,16 @@ def add_or_update_market_price(
     return crud.create_or_update_market_price(db, price_data)
 
 
+@app.delete("/api/audit/market-prices/{id}")
+def delete_market_price(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Profile = Depends(admin_only)
+):
+    success = crud.delete_market_price(db, id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Referensi harga tidak ditemukan.")
+    return {"status": "success", "message": f"Berhasil menghapus harga referensi ID {id}"}
+
+
+

@@ -16,7 +16,8 @@ import {
   Tag,
   ShieldAlert,
   Download,
-  Loader2
+  Loader2,
+  Edit2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -50,6 +51,7 @@ const AuditCenter = () => {
     unit: 'kg'
   });
   const [savingPrice, setSavingPrice] = useState(false);
+  const [editingPriceId, setEditingPriceId] = useState(null);
 
   // Security Role Guard
   const isAuthorized = profile?.role === 'admin' || profile?.role === 'kecamatan_coordinator';
@@ -250,6 +252,7 @@ const AuditCenter = () => {
         reference_price: '',
         unit: 'kg'
       });
+      setEditingPriceId(null);
     } catch (error) {
       console.error(error);
       toast.error('Gagal menyimpan harga referensi.');
@@ -257,6 +260,49 @@ const AuditCenter = () => {
       setSavingPrice(false);
     }
   };
+
+  const handleEditPriceClick = (price) => {
+    setNewPrice({
+      item_name: price.item_name,
+      region_id: price.region_id || 'KAB-BANYUMAS',
+      reference_price: price.reference_price.toString(),
+      unit: price.unit
+    });
+    setEditingPriceId(price.id);
+  };
+
+  const handleCancelPriceEdit = () => {
+    setEditingPriceId(null);
+    setNewPrice({
+      item_name: '',
+      region_id: 'KAB-BANYUMAS',
+      reference_price: '',
+      unit: 'kg'
+    });
+  };
+
+  const handleDeletePrice = async (priceId) => {
+    if (!isAdmin) {
+      toast.error('Hanya Admin yang dapat menghapus harga referensi.');
+      return;
+    }
+
+    if (!window.confirm('Yakin ingin menghapus acuan harga ini?')) return;
+
+    try {
+      await api.delete(`/audit/market-prices/${priceId}`);
+      toast.success('Acuan harga berhasil dihapus!');
+      
+      setMarketPrices((prev) => prev.filter((p) => p.id !== priceId));
+      if (editingPriceId === priceId) {
+        handleCancelPriceEdit();
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Gagal menghapus acuan harga.');
+    }
+  };
+
 
   const handleExportExcel = () => {
     if (!selectedReport || reportItems.length === 0) {
@@ -704,10 +750,20 @@ const AuditCenter = () => {
                       type="text"
                       required
                       placeholder="Contoh: Beras, Telur Ayam"
+                      disabled={editingPriceId !== null}
                       value={newPrice.item_name}
                       onChange={(e) => setNewPrice((prev) => ({ ...prev, item_name: e.target.value }))}
-                      className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
+                      className={`w-full px-4 py-3.5 border rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm ${
+                        editingPriceId !== null 
+                          ? 'bg-slate-100 border-slate-300 text-slate-400 cursor-not-allowed' 
+                          : 'bg-slate-50 border-slate-200'
+                      }`}
                     />
+                    {editingPriceId !== null && (
+                      <p className="text-[10px] text-amber-600 font-bold ml-1">
+                        * Nama barang tidak dapat diubah saat mode edit. Hapus dan buat baru jika ingin mengganti nama.
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -750,17 +806,32 @@ const AuditCenter = () => {
                     />
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={savingPrice}
-                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-xl shadow-blue-200 hover:shadow-blue-300 transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-xs"
-                  >
-                    {savingPrice ? (
-                      <Loader2 className="animate-spin" size={18} />
-                    ) : (
-                      <>Simpan Acuan Harga</>
+                  <div className="flex gap-3">
+                    {editingPriceId !== null && (
+                      <button
+                        type="button"
+                        onClick={handleCancelPriceEdit}
+                        className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold rounded-2xl transition-all uppercase tracking-widest text-xs"
+                      >
+                        Batal
+                      </button>
                     )}
-                  </button>
+                    <button
+                      type="submit"
+                      disabled={savingPrice}
+                      className={`font-bold rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-xs ${
+                        editingPriceId !== null 
+                          ? 'flex-[2] py-4 bg-amber-600 hover:bg-amber-700 text-white shadow-amber-100 hover:shadow-amber-200' 
+                          : 'w-full py-4 bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 hover:shadow-blue-300'
+                      }`}
+                    >
+                      {savingPrice ? (
+                        <Loader2 className="animate-spin" size={18} />
+                      ) : (
+                        <>{editingPriceId !== null ? "Simpan Perubahan" : "Simpan Acuan Harga"}</>
+                      )}
+                    </button>
+                  </div>
                 </form>
               ) : (
                 <div className="p-6 text-center border-2 border-dashed border-amber-100 rounded-2xl bg-amber-50/10 text-amber-700">
@@ -787,12 +858,13 @@ const AuditCenter = () => {
                       <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider">Wilayah</th>
                       <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Unit</th>
                       <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-right">Harga Referensi</th>
+                      {isAdmin && <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Aksi</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {marketPrices.length === 0 ? (
                       <tr>
-                        <td colSpan="4" className="text-center py-12 text-slate-400 font-bold text-sm">
+                        <td colSpan={isAdmin ? 5 : 4} className="text-center py-12 text-slate-400 font-bold text-sm">
                           Belum ada data referensi harga pasar.
                         </td>
                       </tr>
@@ -811,6 +883,28 @@ const AuditCenter = () => {
                           <td className="px-6 py-4 text-right font-black text-slate-800 text-sm">
                             {formatRupiah(price.reference_price)}
                           </td>
+                          {isAdmin && (
+                            <td className="px-6 py-4 text-center space-x-1 whitespace-nowrap">
+                              <button
+                                onClick={() => handleEditPriceClick(price)}
+                                className={`p-2 rounded-xl transition-all ${
+                                  editingPriceId === price.id 
+                                    ? 'text-amber-600 bg-amber-50' 
+                                    : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+                                }`}
+                                title="Edit acuan harga"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleDeletePrice(price.id)}
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                title="Hapus acuan harga"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))
                     )}

@@ -668,3 +668,29 @@ def delete_audit_report(db: Session, report_id: int) -> bool:
     return False
 
 
+def delete_market_price(db: Session, price_id: int) -> bool:
+    db_mp = db.query(models.MarketPrice).filter(models.MarketPrice.id == price_id).first()
+    if db_mp:
+        item_name = db_mp.item_name
+        db.delete(db_mp)
+        db.commit()
+        
+        # Log deletion in Audit Log
+        try:
+            db.execute(
+                text("INSERT INTO audit_logs (action, target_table, target_id, details) VALUES (:action, :table, :id, :details)"),
+                {
+                    "action": "PRICE_DELETE",
+                    "table": "market_prices",
+                    "id": price_id,
+                    "details": f"Deleted reference market price for {item_name}"
+                }
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+        return True
+    return False
+
+
+
