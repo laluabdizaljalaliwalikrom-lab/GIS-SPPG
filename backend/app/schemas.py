@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Union
-from datetime import date
+from datetime import date, datetime
 from uuid import UUID
 
 class SPPGUnitBase(BaseModel):
@@ -110,4 +110,54 @@ class SPPGPointAnswerResponse(SPPGPointAnswerBase):
 
 class SPPGChecklistUpdate(BaseModel):
     answers: List[SPPGPointAnswerBase]
+
+
+class MarketPriceBase(BaseModel):
+    item_name: str
+    region_id: Optional[str] = None
+    reference_price: float
+    unit: str
+
+
+class MarketPriceCreate(MarketPriceBase):
+    pass
+
+
+class MarketPriceResponse(MarketPriceBase):
+    id: int
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AuditItemBase(BaseModel):
+    item_name: str
+    qty: float
+    price_per_unit: float
+    market_price: float
+    potential_loss: float
+
+
+class AuditItemResponse(AuditItemBase):
+    id: int
+    audit_report_id: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AuditReportBase(BaseModel):
+    doc_url: Optional[str] = None
+    total_items: int
+    total_potential_loss: float
+    status: str
+
+
+class AuditReportResponse(AuditReportBase):
+    id: int
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AuditReportDetailResponse(AuditReportResponse):
+    items: List[AuditItemResponse]
+    model_config = ConfigDict(from_attributes=True)
+
 

@@ -1,5 +1,5 @@
 # Force reload models
-from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey, Boolean, DateTime, func
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geometry, Geography
 from .database import Base
@@ -106,4 +106,44 @@ class SPPGPointAnswer(Base):
 
     sppg = relationship("SPPGUnit", back_populates="answers")
     point = relationship("RaportPoint")
+
+
+class MarketPrice(Base):
+    __tablename__ = "market_prices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    item_name = Column(String, unique=True, index=True, nullable=False)
+    region_id = Column(String, nullable=True)
+    reference_price = Column(Float, nullable=False)
+    unit = Column(String, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class AuditReport(Base):
+    __tablename__ = "audit_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    doc_url = Column(String, nullable=True)
+    total_items = Column(Integer, default=0)
+    total_potential_loss = Column(Float, default=0.0)
+    status = Column(String, default="NORMAL") # 'NORMAL' | 'WARNING' | 'DANGER'
+    created_at = Column(DateTime, server_default=func.now())
+
+    items = relationship("AuditItem", back_populates="report", cascade="all, delete-orphan")
+
+
+class AuditItem(Base):
+    __tablename__ = "audit_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    audit_report_id = Column(Integer, ForeignKey("audit_reports.id", ondelete="CASCADE"), nullable=False)
+    item_name = Column(String, nullable=False)
+    qty = Column(Float, default=1.0)
+    price_per_unit = Column(Float, nullable=False)
+    market_price = Column(Float, nullable=False)
+    potential_loss = Column(Float, default=0.0)
+    created_at = Column(DateTime, server_default=func.now())
+
+    report = relationship("AuditReport", back_populates="items")
+
 

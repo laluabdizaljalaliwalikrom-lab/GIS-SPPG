@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, asc, text
 from . import models, schemas
 import os
+import logging
 from datetime import date
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -489,4 +490,181 @@ def recalculate_sppg_scores(db: Session, sppg_id: int):
     sppg.kepuasan_score = scores['kepuasan_score']
     
     db.commit()
+
+
+# --- SMART AUDIT & POTENTIAL LOSS DETECTION CRUD ---
+
+def get_market_prices(db: Session):
+    return db.query(models.MarketPrice).order_by(models.MarketPrice.item_name.asc()).all()
+
+def create_or_update_market_price(db: Session, price_data: schemas.MarketPriceCreate):
+    # Check if item already exists in market_prices (case insensitive)
+    db_mp = db.query(models.MarketPrice).filter(models.MarketPrice.item_name.ilike(price_data.item_name)).first()
+    if db_mp:
+        db_mp.reference_price = price_data.reference_price
+        db_mp.unit = price_data.unit
+        db_mp.region_id = price_data.region_id
+    else:
+        db_mp = models.MarketPrice(**price_data.model_dump())
+        db.add(db_mp)
+    db.commit()
+    db.refresh(db_mp)
+    return db_mp
+
+def find_market_price(db: Session, item_name: str) -> models.MarketPrice:
+    normalized_name = item_name.strip().lower()
+    
+    # Query all reference prices for in-memory fuzzy/substring matching
+    market_prices = db.query(models.MarketPrice).all()
+    
+    # 1. Exact match (case insensitive)
+    for mp in market_prices:
+        if mp.item_name.lower().strip() == normalized_name:
+            return mp
+            
+    # 2. Substring match: Is the database price item name inside the receipt item name?
+    # e.g., db price "Beras" matches receipt "Beras Cianjur Kepala"
+    best_match = None
+    for mp in market_prices:
+        mp_name = mp.item_name.lower().strip()
+        if mp_name in normalized_name:
+            if not best_match or len(mp_name) > len(best_match.item_name):
+                best_match = mp
+                
+    if best_match:
+        return best_match
+        
+    # 3. Substring match: Is the receipt item name inside the database price item name?
+    # e.g., receipt "Bawang" matches db price "Bawang Merah"
+    for mp in market_prices:
+        mp_name = mp.item_name.lower().strip()
+        if normalized_name in mp_name:
+            if not best_match or len(mp_name) < len(best_match.item_name):
+                best_match = mp
+                
+    return best_match
+
+def create_audit_report(db: Session, doc_url: str, extracted_items: list, user_id: str = None) -> models.AuditReport:
+    total_potential_loss = 0.0
+    total_items = 0
+    db_items = []
+    
+    max_markup = 0.0
+    
+    for item in extracted_items:
+        item_name = item.get("item_name")
+        qty = float(item.get("qty", 1.0))
+        price_per_unit = float(item.get("price_per_unit", 0.0))
+        
+        # Match with reference price
+        matched_mp = find_market_price(db, item_name)
+        if matched_mp:
+            market_price = matched_mp.reference_price
+        else:
+            # Fallback: if not found, assume market price is equal to the bill price (0 markup, 0 loss)
+            market_price = price_per_unit
+            
+        # Calculation: potential loss and markup
+        potential_loss_item = 0.0
+        markup_pct = 0.0
+        if price_per_unit > market_price and market_price > 0:
+            markup_pct = ((price_per_unit - market_price) / market_price) * 100
+            potential_loss_item = (price_per_unit - market_price) * qty
+            
+        total_potential_loss += potential_loss_item
+        total_items += 1
+        
+        if markup_pct > max_markup:
+            max_markup = markup_pct
+            
+        db_items.append(
+            models.AuditItem(
+                item_name=item_name,
+                qty=qty,
+                price_per_unit=price_per_unit,
+                market_price=market_price,
+                potential_loss=potential_loss_item
+            )
+        )
+        
+    # Classify overall risk status based on max item markup:
+    # Safe (<5% markup) -> NORMAL
+    # Warning (5-15% markup) -> WARNING
+    # Danger (>15% markup) -> DANGER
+    if max_markup > 15.0:
+        report_status = "DANGER"
+    elif max_markup >= 5.0:
+        report_status = "WARNING"
+    else:
+        report_status = "NORMAL"
+        
+    # Create the report
+    db_report = models.AuditReport(
+        doc_url=doc_url,
+        total_items=total_items,
+        total_potential_loss=total_potential_loss,
+        status=report_status
+    )
+    
+    db.add(db_report)
+    db.commit()
+    db.refresh(db_report)
+    
+    # Add detail items
+    for db_item in db_items:
+        db_item.audit_report_id = db_report.id
+        db.add(db_item)
+        
+    db.commit()
+    db.refresh(db_report)
+    
+    # Record scan in the system's Audit Log
+    try:
+        db.execute(
+            text("INSERT INTO audit_logs (user_id, action, target_table, target_id, details) VALUES (:uid, :action, :table, :id, :details)"),
+            {
+                "uid": user_id,
+                "action": "AUDIT_SCAN",
+                "table": "audit_reports",
+                "id": db_report.id,
+                "details": f"Scan RAB/Nota: {total_items} items, total potential loss: Rp {total_potential_loss:,.2f}, status: {report_status}"
+            }
+        )
+        db.commit()
+    except Exception as e:
+        logger_err = logging.getLogger("sppg_audit_ocr")
+        logger_err.error(f"Failed to insert audit log entry: {str(e)}")
+        db.rollback()
+        
+    return db_report
+
+def get_audit_reports(db: Session):
+    return db.query(models.AuditReport).order_by(models.AuditReport.created_at.desc()).all()
+
+def get_audit_report(db: Session, report_id: int):
+    return db.query(models.AuditReport).filter(models.AuditReport.id == report_id).first()
+
+def delete_audit_report(db: Session, report_id: int) -> bool:
+    db_report = db.query(models.AuditReport).filter(models.AuditReport.id == report_id).first()
+    if db_report:
+        db.delete(db_report)
+        db.commit()
+        
+        # Log deletion in Audit Log
+        try:
+            db.execute(
+                text("INSERT INTO audit_logs (action, target_table, target_id, details) VALUES (:action, :table, :id, :details)"),
+                {
+                    "action": "AUDIT_DELETE",
+                    "table": "audit_reports",
+                    "id": report_id,
+                    "details": f"Deleted audit report ID {report_id}"
+                }
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+        return True
+    return False
+
 

@@ -12,6 +12,7 @@ import Settings from './pages/Settings';
 import StatsOverview from './pages/StatsOverview';
 import LandingPage from './pages/LandingPage';
 import LandingPageEditor from './pages/LandingPageEditor';
+import AuditCenter from './pages/AuditCenter';
 
 const ProtectedRoute = ({ children }) => {
   const [session, setSession] = useState(null);
@@ -69,6 +70,7 @@ function App() {
           <Route path="landing-editor" element={<LandingPageEditor />} />
           <Route path="logs" element={<AuditLogs />} />
           <Route path="users" element={<UserManagement />} />
+          <Route path="audit" element={<AuditCenter />} />
           <Route path="settings" element={<Settings />} />
           <Route path="profile" element={<div className="animate-in fade-in duration-500"><h1 className="text-3xl font-black text-slate-800 tracking-tight">Profil Pengguna</h1><p className="text-slate-500 font-medium mt-1">Pengaturan akun dan preferensi sistem.</p><div className="mt-8 p-12 border-2 border-dashed border-blue-100 rounded-[3rem] text-center"><p className="text-blue-400 font-bold">Fitur ini akan segera hadir.</p></div></div>} />
         </Route>

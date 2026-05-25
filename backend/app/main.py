@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from typing import List
 from sqlalchemy.orm import Session
 from . import crud, models, schemas
@@ -17,6 +18,11 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "../../.env"))
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="SPPG Mapping System API")
+
+# Ensure static uploads directory exists
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "../static/uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "../static")), name="static")
 
 app.add_middleware(
     CORSMiddleware,
@@ -161,4 +167,102 @@ def get_sppg_checklist(sppg_id: int, db: Session = Depends(get_db)):
 @app.put("/api/sppg/{sppg_id}/checklist")
 def update_sppg_checklist(sppg_id: int, checklist: schemas.SPPGChecklistUpdate, db: Session = Depends(get_db), _ = Depends(coordinator_only)):
     return crud.update_sppg_checklist(db, sppg_id, checklist)
+
+
+# --- SMART AUDIT & POTENTIAL LOSS DETECTION ENDPOINTS ---
+
+@app.post("/api/audit/upload", response_model=schemas.AuditReportDetailResponse)
+async def upload_audit_file(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.Profile = Depends(coordinator_only)
+):
+    try:
+        contents = await file.read()
+        
+        # 1. Try uploading to Supabase Storage
+        doc_url = None
+        bucket_name = "audit_documents"
+        
+        if crud.supabase:
+            try:
+                # Ensure bucket exists
+                try:
+                    crud.supabase.storage.create_bucket(bucket_name, options={"public": True})
+                except Exception:
+                    pass
+                
+                import uuid
+                ext = file.filename.split(".")[-1]
+                unique_filename = f"{uuid.uuid4()}.{ext}"
+                
+                # Upload to Supabase bucket
+                crud.supabase.storage.from_(bucket_name).upload(
+                    path=unique_filename,
+                    file=contents,
+                    file_options={"content-type": file.content_type}
+                )
+                
+                # Get public URL
+                doc_url = crud.supabase.storage.from_(bucket_name).get_public_url(unique_filename)
+            except Exception as e:
+                # If Supabase fails, log it and fall back to local serving
+                print(f"Supabase Storage upload warning: {e}")
+                
+        # 2. Local Fallback Storage
+        if not doc_url:
+            import uuid
+            ext = file.filename.split(".")[-1]
+            unique_filename = f"{uuid.uuid4()}.{ext}"
+            local_path = os.path.join(UPLOAD_DIR, unique_filename)
+            
+            with open(local_path, "wb") as f_out:
+                f_out.write(contents)
+                
+            doc_url = f"/static/uploads/{unique_filename}"
+            
+        # 3. OCR scanning (Gemini + Local Fallback)
+        from .ocr import perform_ocr
+        extracted_items = perform_ocr(contents, file.filename, file.content_type)
+        
+        if not extracted_items:
+            raise HTTPException(status_code=400, detail="Gagal mengekstrak item dari dokumen. Silakan periksa format dokumen.")
+            
+        # 4. Save to database & record in audit trail logs
+        db_report = crud.create_audit_report(db, doc_url, extracted_items, current_user.id)
+        return db_report
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal memproses file audit: {str(e)}")
+
+@app.get("/api/audit/reports", response_model=List[schemas.AuditReportResponse])
+def read_audit_reports(db: Session = Depends(get_db), current_user: models.Profile = Depends(coordinator_only)):
+    return crud.get_audit_reports(db)
+
+@app.get("/api/audit/reports/{id}", response_model=schemas.AuditReportDetailResponse)
+def read_audit_report_detail(id: int, db: Session = Depends(get_db), current_user: models.Profile = Depends(coordinator_only)):
+    report = crud.get_audit_report(db, id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Laporan audit tidak ditemukan.")
+    return report
+
+@app.delete("/api/audit/reports/{id}")
+def delete_audit_report(id: int, db: Session = Depends(get_db), current_user: models.Profile = Depends(admin_only)):
+    success = crud.delete_audit_report(db, id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Laporan audit tidak ditemukan.")
+    return {"status": "success", "message": f"Berhasil menghapus laporan audit ID {id}"}
+
+@app.get("/api/audit/market-prices", response_model=List[schemas.MarketPriceResponse])
+def read_market_prices(db: Session = Depends(get_db), current_user: models.Profile = Depends(coordinator_only)):
+    return crud.get_market_prices(db)
+
+@app.post("/api/audit/market-prices", response_model=schemas.MarketPriceResponse)
+def add_or_update_market_price(
+    price_data: schemas.MarketPriceCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Profile = Depends(admin_only)
+):
+    return crud.create_or_update_market_price(db, price_data)
+
 

@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'https://gis-sppg.onrender.com/api',
+  baseURL: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:8000/api'
+    : 'https://gis-sppg.onrender.com/api',
 });
 
 api.interceptors.request.use((config) => {

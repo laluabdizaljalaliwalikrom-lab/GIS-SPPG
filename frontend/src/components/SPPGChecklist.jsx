@@ -1,19 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSPPG } from '../hooks/useSPPG';
 import { Check, X, Loader2 } from 'lucide-react';
 
+const EMPTY_ARRAY = [];
+
+
 const SPPGChecklist = ({ sppgId, onUpdate }) => {
   const { raportPoints, useChecklist, updateChecklist, isUpdatingChecklist } = useSPPG();
-  const { data: currentAnswers = [], isLoading: loadingAnswers } = useChecklist(sppgId);
-  const [localAnswers, setLocalAnswers] = useState(currentAnswers);
-  const [prevAnswers, setPrevAnswers] = useState(currentAnswers);
+  const { data: currentAnswers, isLoading: loadingAnswers } = useChecklist(sppgId);
+  
+  // Use EMPTY_ARRAY as initial state to avoid new reference on every render
+  const [localAnswers, setLocalAnswers] = useState(EMPTY_ARRAY);
 
-  // Sync local state with remote data when remote data changes
-  // This pattern is preferred over useEffect for syncing props/data to state
-  if (currentAnswers !== prevAnswers) {
-    setPrevAnswers(currentAnswers);
-    setLocalAnswers(currentAnswers);
-  }
+  useEffect(() => {
+    if (currentAnswers) {
+      setLocalAnswers(currentAnswers);
+    }
+  }, [currentAnswers]);
+
 
   const handleToggle = (pointId) => {
     setLocalAnswers(prev => {
