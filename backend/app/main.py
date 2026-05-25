@@ -278,4 +278,14 @@ def delete_market_price(
     return {"status": "success", "message": f"Berhasil menghapus harga referensi ID {id}"}
 
 
+@app.get("/api/audit/market-prices/history", response_model=List[schemas.MarketPriceResponse])
+def read_market_price_history(
+    item_name: str,
+    db: Session = Depends(get_db),
+    current_user: models.Profile = Depends(coordinator_only)
+):
+    return crud.get_market_price_history(db, item_name)
+
+
+
 

@@ -117,6 +117,8 @@ class MarketPriceBase(BaseModel):
     region_id: Optional[str] = None
     reference_price: float
     unit: str
+    shop_name: Optional[str] = None
+    price_date: Optional[date] = None
 
 
 class MarketPriceCreate(MarketPriceBase):

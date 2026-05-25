@@ -498,24 +498,49 @@ def get_market_prices(db: Session):
     return db.query(models.MarketPrice).order_by(models.MarketPrice.item_name.asc()).all()
 
 def create_or_update_market_price(db: Session, price_data: schemas.MarketPriceCreate):
-    # Check if item already exists in market_prices (case insensitive)
-    db_mp = db.query(models.MarketPrice).filter(models.MarketPrice.item_name.ilike(price_data.item_name)).first()
+    # Fallback to today if date is not provided
+    p_date = price_data.price_date or date.today()
+    
+    # Check if there is an exact match for item_name, shop_name, and price_date
+    db_mp = db.query(models.MarketPrice).filter(
+        models.MarketPrice.item_name.ilike(price_data.item_name),
+        models.MarketPrice.shop_name == price_data.shop_name,
+        models.MarketPrice.price_date == p_date
+    ).first()
+    
     if db_mp:
         db_mp.reference_price = price_data.reference_price
         db_mp.unit = price_data.unit
         db_mp.region_id = price_data.region_id
     else:
-        db_mp = models.MarketPrice(**price_data.model_dump())
+        # Create a new record (records price history point!)
+        db_mp = models.MarketPrice(
+            item_name=price_data.item_name,
+            region_id=price_data.region_id,
+            reference_price=price_data.reference_price,
+            unit=price_data.unit,
+            shop_name=price_data.shop_name,
+            price_date=p_date
+        )
         db.add(db_mp)
     db.commit()
     db.refresh(db_mp)
     return db_mp
 
+def get_market_price_history(db: Session, item_name: str):
+    return db.query(models.MarketPrice).filter(
+        models.MarketPrice.item_name.ilike(item_name)
+    ).order_by(models.MarketPrice.price_date.asc()).all()
+
 def find_market_price(db: Session, item_name: str) -> models.MarketPrice:
     normalized_name = item_name.strip().lower()
     
-    # Query all reference prices for in-memory fuzzy/substring matching
-    market_prices = db.query(models.MarketPrice).all()
+    # Query all reference prices sorted by price_date desc, created_at desc
+    # This guarantees that if there are multiple entries (history), we match the latest active reference price!
+    market_prices = db.query(models.MarketPrice).order_by(
+        models.MarketPrice.price_date.desc(),
+        models.MarketPrice.created_at.desc()
+    ).all()
     
     # 1. Exact match (case insensitive)
     for mp in market_prices:

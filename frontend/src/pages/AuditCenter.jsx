@@ -46,16 +46,139 @@ const AuditCenter = () => {
   // Form states for new price
   const [newPrice, setNewPrice] = useState({
     item_name: '',
-    region_id: 'KAB-BANYUMAS',
+    region_id: 'Selong',
     reference_price: '',
-    unit: 'kg'
+    unit: 'kg',
+    shop_name: '',
+    price_date: new Date().toISOString().split('T')[0]
   });
   const [savingPrice, setSavingPrice] = useState(false);
   const [editingPriceId, setEditingPriceId] = useState(null);
 
+  // Charting state
+  const [selectedChartItem, setSelectedChartItem] = useState('');
+  const [priceHistory, setPriceHistory] = useState([]);
+  const [chartLoading, setChartLoading] = useState(false);
+  const [hoveredPoint, setHoveredPoint] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Security Role Guard
   const isAuthorized = profile?.role === 'admin' || profile?.role === 'kecamatan_coordinator';
   const isAdmin = profile?.role === 'admin';
+
+  const getFilteredCommodities = () => {
+    const uniqueNames = [...new Set(marketPrices.map((p) => p.item_name))].sort();
+    if (!searchQuery) return uniqueNames;
+    return uniqueNames.filter(name => name.toLowerCase().includes(searchQuery.toLowerCase()));
+  };
+
+  const getPointCoords = (index, price) => {
+    if (priceHistory.length === 0) return { x: 0, y: 0 };
+    const paddingLeft = 60;
+    const paddingRight = 40;
+    const paddingTop = 40;
+    const paddingBottom = 50;
+    
+    const chartWidth = 600 - paddingLeft - paddingRight;
+    const chartHeight = 350 - paddingTop - paddingBottom;
+    
+    const prices = priceHistory.map(h => h.reference_price);
+    const minVal = Math.min(...prices);
+    const maxVal = Math.max(...prices);
+    
+    const range = maxVal - minVal;
+    const yMin = range === 0 ? Math.max(0, minVal - 5000) : Math.max(0, minVal - range * 0.15);
+    const yMax = range === 0 ? minVal + 5000 : maxVal + range * 0.15;
+    
+    const x = priceHistory.length > 1 
+      ? paddingLeft + (index * chartWidth) / (priceHistory.length - 1) 
+      : paddingLeft + chartWidth / 2;
+    const y = 350 - paddingBottom - ((price - yMin) * chartHeight) / (yMax - yMin || 1);
+    return { x, y };
+  };
+
+  const getLinePath = () => {
+    if (priceHistory.length < 2) return '';
+    return priceHistory
+      .map((h, idx) => {
+        const coords = getPointCoords(idx, h.reference_price);
+        return `${idx === 0 ? 'M' : 'L'} ${coords.x} ${coords.y}`;
+      })
+      .join(' ');
+  };
+
+  const getAreaPath = () => {
+    if (priceHistory.length < 2) return '';
+    const linePathStr = getLinePath();
+    const firstCoords = getPointCoords(0, 0);
+    const lastCoords = getPointCoords(priceHistory.length - 1, 0);
+    return `${linePathStr} L ${lastCoords.x} 300 L ${firstCoords.x} 300 Z`;
+  };
+
+  const getGridLines = () => {
+    if (priceHistory.length === 0) return [];
+    const prices = priceHistory.map(h => h.reference_price);
+    const minVal = Math.min(...prices);
+    const maxVal = Math.max(...prices);
+    
+    const range = maxVal - minVal;
+    const yMin = range === 0 ? Math.max(0, minVal - 5000) : Math.max(0, minVal - range * 0.15);
+    const yMax = range === 0 ? minVal + 5000 : maxVal + range * 0.15;
+    
+    const lines = [];
+    for (let i = 0; i < 4; i++) {
+      const value = yMin + (i * (yMax - yMin)) / 3;
+      const coords = getPointCoords(0, value);
+      lines.push({ y: coords.y, value });
+    }
+    return lines;
+  };
+
+  const formatRupiahShort = (value) => {
+    if (value >= 1000000) {
+      return `Rp ${(value / 1000000).toFixed(1)}jt`;
+    }
+    if (value >= 1000) {
+      return `Rp ${(value / 1000).toFixed(0)}k`;
+    }
+    return `Rp ${value}`;
+  };
+
+  // Fetch price history for the selected item
+  useEffect(() => {
+    const fetchHistory = async () => {
+      if (!selectedChartItem) {
+        setPriceHistory([]);
+        return;
+      }
+      setChartLoading(true);
+      try {
+        const res = await api.get('/audit/market-prices/history', {
+          params: { item_name: selectedChartItem }
+        });
+        setPriceHistory(res.data);
+      } catch (error) {
+        console.error(error);
+        toast.error('Gagal memuat riwayat harga barang.');
+      } finally {
+        setChartLoading(false);
+      }
+    };
+
+    if (activeTab === 'chart') {
+      fetchHistory();
+    }
+  }, [selectedChartItem, activeTab]);
+
+  // Auto-select first item when opening chart tab
+  useEffect(() => {
+    if (activeTab === 'chart' && !selectedChartItem && marketPrices.length > 0) {
+      const uniqueNames = [...new Set(marketPrices.map((p) => p.item_name))];
+      if (uniqueNames.length > 0) {
+        setSelectedChartItem(uniqueNames[0]);
+      }
+    }
+  }, [activeTab, marketPrices, selectedChartItem]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -236,11 +359,11 @@ const AuditCenter = () => {
       const res = await api.post('/audit/market-prices', payload);
       toast.success('Harga referensi berhasil disimpan!');
       
-      // Update list
+      // Update list by matching id instead of item_name (to support history and duplicates)
       setMarketPrices((prev) => {
-        const exists = prev.some((p) => p.item_name.toLowerCase() === res.data.item_name.toLowerCase());
+        const exists = prev.some((p) => p.id === res.data.id);
         if (exists) {
-          return prev.map((p) => p.item_name.toLowerCase() === res.data.item_name.toLowerCase() ? res.data : p);
+          return prev.map((p) => p.id === res.data.id ? res.data : p);
         }
         return [...prev, res.data].sort((a, b) => a.item_name.localeCompare(b.item_name));
       });
@@ -248,9 +371,11 @@ const AuditCenter = () => {
       // Reset form
       setNewPrice({
         item_name: '',
-        region_id: 'KAB-BANYUMAS',
+        region_id: 'Selong',
         reference_price: '',
-        unit: 'kg'
+        unit: 'kg',
+        shop_name: '',
+        price_date: new Date().toISOString().split('T')[0]
       });
       setEditingPriceId(null);
     } catch (error) {
@@ -264,9 +389,11 @@ const AuditCenter = () => {
   const handleEditPriceClick = (price) => {
     setNewPrice({
       item_name: price.item_name,
-      region_id: price.region_id || 'KAB-BANYUMAS',
+      region_id: price.region_id || 'Selong',
       reference_price: price.reference_price.toString(),
-      unit: price.unit
+      unit: price.unit,
+      shop_name: price.shop_name || '',
+      price_date: price.price_date ? price.price_date.split('T')[0] : new Date().toISOString().split('T')[0]
     });
     setEditingPriceId(price.id);
   };
@@ -275,9 +402,11 @@ const AuditCenter = () => {
     setEditingPriceId(null);
     setNewPrice({
       item_name: '',
-      region_id: 'KAB-BANYUMAS',
+      region_id: 'Selong',
       reference_price: '',
-      unit: 'kg'
+      unit: 'kg',
+      shop_name: '',
+      price_date: new Date().toISOString().split('T')[0]
     });
   };
 
@@ -406,6 +535,12 @@ const AuditCenter = () => {
             className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'prices' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
           >
             <span className="flex items-center gap-2"><Tag size={14} /> Referensi Harga</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('chart')}
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'chart' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            <span className="flex items-center gap-2"><TrendingUp size={14} /> Tren Harga</span>
           </button>
         </div>
       </div>
@@ -728,7 +863,7 @@ const AuditCenter = () => {
           </div>
 
         </div>
-      ) : (
+      ) : activeTab === 'prices' ? (
         /* TAB: Reference prices management */
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
@@ -774,21 +909,89 @@ const AuditCenter = () => {
                         onChange={(e) => setNewPrice((prev) => ({ ...prev, unit: e.target.value }))}
                         className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm appearance-none"
                       >
-                        <option value="kg">kilogram (kg)</option>
-                        <option value="liter">liter</option>
-                        <option value="pcs">pieces (pcs)</option>
-                        <option value="ikat">ikat</option>
-                        <option value="tabung">tabung</option>
+                        <optgroup label="Satuan Berat (Massa)">
+                          <option value="kg">Kilogram (kg)</option>
+                          <option value="gr">Gram (gr)</option>
+                          <option value="ton">Ton</option>
+                          <option value="kwintal">Kwintal (100 kg)</option>
+                        </optgroup>
+                        <optgroup label="Satuan Volume (Cairan)">
+                          <option value="liter">Liter (L)</option>
+                          <option value="ml">Mililiter (ml)</option>
+                          <option value="galon">Galon</option>
+                        </optgroup>
+                        <optgroup label="Satuan Kuantitas (Jumlah)">
+                          <option value="pcs">Pcs (Pieces/Buah)</option>
+                          <option value="butir">Butir</option>
+                          <option value="sachet">Sachet</option>
+                          <option value="pack">Pack / Bungkus</option>
+                        </optgroup>
+                        <optgroup label="Satuan Kemasan Besar (Grosir)">
+                          <option value="koli">Koli (Karung/Peti/Dus)</option>
+                          <option value="dus">Kardus / Dus</option>
+                          <option value="karung">Karung (Sak)</option>
+                          <option value="lusin">Lusin (12 pcs)</option>
+                          <option value="kodi">Kodi (20 pcs)</option>
+                          <option value="gross">Gross (144 pcs)</option>
+                        </optgroup>
+                        <optgroup label="Satuan Panjang/Luas">
+                          <option value="m">Meter (m)</option>
+                          <option value="m2">Meter Persegi (m²)</option>
+                        </optgroup>
                       </select>
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700">Wilayah</label>
-                      <input
-                        type="text"
-                        required
+                      <label className="text-xs font-bold text-slate-700">Wilayah (Kecamatan)</label>
+                      <select
                         value={newPrice.region_id}
                         onChange={(e) => setNewPrice((prev) => ({ ...prev, region_id: e.target.value }))}
+                        className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm appearance-none"
+                      >
+                        <option value="Aikmel">Aikmel</option>
+                        <option value="Jerowaru">Jerowaru</option>
+                        <option value="Keruak">Keruak</option>
+                        <option value="Labuhan Haji">Labuhan Haji</option>
+                        <option value="Lenek">Lenek</option>
+                        <option value="Masbagik">Masbagik</option>
+                        <option value="Montong Gading">Montong Gading</option>
+                        <option value="Pringgabaya">Pringgabaya</option>
+                        <option value="Pringgasela">Pringgasela</option>
+                        <option value="Sakra">Sakra</option>
+                        <option value="Sakra Barat">Sakra Barat</option>
+                        <option value="Sakra Timur">Sakra Timur</option>
+                        <option value="Sambelia">Sambelia</option>
+                        <option value="Selong">Selong (Pusat Pemerintahan)</option>
+                        <option value="Sembalun">Sembalun</option>
+                        <option value="Sikur">Sikur</option>
+                        <option value="Sukamulia">Sukamulia</option>
+                        <option value="Suralaga">Suralaga</option>
+                        <option value="Suela">Suela (Suwela)</option>
+                        <option value="Terara">Terara</option>
+                        <option value="Wanasaba">Wanasaba</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700">Nama Toko (Opsional)</label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: Toko Barokah"
+                        value={newPrice.shop_name}
+                        onChange={(e) => setNewPrice((prev) => ({ ...prev, shop_name: e.target.value }))}
+                        className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700">Tanggal Acuan</label>
+                      <input
+                        type="date"
+                        required
+                        value={newPrice.price_date}
+                        onChange={(e) => setNewPrice((prev) => ({ ...prev, price_date: e.target.value }))}
                         className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
                       />
                     </div>
@@ -857,6 +1060,8 @@ const AuditCenter = () => {
                       <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider">Nama Barang</th>
                       <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider">Wilayah</th>
                       <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Unit</th>
+                      <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-left">Toko</th>
+                      <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Tanggal</th>
                       <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-right">Harga Referensi</th>
                       {isAdmin && <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Aksi</th>}
                     </tr>
@@ -864,7 +1069,7 @@ const AuditCenter = () => {
                   <tbody className="divide-y divide-slate-100">
                     {marketPrices.length === 0 ? (
                       <tr>
-                        <td colSpan={isAdmin ? 5 : 4} className="text-center py-12 text-slate-400 font-bold text-sm">
+                        <td colSpan={isAdmin ? 7 : 6} className="text-center py-12 text-slate-400 font-bold text-sm">
                           Belum ada data referensi harga pasar.
                         </td>
                       </tr>
@@ -879,6 +1084,12 @@ const AuditCenter = () => {
                           </td>
                           <td className="px-6 py-4 text-center font-bold text-slate-600 text-xs">
                             {price.unit}
+                          </td>
+                          <td className="px-6 py-4 text-left text-slate-600 text-sm font-medium">
+                            {price.shop_name || '-'}
+                          </td>
+                          <td className="px-6 py-4 text-center text-slate-500 text-xs font-bold">
+                            {price.price_date ? new Date(price.price_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
                           </td>
                           <td className="px-6 py-4 text-right font-black text-slate-800 text-sm">
                             {formatRupiah(price.reference_price)}
@@ -914,6 +1125,248 @@ const AuditCenter = () => {
             </div>
           </div>
 
+        </div>
+      ) : (
+        /* TAB: Price Trend Chart */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* List of commodities */}
+          <div className="lg:col-span-1 space-y-4">
+            <div className="bg-white p-6 rounded-[2rem] border border-blue-100 shadow-sm space-y-4">
+              <div className="space-y-1">
+                <h2 className="text-base font-black text-slate-800 uppercase tracking-wider text-blue-600 flex items-center gap-2">
+                  <TrendingUp size={18} /> Pilih Komoditas
+                </h2>
+                <p className="text-slate-400 text-xs font-medium">Pilih barang untuk melihat grafik tren harga dari waktu ke waktu.</p>
+              </div>
+              
+              <input
+                type="text"
+                placeholder="Cari komoditas..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all text-xs font-medium"
+              />
+              
+              <div className="space-y-2 overflow-y-auto max-h-[350px] pr-2 no-scrollbar">
+                {getFilteredCommodities().map((item_name) => {
+                  const isActive = selectedChartItem === item_name;
+                  return (
+                    <button
+                      key={item_name}
+                      onClick={() => setSelectedChartItem(item_name)}
+                      className={`w-full p-4 rounded-2xl border text-left font-bold text-sm transition-all ${
+                        isActive
+                          ? 'border-blue-600 bg-blue-50/30 text-blue-700 shadow-sm'
+                          : 'border-slate-100 hover:border-blue-200 bg-slate-50/30 text-slate-700'
+                      }`}
+                    >
+                      {item_name}
+                    </button>
+                  );
+                })}
+                {getFilteredCommodities().length === 0 && (
+                  <p className="text-center text-xs text-slate-400 font-medium py-6">Komoditas tidak ditemukan</p>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {/* Chart Panel */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white p-6 rounded-[2rem] border border-blue-100 shadow-sm relative flex flex-col min-h-[400px]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+                <div>
+                  <h2 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
+                    Visualisasi Tren Harga: <span className="text-blue-600">{selectedChartItem}</span>
+                  </h2>
+                  <p className="text-slate-400 font-medium text-xs mt-0.5">Grafik pergerakan harga referensi pasar berdasarkan histori input.</p>
+                </div>
+              </div>
+              
+              {chartLoading ? (
+                <div className="flex-1 flex flex-col items-center justify-center py-12 gap-2">
+                  <Loader2 className="animate-spin text-blue-600" size={32} />
+                  <p className="text-slate-400 font-bold text-xs">Memuat data histori...</p>
+                </div>
+              ) : priceHistory.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400">
+                  <TrendingUp size={48} className="text-slate-200 mb-4" />
+                  <p className="font-bold text-sm">Tidak Ada Histori Harga</p>
+                  <p className="text-xs max-w-sm mt-1">Belum ada data riwayat perubahan harga untuk barang "{selectedChartItem}". Silakan tambah harga baru dengan tanggal berbeda.</p>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col space-y-6 relative">
+                  {/* Custom SVG Line Chart Wrapper */}
+                  <div className="relative w-full overflow-hidden border border-slate-50 rounded-2xl p-4 bg-slate-50/20">
+                    <svg viewBox="0 0 600 350" className="w-full h-auto overflow-visible select-none">
+                      <defs>
+                        <linearGradient id="chart-area-grad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
+                          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.00" />
+                        </linearGradient>
+                      </defs>
+                      
+                      {/* Grid Lines */}
+                      {getGridLines().map((line, idx) => (
+                        <g key={idx}>
+                          <line
+                            x1="60"
+                            y1={line.y}
+                            x2="560"
+                            y2={line.y}
+                            stroke="#e2e8f0"
+                            strokeWidth="1"
+                            strokeDasharray="4 4"
+                          />
+                          <text
+                            x="50"
+                            y={line.y + 4}
+                            textAnchor="end"
+                            className="fill-slate-400 text-[10px] font-bold font-mono"
+                          >
+                            {formatRupiahShort(line.value)}
+                          </text>
+                        </g>
+                      ))}
+                      
+                      {/* X Axis Line */}
+                      <line x1="60" y1="300" x2="560" y2="300" stroke="#cbd5e1" strokeWidth="1.5" />
+                      
+                      {/* X Axis Labels */}
+                      {priceHistory.map((h, idx) => {
+                        const coords = getPointCoords(idx, h.reference_price);
+                        return (
+                          <g key={h.id}>
+                            <line
+                              x1={coords.x}
+                              y1="300"
+                              x2={coords.x}
+                              y2="304"
+                              stroke="#cbd5e1"
+                              strokeWidth="1.5"
+                            />
+                            <text
+                              x={coords.x}
+                              y="320"
+                              textAnchor="middle"
+                              className="fill-slate-400 text-[9px] font-black tracking-tight"
+                            >
+                              {h.price_date ? new Date(h.price_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : ''}
+                            </text>
+                          </g>
+                        );
+                      })}
+                      
+                      {/* Area Fill */}
+                      {getAreaPath() && (
+                        <path
+                          d={getAreaPath()}
+                          fill="url(#chart-area-grad)"
+                        />
+                      )}
+                      
+                      {/* Connection Line */}
+                      {getLinePath() && (
+                        <path
+                          d={getLinePath()}
+                          fill="none"
+                          stroke="#2563eb"
+                          strokeWidth="3.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      )}
+                      
+                      {/* Data Dots */}
+                      {priceHistory.map((h, idx) => {
+                        const coords = getPointCoords(idx, h.reference_price);
+                        const isHovered = hoveredPoint?.id === h.id;
+                        return (
+                          <circle
+                            key={h.id}
+                            cx={coords.x}
+                            cy={coords.y}
+                            r={isHovered ? 7 : 5.5}
+                            fill={isHovered ? '#2563eb' : '#ffffff'}
+                            stroke="#2563eb"
+                            strokeWidth="3"
+                            className="transition-all duration-150 cursor-pointer"
+                            onMouseEnter={() => setHoveredPoint({ ...h, x: coords.x, y: coords.y })}
+                            onMouseLeave={() => setHoveredPoint(null)}
+                          />
+                        );
+                      })}
+                    </svg>
+                    
+                    {/* Tooltip Overlay */}
+                    {hoveredPoint && (
+                      <div
+                        className="absolute bg-slate-900/95 text-white p-3 rounded-2xl shadow-xl border border-slate-800 text-xs space-y-1 z-10 pointer-events-none transition-all duration-100"
+                        style={{
+                          left: `${(hoveredPoint.x / 600) * 100}%`,
+                          top: `${(hoveredPoint.y / 350) * 100}%`,
+                          transform: 'translate(-50%, -120%)'
+                        }}
+                      >
+                        <p className="font-black text-[9px] text-blue-400 uppercase tracking-widest">
+                          {hoveredPoint.shop_name || 'Toko Tidak Tercatat'}
+                        </p>
+                        <p className="font-black text-sm text-slate-100">{formatRupiah(hoveredPoint.reference_price)} / {hoveredPoint.unit}</p>
+                        <p className="text-slate-400 text-[9px] font-bold">
+                          {hoveredPoint.price_date ? new Date(hoveredPoint.price_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
+                        </p>
+                        {hoveredPoint.region_id && (
+                          <p className="text-slate-500 text-[9px] font-bold">Wilayah: {hoveredPoint.region_id}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Detailed price history list log */}
+                  <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+                    <div className="px-6 py-4 bg-slate-50/50 border-b border-slate-100">
+                      <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest">Tabel Riwayat Perubahan Harga</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50/20 border-b border-slate-100">
+                            <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">Tanggal</th>
+                            <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">Toko</th>
+                            <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">Wilayah</th>
+                            <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Satuan</th>
+                            <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right">Harga</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {[...priceHistory].reverse().map((h) => (
+                            <tr key={h.id} className="hover:bg-slate-50/30 transition-colors">
+                              <td className="px-6 py-3.5 text-xs font-bold text-slate-600">
+                                {h.price_date ? new Date(h.price_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}
+                              </td>
+                              <td className="px-6 py-3.5 text-xs font-medium text-slate-700">
+                                {h.shop_name || '-'}
+                              </td>
+                              <td className="px-6 py-3.5 text-xs font-medium text-slate-500">
+                                {h.region_id || '-'}
+                              </td>
+                              <td className="px-6 py-3.5 text-xs font-bold text-slate-600 text-center">
+                                {h.unit}
+                              </td>
+                              <td className="px-6 py-3.5 text-xs font-black text-slate-800 text-right">
+                                {formatRupiah(h.reference_price)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

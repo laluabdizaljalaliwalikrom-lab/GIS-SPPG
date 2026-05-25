@@ -112,10 +112,12 @@ class MarketPrice(Base):
     __tablename__ = "market_prices"
 
     id = Column(Integer, primary_key=True, index=True)
-    item_name = Column(String, unique=True, index=True, nullable=False)
+    item_name = Column(String, index=True, nullable=False)
     region_id = Column(String, nullable=True)
     reference_price = Column(Float, nullable=False)
     unit = Column(String, nullable=False)
+    shop_name = Column(String, nullable=True)
+    price_date = Column(Date, nullable=False, server_default=func.current_date())
     created_at = Column(DateTime, server_default=func.now())
 
 
