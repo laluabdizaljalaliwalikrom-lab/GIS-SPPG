@@ -18,6 +18,15 @@ class SPPGUnitBase(BaseModel):
     lat: float
     lng: float
     infrastruktur_score: Optional[int] = 0
+    peralatan_score: Optional[int] = 0
+    k3_lingkungan_score: Optional[int] = 0
+    paket_mbg_score: Optional[int] = 0
+    distribusi_score: Optional[int] = 0
+    dokumentasi_score: Optional[int] = 0
+    penerima_manfaat_score: Optional[int] = 0
+    tenaga_kerja_score: Optional[int] = 0
+    sertifikat_iso_score: Optional[int] = 0
+    administrasi_score: Optional[int] = 0
     sdm_score: Optional[int] = 0
     kepuasan_score: Optional[int] = 0
 

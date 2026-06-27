@@ -473,7 +473,10 @@ def recalculate_sppg_scores(db: Session, sppg_id: int):
     answers = db.query(models.SPPGPointAnswer).filter(models.SPPGPointAnswer.sppg_id == sppg_id).all()
     ans_map = {a.point_id: a.is_fulfilled for a in answers}
     
-    categories = ['infrastruktur', 'sdm', 'kepuasan']
+    categories = [
+        'infrastruktur', 'peralatan', 'k3_lingkungan', 'paket_mbg', 'distribusi',
+        'dokumentasi', 'penerima_manfaat', 'tenaga_kerja', 'sertifikat_iso', 'administrasi'
+    ]
     scores = {}
     
     for cat in categories:
@@ -486,8 +489,18 @@ def recalculate_sppg_scores(db: Session, sppg_id: int):
         scores[f"{cat}_score"] = int((fulfilled_count / len(cat_points)) * 100)
     
     sppg.infrastruktur_score = scores['infrastruktur_score']
-    sppg.sdm_score = scores['sdm_score']
-    sppg.kepuasan_score = scores['kepuasan_score']
+    sppg.peralatan_score = scores['peralatan_score']
+    sppg.k3_lingkungan_score = scores['k3_lingkungan_score']
+    sppg.paket_mbg_score = scores['paket_mbg_score']
+    sppg.distribusi_score = scores['distribusi_score']
+    sppg.dokumentasi_score = scores['dokumentasi_score']
+    sppg.penerima_manfaat_score = scores['penerima_manfaat_score']
+    sppg.tenaga_kerja_score = scores['tenaga_kerja_score']
+    sppg.sertifikat_iso_score = scores['sertifikat_iso_score']
+    sppg.administrasi_score = scores['administrasi_score']
+    # Keep legacy columns mapped just in case of any fallback (optional, let's map them to relevant averages or keep them 0)
+    sppg.sdm_score = scores['tenaga_kerja_score']  # map legacy sdm_score to tenaga_kerja_score
+    sppg.kepuasan_score = scores['paket_mbg_score']  # map legacy kepuasan_score to paket_mbg_score
     
     db.commit()
 

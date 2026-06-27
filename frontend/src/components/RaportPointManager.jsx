@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSPPG } from '../hooks/useSPPG';
-import { Plus, Trash2, Activity, ShieldCheck, Heart } from 'lucide-react';
+import { Plus, Trash2, Home, ChefHat, ShieldCheck, Heart, Truck, FileText, Users, UserCheck, Award, Briefcase } from 'lucide-react';
 
 const RaportPointManager = () => {
   const { raportPoints, createPoint, deletePoint, loadingPoints } = useSPPG();
@@ -19,9 +19,16 @@ const RaportPointManager = () => {
   };
 
   const categories = [
-    { id: 'infrastruktur', label: 'Infrastruktur', icon: Activity, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { id: 'sdm', label: 'Manajemen SDM', icon: ShieldCheck, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { id: 'kepuasan', label: 'Kepuasan', icon: Heart, color: 'text-amber-600', bg: 'bg-amber-50' }
+    { id: 'infrastruktur', label: 'Bangunan & Infrastruktur', icon: Home, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { id: 'peralatan', label: 'Peralatan', icon: ChefHat, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+    { id: 'k3_lingkungan', label: 'K3 & Kesehatan Lingkungan', icon: ShieldCheck, color: 'text-rose-600', bg: 'bg-rose-50' },
+    { id: 'paket_mbg', label: 'Paket Program MBG', icon: Heart, color: 'text-pink-600', bg: 'bg-pink-50' },
+    { id: 'distribusi', label: 'Distribusi', icon: Truck, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { id: 'dokumentasi', label: 'Dokumentasi & Monitoring', icon: FileText, color: 'text-cyan-600', bg: 'bg-cyan-50' },
+    { id: 'penerima_manfaat', label: 'Penerima Manfaat', icon: Users, color: 'text-violet-600', bg: 'bg-violet-50' },
+    { id: 'tenaga_kerja', label: 'Tenaga Kerja', icon: UserCheck, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { id: 'sertifikat_iso', label: 'Sertifikasi & ISO', icon: Award, color: 'text-orange-600', bg: 'bg-orange-50' },
+    { id: 'administrasi', label: 'Administrasi', icon: Briefcase, color: 'text-slate-600', bg: 'bg-slate-50' }
   ];
 
   return (

@@ -41,9 +41,16 @@ const SPPGChecklist = ({ sppgId, onUpdate }) => {
   if (loadingAnswers) return <div className="flex items-center justify-center py-10"><Loader2 className="animate-spin text-blue-600" /></div>;
 
   const categories = [
-    { id: 'infrastruktur', label: 'Infrastruktur' },
-    { id: 'sdm', label: 'Manajemen SDM' },
-    { id: 'kepuasan', label: 'Kepuasan' }
+    { id: 'infrastruktur', label: 'Bangunan & Infrastruktur' },
+    { id: 'peralatan', label: 'Peralatan' },
+    { id: 'k3_lingkungan', label: 'K3 & Kesehatan Lingkungan' },
+    { id: 'paket_mbg', label: 'Paket Program MBG' },
+    { id: 'distribusi', label: 'Distribusi' },
+    { id: 'dokumentasi', label: 'Dokumentasi & Monitoring' },
+    { id: 'penerima_manfaat', label: 'Penerima Manfaat' },
+    { id: 'tenaga_kerja', label: 'Tenaga Kerja' },
+    { id: 'sertifikat_iso', label: 'Sertifikasi & ISO' },
+    { id: 'administrasi', label: 'Administrasi' }
   ];
 
   return (

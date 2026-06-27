@@ -26,6 +26,15 @@ class SPPGUnit(Base):
     
     # Raport fields
     infrastruktur_score = Column(Integer, default=0)
+    peralatan_score = Column(Integer, default=0)
+    k3_lingkungan_score = Column(Integer, default=0)
+    paket_mbg_score = Column(Integer, default=0)
+    distribusi_score = Column(Integer, default=0)
+    dokumentasi_score = Column(Integer, default=0)
+    penerima_manfaat_score = Column(Integer, default=0)
+    tenaga_kerja_score = Column(Integer, default=0)
+    sertifikat_iso_score = Column(Integer, default=0)
+    administrasi_score = Column(Integer, default=0)
     sdm_score = Column(Integer, default=0)
     kepuasan_score = Column(Integer, default=0)
 
