@@ -101,7 +101,7 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={handleClose}
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[9998]"
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[9998] will-change-transform"
           />
           
           {/* Drawer */}
@@ -110,7 +110,7 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-0 right-0 h-full w-full max-w-xl bg-blue-600 shadow-2xl z-[9999] flex flex-col shadow-[0_0_0_1px_#2563eb]"
+            className="fixed top-0 right-0 h-full w-full max-w-xl bg-blue-600 shadow-2xl z-[9999] flex flex-col"
           >
             {/* Header */}
             <div className="p-6 flex items-center justify-between bg-blue-600 text-white">
@@ -356,13 +356,14 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.9, opacity: 0 }}
-                  className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden"
+                  className="relative w-full max-w-md flex flex-col"
                 >
-                  <div className="p-6 lg:p-8 bg-blue-600 text-white">
-                    <h3 className="text-xl font-black mb-1">Assign to SPPG</h3>
-                    <p className="text-blue-100 text-xs">Pilih unit SPPG untuk alokasi kelompok ini.</p>
-                  </div>
-                  <div className="p-6 lg:p-8">
+                  <div className="bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 will-change-transform">
+                    <div className="p-6 lg:p-8 bg-blue-600 text-white">
+                      <h3 className="text-xl font-black mb-1">Assign to SPPG</h3>
+                      <p className="text-blue-100 text-xs">Pilih unit SPPG untuk alokasi kelompok ini.</p>
+                    </div>
+                    <div className="p-6 lg:p-8">
                     <input 
                       type="text"
                       placeholder="Cari SPPG..."
@@ -412,7 +413,8 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                       Batal
                     </button>
                   </div>
-                </motion.div>
+                </div>
+              </motion.div>
               </div>
             )}
           </AnimatePresence>

@@ -173,36 +173,38 @@ const UserManagement = () => {
              initial={{ opacity: 0 }}
              animate={{ opacity: 1 }}
              exit={{ opacity: 0 }}
-             className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}
+             className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm will-change-transform" onClick={() => setIsModalOpen(false)}
            />
-           <motion.div
-             initial={{ opacity: 0, scale: 0.9, y: 20 }}
-             animate={{ opacity: 1, scale: 1, y: 0 }}
-             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-             className="relative w-full lg:max-w-lg bg-blue-600 rounded-t-[2.5rem] lg:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
-           >
-              <div className="p-6 lg:p-8 bg-blue-600 text-white flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md">
-                     {editingUser ? <UserCog size={24} /> : <Plus size={24} />}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full lg:max-w-lg flex flex-col"
+            >
+              <div className="bg-blue-600 rounded-t-[2.5rem] lg:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-blue-600 will-change-transform">
+                <div className="p-6 lg:p-8 bg-blue-600 text-white flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md">
+                       {editingUser ? <UserCog size={24} /> : <Plus size={24} />}
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-black tracking-tight">{editingUser ? 'Edit Akses' : 'Tambah User'}</h2>
+                      <p className="text-blue-100 text-[10px] font-black uppercase tracking-[0.2em] mt-0.5">Pengaturan Keamanan</p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-xl font-black tracking-tight">{editingUser ? 'Edit Akses' : 'Tambah User'}</h2>
-                    <p className="text-blue-100 text-[10px] font-black uppercase tracking-[0.2em] mt-0.5">Pengaturan Keamanan</p>
-                  </div>
+                  <button onClick={() => setIsModalOpen(false)} className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all">
+                    <X size={20} />
+                  </button>
                 </div>
-                <button onClick={() => setIsModalOpen(false)} className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all">
-                  <X size={20} />
-                </button>
+                <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-white">
+                  <UserEditForm 
+                    user={editingUser} 
+                    onSave={handleSave} 
+                    onCancel={() => setIsModalOpen(false)} 
+                    />
+                </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-white">
-                <UserEditForm 
-                  user={editingUser} 
-                  onSave={handleSave} 
-                  onCancel={() => setIsModalOpen(false)} 
-                  />
-              </div>
-           </motion.div>
+            </motion.div>
         </div>
       )}
       </AnimatePresence>

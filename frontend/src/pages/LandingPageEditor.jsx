@@ -126,7 +126,7 @@ const LandingPageEditor = () => {
       {/* Preview Modal */}
       <AnimatePresence>
         {showPreview && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4 lg:p-10">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4 lg:p-10 will-change-transform">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}

@@ -127,7 +127,7 @@ const ExcelImportButton = ({ endpoint, onSuccess, title = "Import Data Excel", t
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={closeAll}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md will-change-transform"
             />
 
             {/* Modal Content */}
