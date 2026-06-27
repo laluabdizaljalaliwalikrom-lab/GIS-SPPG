@@ -19,6 +19,7 @@ import {
   ChevronRight,
   LayoutDashboard,
   ClipboardCheck,
+  ClipboardList,
   Settings as SettingsIcon
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
@@ -101,6 +102,7 @@ const Dashboard = () => {
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Mapping', path: '/dashboard/mapping', icon: MapIcon },
     { name: 'Unit SPPG', path: '/dashboard/sppg', icon: Briefcase },
+    { name: 'Raport Kinerja', path: '/dashboard/raport', icon: ClipboardList },
     { name: 'Kelompok', path: '/dashboard/kelompok', icon: Users },
     ...((profile?.role === 'admin' || profile?.role === 'kecamatan_coordinator')
       ? [{ name: 'Audit Center', path: '/dashboard/audit', icon: ClipboardCheck }]

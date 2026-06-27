@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useSPPG } from '../hooks/useSPPG';
-import { Check, X, Loader2 } from 'lucide-react';
+import { Check, X, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 
 const EMPTY_ARRAY = [];
-
 
 const SPPGChecklist = ({ sppgId, onUpdate }) => {
   const { raportPoints, useChecklist, updateChecklist, isUpdatingChecklist } = useSPPG();
@@ -11,6 +10,7 @@ const SPPGChecklist = ({ sppgId, onUpdate }) => {
   
   // Use EMPTY_ARRAY as initial state to avoid new reference on every render
   const [localAnswers, setLocalAnswers] = useState(EMPTY_ARRAY);
+  const [expandedCategory, setExpandedCategory] = useState('infrastruktur');
 
   useEffect(() => {
     if (currentAnswers) {
@@ -18,14 +18,13 @@ const SPPGChecklist = ({ sppgId, onUpdate }) => {
     }
   }, [currentAnswers]);
 
-
-  const handleToggle = (pointId) => {
+  const handleToggle = (pointId, setFulfilled) => {
     setLocalAnswers(prev => {
       const exists = prev.find(a => a.point_id === pointId);
       if (exists) {
-        return prev.map(a => a.point_id === pointId ? { ...a, is_fulfilled: !a.is_fulfilled } : a);
+        return prev.map(a => a.point_id === pointId ? { ...a, is_fulfilled: setFulfilled } : a);
       } else {
-        return [...prev, { point_id: pointId, is_fulfilled: true }];
+        return [...prev, { point_id: pointId, is_fulfilled: setFulfilled }];
       }
     });
   };
@@ -54,47 +53,94 @@ const SPPGChecklist = ({ sppgId, onUpdate }) => {
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       {categories.map(cat => {
         const points = raportPoints.filter(p => p.category === cat.id);
         if (points.length === 0) return null;
 
-        return (
-          <div key={cat.id} className="space-y-4">
-            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{cat.label}</h4>
-            <div className="grid grid-cols-1 gap-3">
-              {points.map(point => {
-                const answer = localAnswers.find(a => a.point_id === point.id);
-                const isFulfilled = answer?.is_fulfilled || false;
+        const isExpanded = expandedCategory === cat.id;
 
-                return (
-                  <button
-                    key={point.id}
-                    type="button"
-                    onClick={() => handleToggle(point.id)}
-                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all text-left ${
-                      isFulfilled 
-                        ? 'bg-blue-50 border-blue-200 shadow-sm' 
-                        : 'bg-white border-slate-100 hover:border-slate-200'
-                    }`}
-                  >
-                    <span className={`text-xs font-bold ${isFulfilled ? 'text-blue-700' : 'text-slate-600'}`}>
-                      {point.text}
-                    </span>
-                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
-                      isFulfilled ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-300'
-                    }`}>
-                      {isFulfilled ? <Check size={14} /> : <X size={14} />}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+        // Calculate progress stats for this category
+        const totalCount = points.length;
+        const fulfilledCount = points.reduce((acc, point) => {
+          const answer = localAnswers.find(a => a.point_id === point.id);
+          return acc + (answer?.is_fulfilled ? 1 : 0);
+        }, 0);
+
+        return (
+          <div key={cat.id} className="border border-slate-100 rounded-3xl overflow-hidden bg-slate-50/50 shadow-sm transition-all duration-300">
+            {/* Header Accordion Toggle */}
+            <button
+              type="button"
+              onClick={() => setExpandedCategory(isExpanded ? null : cat.id)}
+              className={`w-full flex items-center justify-between px-6 py-4 text-left transition-all ${isExpanded ? 'bg-white border-b border-slate-100' : 'hover:bg-slate-50'}`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-black text-slate-700 tracking-wide uppercase">{cat.label}</span>
+                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                  {fulfilledCount} / {totalCount}
+                </span>
+              </div>
+              <div className="text-slate-400">
+                {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </div>
+            </button>
+
+            {/* Accordion Content */}
+            {isExpanded && (
+              <div className="p-6 bg-white space-y-3 animate-in slide-in-from-top-2 duration-300">
+                <div className="grid grid-cols-1 gap-2.5 max-h-[350px] overflow-y-auto pr-1">
+                  {points.map(point => {
+                    const answer = localAnswers.find(a => a.point_id === point.id);
+                    const isFulfilled = answer !== undefined ? answer.is_fulfilled : null;
+
+                    return (
+                      <div
+                        key={point.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-slate-200 bg-white transition-all gap-3"
+                      >
+                        <span className="text-[11px] font-bold text-slate-600 leading-relaxed">
+                          {point.text}
+                        </span>
+                        
+                        <div className="flex gap-2 shrink-0">
+                          {/* Ya Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggle(point.id, true)}
+                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 border ${
+                              isFulfilled === true 
+                                ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/10' 
+                                : 'bg-slate-50 border-slate-100 text-slate-400 hover:bg-slate-100'
+                            }`}
+                          >
+                            <Check size={12} /> Ya
+                          </button>
+                          
+                          {/* Tidak Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggle(point.id, false)}
+                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 border ${
+                              isFulfilled === false 
+                                ? 'bg-rose-500 text-white border-rose-500 shadow-md shadow-rose-500/10' 
+                                : 'bg-slate-50 border-slate-100 text-slate-400 hover:bg-slate-100'
+                            }`}
+                          >
+                            <X size={12} /> Tidak
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
 
-      <div className="pt-4">
+      <div className="pt-6">
         <button
           onClick={handleSave}
           disabled={isUpdatingChecklist}
