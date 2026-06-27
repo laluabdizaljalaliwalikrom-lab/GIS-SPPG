@@ -82,10 +82,10 @@ const AuditLogs = () => {
       <div className="grid grid-cols-1 gap-4">
         {loading ? (
           [1,2,3].map(i => (
-            <div key={i} className="h-24 bg-white rounded-3xl animate-pulse border border-slate-100" />
+            <div key={i} className="h-24 bg-white rounded-[2.5rem] animate-pulse border border-slate-100" />
           ))
         ) : filteredLogs.map((log) => (
-          <div key={log.id} className="bg-white p-5 lg:p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all group overflow-hidden">
+          <div key={log.id} className="bg-white p-5 lg:p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-md transition-all group overflow-hidden">
              <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8">
                 {/* Status Column */}
                 <div className="flex items-center gap-4 lg:w-48 shrink-0">
@@ -134,7 +134,7 @@ const AuditLogs = () => {
       </div>
 
       {!loading && filteredLogs.length === 0 && (
-        <div className="p-20 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-100">
+        <div className="p-20 text-center bg-white rounded-[2.5rem] border border-slate-100">
            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
              <Filter size={40} className="text-slate-200" />
            </div>

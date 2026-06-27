@@ -172,3 +172,22 @@ class AuditReportDetailResponse(AuditReportResponse):
     model_config = ConfigDict(from_attributes=True)
 
 
+class SPPGRaportSummary(BaseModel):
+    id: int
+    nama: str
+    kode_sppg: str
+    alamat_desa: str
+    rata_rata_score: float
+
+class DashboardStats(BaseModel):
+    total_sppg: int
+    sppg_aktif: int
+    sppg_nonaktif: int
+    sppg_maintenance: int
+    total_kelompok: int
+    total_sasaran: int
+    kelompok_terlayani: int
+    kelompok_belum_terlayani: int
+    top_sppg: List[SPPGRaportSummary]
+
+

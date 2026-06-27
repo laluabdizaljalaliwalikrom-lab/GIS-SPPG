@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
 import { useOutletContext } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   UserCog, 
   Shield, 
@@ -13,6 +14,7 @@ import {
   Mail,
   Lock,
   Save,
+  X,
   User as UserIcon
 } from 'lucide-react';
 
@@ -164,19 +166,46 @@ const UserManagement = () => {
       </button>
 
       {/* Modal CRUD */}
+      <AnimatePresence>
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center p-0 lg:p-4">
-           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-           <div className="relative w-full lg:max-w-lg bg-white rounded-t-[2.5rem] lg:rounded-[2.5rem] p-6 lg:p-10 shadow-2xl animate-in slide-in-from-bottom-20 lg:slide-in-from-bottom-4 duration-300">
-              <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 lg:hidden" />
-              <UserEditForm 
-                user={editingUser} 
-                onSave={handleSave} 
-                onCancel={() => setIsModalOpen(false)} 
-              />
-           </div>
+           <motion.div
+             initial={{ opacity: 0 }}
+             animate={{ opacity: 1 }}
+             exit={{ opacity: 0 }}
+             className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}
+           />
+           <motion.div
+             initial={{ opacity: 0, scale: 0.9, y: 20 }}
+             animate={{ opacity: 1, scale: 1, y: 0 }}
+             exit={{ opacity: 0, scale: 0.9, y: 20 }}
+             className="relative w-full lg:max-w-lg bg-blue-600 rounded-t-[2.5rem] lg:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
+           >
+              <div className="p-6 lg:p-8 bg-blue-600 text-white flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md">
+                     {editingUser ? <UserCog size={24} /> : <Plus size={24} />}
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black tracking-tight">{editingUser ? 'Edit Akses' : 'Tambah User'}</h2>
+                    <p className="text-blue-100 text-[10px] font-black uppercase tracking-[0.2em] mt-0.5">Pengaturan Keamanan</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsModalOpen(false)} className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-white">
+                <UserEditForm 
+                  user={editingUser} 
+                  onSave={handleSave} 
+                  onCancel={() => setIsModalOpen(false)} 
+                  />
+              </div>
+           </motion.div>
         </div>
       )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -206,17 +235,7 @@ const UserEditForm = ({ user, onSave, onCancel }) => {
   });
 
   return (
-    <div className="space-y-8">
-       <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
-             {user ? <UserCog size={24} /> : <Plus size={24} />}
-          </div>
-          <div>
-             <h2 className="text-xl font-black text-slate-800 tracking-tight">{user ? 'Edit Akses' : 'Tambah User'}</h2>
-             <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-0.5">Pengaturan Keamanan</p>
-          </div>
-       </div>
-
+    <div>
        <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="space-y-6">
           {!user && (
             <>

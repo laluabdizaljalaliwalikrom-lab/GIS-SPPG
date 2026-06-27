@@ -102,7 +102,7 @@ const Login = () => {
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="bg-red-50 text-red-600 p-5 rounded-[1.5rem] text-xs font-bold border border-red-100 flex items-center gap-3"
+                  className="bg-red-50 text-red-600 p-5 rounded-2xl text-xs font-bold border border-red-100 flex items-center gap-3"
                 >
                   <div className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
                   {error}
@@ -117,7 +117,7 @@ const Login = () => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-14 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 transition-all font-medium text-sm text-slate-700"
+                    className="w-full pl-14 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 transition-all font-medium text-sm text-slate-700"
                     placeholder="nama@gmail.com"
                     required
                   />
@@ -132,7 +132,7 @@ const Login = () => {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-14 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 transition-all font-medium text-sm text-slate-700"
+                    className="w-full pl-14 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 transition-all font-medium text-sm text-slate-700"
                     placeholder="••••••••"
                     required
                   />
@@ -150,7 +150,7 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-[1.5rem] transition-all shadow-xl shadow-blue-200 flex items-center justify-center gap-3 text-xs uppercase tracking-[0.2em] active:scale-[0.98] disabled:opacity-50 mt-4"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-2xl transition-all shadow-xl shadow-blue-200 flex items-center justify-center gap-3 text-xs uppercase tracking-[0.2em] active:scale-[0.98] disabled:opacity-50 mt-4"
               >
                 {loading ? <Loader2 className="animate-spin" /> : <>Masuk Ke Dashboard <ArrowRight size={18} /></>}
               </button>

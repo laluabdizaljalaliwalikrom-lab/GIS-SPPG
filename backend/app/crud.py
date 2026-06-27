@@ -706,6 +706,71 @@ def delete_audit_report(db: Session, report_id: int) -> bool:
     return False
 
 
+def get_dashboard_stats(db: Session):
+    # SPPG counts by status
+    sppg_all = db.query(models.SPPGUnit).all()
+    total_sppg = len(sppg_all)
+    sppg_aktif = sum(1 for s in sppg_all if s.status_operasional and s.status_operasional.lower() == 'aktif')
+    sppg_nonaktif = sum(1 for s in sppg_all if s.status_operasional and 'tidak' in s.status_operasional.lower())
+    sppg_maintenance = total_sppg - sppg_aktif - sppg_nonaktif
+
+    # Kelompok & sasaran
+    kelompoks = db.query(models.KelompokPenerima).all()
+    total_kelompok = len(kelompoks)
+    kelompok_terlayani = sum(1 for k in kelompoks if k.assigned_sppg_id is not None)
+    kelompok_belum_terlayani = total_kelompok - kelompok_terlayani
+
+    total_sasaran = db.query(
+        func.coalesce(func.sum(models.KelompokDetail.porsi_kecil), 0) +
+        func.coalesce(func.sum(models.KelompokDetail.porsi_besar), 0) +
+        func.coalesce(func.sum(models.KelompokDetail.jumlah_busui), 0) +
+        func.coalesce(func.sum(models.KelompokDetail.jumlah_bumil), 0) +
+        func.coalesce(func.sum(models.KelompokDetail.jumlah_balita_non_paud), 0)
+    ).select_from(models.KelompokDetail).scalar() or 0
+
+    # Top SPPG by raport scores (average of all 10 categories)
+    score_cols = [
+        models.SPPGUnit.infrastruktur_score,
+        models.SPPGUnit.peralatan_score,
+        models.SPPGUnit.k3_lingkungan_score,
+        models.SPPGUnit.paket_mbg_score,
+        models.SPPGUnit.distribusi_score,
+        models.SPPGUnit.dokumentasi_score,
+        models.SPPGUnit.penerima_manfaat_score,
+        models.SPPGUnit.tenaga_kerja_score,
+        models.SPPGUnit.sertifikat_iso_score,
+        models.SPPGUnit.administrasi_score,
+    ]
+    avg_expr = sum(score_cols) / len(score_cols)
+
+    top_sppg_raw = db.query(
+        models.SPPGUnit.id,
+        models.SPPGUnit.nama,
+        models.SPPGUnit.kode_sppg,
+        models.SPPGUnit.alamat_desa,
+        avg_expr.label('rata_rata_score')
+    ).order_by(avg_expr.desc()).limit(5).all()
+
+    top_sppg = [
+        schemas.SPPGRaportSummary(
+            id=s.id, nama=s.nama, kode_sppg=s.kode_sppg,
+            alamat_desa=s.alamat_desa, rata_rata_score=round(float(s.rata_rata_score), 1)
+        ) for s in top_sppg_raw
+    ]
+
+    return schemas.DashboardStats(
+        total_sppg=total_sppg,
+        sppg_aktif=sppg_aktif,
+        sppg_nonaktif=sppg_nonaktif,
+        sppg_maintenance=sppg_maintenance,
+        total_kelompok=total_kelompok,
+        total_sasaran=total_sasaran,
+        kelompok_terlayani=kelompok_terlayani,
+        kelompok_belum_terlayani=kelompok_belum_terlayani,
+        top_sppg=top_sppg,
+    )
+
+
 def delete_market_price(db: Session, price_id: int) -> bool:
     db_mp = db.query(models.MarketPrice).filter(models.MarketPrice.id == price_id).first()
     if db_mp:

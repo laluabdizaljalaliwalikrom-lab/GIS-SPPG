@@ -29,7 +29,9 @@ const Dashboard = () => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
+  const isCollapsed = !isPinned && !isHovered;
   const [isAllocating, setIsAllocating] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -137,14 +139,18 @@ const Dashboard = () => {
       />
       
       {/* Desktop Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 bg-white border-r border-blue-100 shadow-xl transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isCollapsed ? 'w-24' : 'w-72'}`}>
+      <aside 
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`fixed inset-y-0 left-0 z-50 bg-white border-r border-blue-100 shadow-xl transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] lg:translate-x-0 lg:static lg:inset-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isCollapsed ? 'w-24' : 'w-72'}`}
+      >
         <div className="h-full flex flex-col p-4 lg:p-6 relative">
-          {/* Collapse Toggle Button (Desktop Only) */}
+          {/* Pin Toggle Button (Desktop Only) */}
           <button 
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="hidden lg:flex absolute -right-4 top-12 w-8 h-8 bg-white border border-blue-100 rounded-full items-center justify-center text-blue-600 shadow-lg hover:scale-110 transition-all z-50"
+            onClick={() => setIsPinned(!isPinned)}
+            className={`hidden lg:flex absolute -right-4 top-12 w-8 h-8 bg-white border border-blue-100 rounded-full items-center justify-center shadow-lg hover:scale-110 transition-all z-50 ${isPinned ? 'text-blue-600 border-blue-300' : 'text-slate-300 border-slate-200'}`}
           >
-            {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            {isPinned ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
           </button>
 
           <div className={`flex items-center gap-3 mb-10 px-2 transition-all ${isCollapsed ? 'justify-center' : ''}`}>
@@ -182,13 +188,6 @@ const Dashboard = () => {
                 >
                   <item.icon size={20} className={`${isActive ? 'text-white' : 'group-hover:text-blue-600'} transition-all duration-300 ${isCollapsed ? 'shrink-0' : ''}`} />
                   {!isCollapsed && <span className="text-sm truncate animate-in slide-in-from-left-2 duration-300">{item.name}</span>}
-                  
-                  {/* Tooltip for collapsed state */}
-                  {isCollapsed && (
-                    <div className="absolute left-full ml-4 px-3 py-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[60] whitespace-nowrap shadow-xl">
-                       {item.name}
-                    </div>
-                  )}
                 </Link>
               );
             })}
@@ -217,13 +216,6 @@ const Dashboard = () => {
                     >
                       <item.icon size={20} className={`${isActive ? 'text-white' : 'group-hover:text-blue-600'} transition-all duration-300 ${isCollapsed ? 'shrink-0' : ''}`} />
                       {!isCollapsed && <span className="text-sm truncate animate-in slide-in-from-left-2 duration-300">{item.name}</span>}
-                      
-                      {/* Tooltip for collapsed state */}
-                      {isCollapsed && (
-                        <div className="absolute left-full ml-4 px-3 py-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[60] whitespace-nowrap shadow-xl">
-                           {item.name}
-                        </div>
-                      )}
                     </Link>
                   );
                 })}
@@ -249,12 +241,6 @@ const Dashboard = () => {
             >
               <LogOut size={20} className="group-hover:text-red-600 transition-all duration-300" />
               {!isCollapsed && <span className="text-sm font-black animate-in fade-in duration-500">Logout</span>}
-              
-              {isCollapsed && (
-                <div className="absolute left-full ml-4 px-3 py-2 bg-red-600 text-white text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[60] whitespace-nowrap shadow-xl">
-                   Logout
-                </div>
-              )}
             </button>
           </div>
         </div>

@@ -154,7 +154,7 @@ const Settings = () => {
 
         {/* Content Area */}
         <div className="flex-1">
-          <div className="bg-white rounded-[3rem] border border-blue-100 shadow-2xl shadow-blue-500/5 p-8 lg:p-12">
+          <div className="bg-white rounded-[2.5rem] border border-blue-100 shadow-xl shadow-blue-500/5 p-8 lg:p-12">
             {activeTab === 'profile' && <ProfileForm key={profile?.id} profile={profile} />}
 
             {activeTab === 'map' && (

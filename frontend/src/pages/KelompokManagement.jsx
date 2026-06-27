@@ -288,7 +288,7 @@ const StatusBadge = ({ status }) => {
   };
   
   return (
-    <span className={`px-3 py-1 text-[9px] font-black rounded-full uppercase tracking-widest border ${styles[status] || 'bg-slate-50 text-slate-400 border-slate-100'}`}>
+    <span className={`px-3 py-1 text-[10px] font-black rounded-full uppercase tracking-widest border ${styles[status] || 'bg-slate-50 text-slate-400 border-slate-100'}`}>
        {labels[status] || 'UNKNOWN'}
     </span>
   );

@@ -358,17 +358,17 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                   exit={{ scale: 0.9, opacity: 0 }}
                   className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden"
                 >
-                  <div className="p-8 bg-emerald-600 text-white">
+                  <div className="p-6 lg:p-8 bg-blue-600 text-white">
                     <h3 className="text-xl font-black mb-1">Assign to SPPG</h3>
-                    <p className="text-emerald-100 text-xs">Pilih unit SPPG untuk alokasi kelompok ini.</p>
+                    <p className="text-blue-100 text-xs">Pilih unit SPPG untuk alokasi kelompok ini.</p>
                   </div>
-                  <div className="p-6">
+                  <div className="p-6 lg:p-8">
                     <input 
                       type="text"
                       placeholder="Cari SPPG..."
                       value={sppgSearch}
                       onChange={(e) => setSppgSearch(e.target.value)}
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-600 outline-none transition-all mb-4 text-sm font-medium"
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all mb-4 text-sm font-medium"
                     />
                     <div className="max-h-64 overflow-y-auto space-y-2 custom-scrollbar pr-2">
                       {Array.isArray(sppgs) && sppgs
@@ -391,13 +391,13 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                               }
                             }}
                             disabled={isAssigning}
-                            className="w-full p-4 flex items-center justify-between bg-slate-50 hover:bg-emerald-50 border border-transparent hover:border-emerald-200 rounded-2xl transition-all group"
+                            className="w-full p-4 flex items-center justify-between bg-slate-50 hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded-2xl transition-all group"
                           >
                             <div className="text-left">
-                              <p className="font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">{s.nama}</p>
-                              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Kapasitas Sisa: <span className="text-emerald-600">{(s.remaining_capacity || 0).toLocaleString()}</span></p>
+                              <p className="font-bold text-slate-800 group-hover:text-blue-700 transition-colors">{s.nama}</p>
+                              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Kapasitas Sisa: <span className="text-blue-600">{(s.remaining_capacity || 0).toLocaleString()}</span></p>
                             </div>
-                            <Save size={18} className="text-slate-300 group-hover:text-emerald-600 transition-colors" />
+                            <Save size={18} className="text-slate-300 group-hover:text-blue-600 transition-colors" />
                           </button>
                         ))
                       }
