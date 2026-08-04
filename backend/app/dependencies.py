@@ -52,7 +52,7 @@ def admin_only(user: models.Profile = Depends(get_current_user)):
     if user.role != 'admin':
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operation not permitted. Admin role required."
+            detail="Operasi tidak diizinkan. Peran Admin diperlukan."
         )
     return user
 
@@ -60,6 +60,42 @@ def coordinator_only(user: models.Profile = Depends(get_current_user)):
     if user.role not in ['admin', 'kecamatan_coordinator']:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operation not permitted. Admin or Coordinator role required."
+            detail="Operasi tidak diizinkan. Peran Admin atau Koordinator Kecamatan diperlukan."
         )
     return user
+
+def finance_only(user: models.Profile = Depends(get_current_user)):
+    if user.role not in ['admin', 'kecamatan_coordinator', 'finance_inspector']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operasi tidak diizinkan. Peran Pengawas Keuangan, Koordinator, atau Admin diperlukan."
+        )
+    return user
+
+def nutrition_only(user: models.Profile = Depends(get_current_user)):
+    if user.role not in ['admin', 'kecamatan_coordinator', 'sppg_head', 'nutrition_inspector']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operasi tidak diizinkan. Peran Pengawas Gizi, Kepala SPPG, Koordinator, atau Admin diperlukan."
+        )
+    return user
+
+def sppg_staff_only(user: models.Profile = Depends(get_current_user)):
+    if user.role not in ['admin', 'kecamatan_coordinator', 'sppg_head', 'nutrition_inspector', 'finance_inspector']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Akses ditolak. Pengguna tidak memiliki peran terdaftar."
+        )
+    return user
+
+def verify_sppg_access(user: models.Profile, target_sppg_id: int):
+    # Global roles (admin & kecamatan_coordinator) can access any SPPG
+    if user.role in ['admin', 'kecamatan_coordinator']:
+        return True
+    # Bound roles must match their assigned sppg_id
+    if user.sppg_id and user.sppg_id == target_sppg_id:
+        return True
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Akses ditolak. Akun Anda terikat di SPPG ID {user.sppg_id} dan tidak dapat mengelola data SPPG ID {target_sppg_id}."
+    )

@@ -1,7 +1,25 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List, Union
 from datetime import date, datetime
 from uuid import UUID
+
+class SurveyInputItem(BaseModel):
+    commodity_item_id: Optional[int] = None
+    item_name: str = Field(..., min_length=1)
+    reference_price: float = Field(..., gt=0)
+    unit: str = Field(..., min_length=1)
+    qty: Optional[float] = Field(1.0, gt=0)
+    supplier_name: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class MarketSurveyCreate(BaseModel):
+    survey_session_id: str = Field(..., min_length=1)
+    survey_date: date
+    region_id: str = Field(..., min_length=1)
+    shop_name: str = Field(..., min_length=1)
+    surveyor_name: Optional[str] = None
+    items: List[SurveyInputItem] = Field(..., min_items=1)
 
 class SPPGUnitBase(BaseModel):
     kode_sppg: str
@@ -85,6 +103,7 @@ class ManualAssignRequest(BaseModel):
 class ProfileBase(BaseModel):
     full_name: Optional[str] = None
     role: str
+    sppg_id: Optional[int] = None
 
 class UserCreate(ProfileBase):
     email: str
@@ -92,6 +111,7 @@ class UserCreate(ProfileBase):
 
 class ProfileResponse(ProfileBase):
     id: Union[str, UUID]
+    sppg_name: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class RaportPointBase(BaseModel):
@@ -121,6 +141,24 @@ class SPPGChecklistUpdate(BaseModel):
     answers: List[SPPGPointAnswerBase]
 
 
+class CommodityItemBase(BaseModel):
+    nama: str
+    kategori: Optional[str] = None
+    satuan_default: str
+    deskripsi: Optional[str] = None
+    is_active: Optional[bool] = True
+
+
+class CommodityItemCreate(CommodityItemBase):
+    pass
+
+
+class CommodityItemResponse(CommodityItemBase):
+    id: int
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
 class MarketPriceBase(BaseModel):
     item_name: str
     region_id: Optional[str] = None
@@ -128,6 +166,11 @@ class MarketPriceBase(BaseModel):
     unit: str
     shop_name: Optional[str] = None
     price_date: Optional[date] = None
+    supplier_name: Optional[str] = None
+    survey_session_id: Optional[str] = None
+    notes: Optional[str] = None
+    commodity_item_id: Optional[int] = None
+    surveyor_name: Optional[str] = None
 
 
 class MarketPriceCreate(MarketPriceBase):
@@ -138,6 +181,49 @@ class MarketPriceResponse(MarketPriceBase):
     id: int
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+class MarketPriceStats(BaseModel):
+    item_name: str
+    current_price: float
+    previous_price: Optional[float] = None
+    price_change: Optional[float] = None
+    price_change_pct: Optional[float] = None
+    min_price: float
+    max_price: float
+    avg_price: float
+    data_points: int
+    period_start: date
+    period_end: date
+
+
+class LatestPriceResponse(BaseModel):
+    item_name: str
+    reference_price: float
+    unit: str
+    price_date: date
+    shop_name: Optional[str] = None
+    region_id: Optional[str] = None
+    supplier_name: Optional[str] = None
+
+
+class SurveySessionSummary(BaseModel):
+    survey_session_id: str
+    shop_name: Optional[str] = None
+    region_id: Optional[str] = None
+    survey_date: Optional[date] = None
+    surveyor_name: Optional[str] = None
+    item_count: int
+    total_value: float
+    created_at: Optional[datetime] = None
+
+class MarketPriceUpdate(BaseModel):
+    item_name: Optional[str] = None
+    reference_price: Optional[float] = None
+    unit: Optional[str] = None
+    supplier_name: Optional[str] = None
+    notes: Optional[str] = None
+    commodity_item_id: Optional[int] = None
 
 
 class AuditItemBase(BaseModel):
@@ -159,11 +245,14 @@ class AuditReportBase(BaseModel):
     total_items: int
     total_potential_loss: float
     status: str
+    sppg_id: Optional[int] = None
+    created_by_user_id: Optional[str] = None
 
 
 class AuditReportResponse(AuditReportBase):
     id: int
     created_at: datetime
+    sppg_name: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, asc, text
+from sqlalchemy import func, asc, text, and_
 from . import models, schemas
 import os
 import logging
@@ -24,7 +24,11 @@ def parse_point(pt: str):
     return float(parts[0]), float(parts[1])
 
 def get_user_profile(db: Session, user_id: str):
-    return db.query(models.Profile).filter(models.Profile.id == user_id).first()
+    profile = db.query(models.Profile).filter(models.Profile.id == user_id).first()
+    if profile and profile.sppg_id:
+        sppg = db.query(models.SPPGUnit).filter(models.SPPGUnit.id == profile.sppg_id).first()
+        profile.sppg_name = sppg.nama if sppg else None
+    return profile
 
 def get_sppgs(db: Session, skip: int = 0, limit: int = 100, name: str = None):
     query = db.query(models.SPPGUnit)
@@ -272,16 +276,26 @@ def allocate_automatic(db: Session):
     return {"status": "success", "assigned_count": assigned_count}
 
 def get_users(db: Session):
-    return db.query(models.Profile).all()
+    profiles = db.query(models.Profile).all()
+    for p in profiles:
+        if p.sppg_id and not hasattr(p, 'sppg_name'):
+            sppg = db.query(models.SPPGUnit).filter(models.SPPGUnit.id == p.sppg_id).first()
+            p.sppg_name = sppg.nama if sppg else None
+        else:
+            p.sppg_name = None
+    return profiles
 
 def update_user(db: Session, user_id: str, profile: schemas.ProfileBase):
     db_profile = db.query(models.Profile).filter(models.Profile.id == user_id).first()
     if db_profile:
-        update_data = profile.dict(exclude_unset=True)
+        update_data = profile.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_profile, key, value)
         db.commit()
         db.refresh(db_profile)
+        if db_profile.sppg_id:
+            sppg = db.query(models.SPPGUnit).filter(models.SPPGUnit.id == db_profile.sppg_id).first()
+            db_profile.sppg_name = sppg.nama if sppg else None
         db.execute(text("INSERT INTO audit_logs (action, target_table, target_id, details) VALUES (:action, :table, :id, :details)"), 
                    {"action": "UPDATE_USER", "table": "profiles", "id": None, "details": f"Updated profile for {db_profile.full_name} ({user_id})"})
         db.commit()
@@ -329,14 +343,24 @@ def create_user(db: Session, user_data: schemas.UserCreate):
     
     if not db_profile:
         # If trigger didn't run for some reason
-        db_profile = models.Profile(id=user_id, full_name=user_data.full_name, role=user_data.role)
+        db_profile = models.Profile(
+            id=user_id, 
+            full_name=user_data.full_name, 
+            role=user_data.role,
+            sppg_id=user_data.sppg_id
+        )
         db.add(db_profile)
     else:
         db_profile.full_name = user_data.full_name
         db_profile.role = user_data.role
+        db_profile.sppg_id = user_data.sppg_id
     
     db.commit()
     db.refresh(db_profile)
+
+    if db_profile.sppg_id:
+        sppg = db.query(models.SPPGUnit).filter(models.SPPGUnit.id == db_profile.sppg_id).first()
+        db_profile.sppg_name = sppg.nama if sppg else None
     
     db.execute(text("INSERT INTO audit_logs (action, target_table, target_id, details) VALUES (:action, :table, :id, :details)"), 
                {"action": "CREATE_USER", "table": "profiles", "id": None, "details": f"Created new user {user_data.full_name} with role {user_data.role} ({user_id})"})
@@ -505,7 +529,329 @@ def recalculate_sppg_scores(db: Session, sppg_id: int):
     db.commit()
 
 
+# --- COMMODITY PRICE TRACKING CRUD ---
+
+def get_commodity_items(db: Session, skip: int = 0, limit: int = 100, kategori: str = None):
+    query = db.query(models.CommodityItem)
+    if kategori:
+        query = query.filter(models.CommodityItem.kategori == kategori)
+    return query.order_by(models.CommodityItem.nama.asc()).offset(skip).limit(limit).all()
+
+
+def create_commodity_item(db: Session, data: schemas.CommodityItemCreate):
+    db_item = models.CommodityItem(**data.model_dump())
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+
+def update_commodity_item(db: Session, item_id: int, data: schemas.CommodityItemCreate):
+    db_item = db.query(models.CommodityItem).filter(models.CommodityItem.id == item_id).first()
+    if db_item:
+        update_data = data.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(db_item, key, value)
+        db.commit()
+        db.refresh(db_item)
+    return db_item
+
+
+def delete_commodity_item(db: Session, item_id: int) -> bool:
+    db_item = db.query(models.CommodityItem).filter(models.CommodityItem.id == item_id).first()
+    if db_item:
+        db.delete(db_item)
+        db.commit()
+        return True
+    return False
+
+
+def get_or_create_commodity_item(
+    db: Session,
+    item_name: str,
+    unit: str = "kg",
+    source_desc: str = "Otomatis ditambahkan dari input barang custom"
+) -> models.CommodityItem:
+    clean_name = (item_name or "").strip()
+    if not clean_name:
+        return None
+    
+    existing = db.query(models.CommodityItem).filter(
+        models.CommodityItem.nama.ilike(clean_name)
+    ).first()
+    if existing:
+        return existing
+    
+    try:
+        title_name = clean_name.title()
+        new_item = models.CommodityItem(
+            nama=title_name,
+            kategori="Lainnya",
+            satuan_default=(unit or "kg").strip(),
+            deskripsi=source_desc,
+            is_active=True
+        )
+        db.add(new_item)
+        db.flush()
+        return new_item
+    except Exception:
+        db.rollback()
+        return db.query(models.CommodityItem).filter(
+            models.CommodityItem.nama.ilike(clean_name)
+        ).first()
+
+
+def submit_market_survey(db: Session, survey: schemas.MarketSurveyCreate):
+    results = {"success": 0, "failed": 0, "errors": []}
+    shop_name_clean = (survey.shop_name or "").strip()
+    region_id_clean = (survey.region_id or "").strip()
+    surveyor_clean = (survey.surveyor_name or "").strip() if survey.surveyor_name else None
+
+    for i, item in enumerate(survey.items):
+        item_name_clean = (item.item_name or "").strip()
+        if not item_name_clean:
+            results["failed"] += 1
+            results["errors"].append(f"Baris {i+1}: Nama barang tidak boleh kosong.")
+            continue
+        
+        if item.reference_price is None or item.reference_price <= 0:
+            results["failed"] += 1
+            results["errors"].append(f"Baris {i+1} ({item_name_clean}): Harga harus lebih besar dari 0.")
+            continue
+
+        unit_clean = (item.unit or "kg").strip()
+        commodity_id = item.commodity_item_id
+
+        # Auto-match or auto-create master commodity item
+        if not commodity_id:
+            comm_item = get_or_create_commodity_item(
+                db,
+                item_name_clean,
+                unit=unit_clean,
+                source_desc=f"Otomatis ditambahkan dari survey pasar ({shop_name_clean})"
+            )
+            if comm_item:
+                commodity_id = comm_item.id
+                item_name_clean = comm_item.nama
+
+        try:
+            db_price = models.MarketPrice(
+                item_name=item_name_clean,
+                region_id=region_id_clean,
+                reference_price=float(item.reference_price),
+                unit=unit_clean,
+                shop_name=shop_name_clean,
+                price_date=survey.survey_date,
+                supplier_name=(item.supplier_name or "").strip() if item.supplier_name else None,
+                survey_session_id=(survey.survey_session_id or "").strip(),
+                notes=(item.notes or "").strip() if item.notes else None,
+                commodity_item_id=commodity_id,
+                surveyor_name=surveyor_clean
+            )
+            db.add(db_price)
+            db.commit()
+            results["success"] += 1
+        except Exception as e:
+            db.rollback()
+            results["failed"] += 1
+            results["errors"].append(f"Baris {i+1} ({item_name_clean}): {str(e)}")
+    
+    # Log survey to audit_logs
+    try:
+        db.execute(
+            text("INSERT INTO audit_logs (action, target_table, target_id, details) VALUES (:action, :table, :id, :details)"),
+            {
+                "action": "MARKET_SURVEY",
+                "table": "market_prices",
+                "id": None,
+                "details": f"Survey {survey.survey_session_id}: {results['success']} item tersimpan di {shop_name_clean}, {region_id_clean}"
+            }
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+    
+    return results
+
+
+def get_commodity_prices(db: Session, item_name: str = None, date_from: date = None, date_to: date = None,
+                          region: str = None, skip: int = 0, limit: int = 100):
+    query = db.query(models.MarketPrice)
+    if item_name:
+        query = query.filter(models.MarketPrice.item_name.ilike(f"%{item_name}%"))
+    if date_from:
+        query = query.filter(models.MarketPrice.price_date >= date_from)
+    if date_to:
+        query = query.filter(models.MarketPrice.price_date <= date_to)
+    if region:
+        query = query.filter(models.MarketPrice.region_id.ilike(f"%{region}%"))
+    return query.order_by(models.MarketPrice.price_date.desc(), models.MarketPrice.created_at.desc()).offset(skip).limit(limit).all()
+
+
+def get_latest_prices(db: Session):
+    # Get the latest price for each item_name using a subquery
+    subq = db.query(
+        models.MarketPrice.item_name,
+        func.max(models.MarketPrice.price_date).label('max_date')
+    ).group_by(models.MarketPrice.item_name).subquery()
+    
+    latest = db.query(models.MarketPrice).join(
+        subq,
+        and_(
+            models.MarketPrice.item_name == subq.c.item_name,
+            models.MarketPrice.price_date == subq.c.max_date
+        )
+    ).all()
+    
+    # Deduplicate: for items with multiple entries on same date, take the latest created_at
+    seen = {}
+    for p in latest:
+        key = p.item_name
+        if key not in seen or p.created_at > seen[key].created_at:
+            seen[key] = p
+    
+    result = []
+    for item_name in sorted(seen.keys()):
+        p = seen[item_name]
+        result.append(schemas.LatestPriceResponse(
+            item_name=p.item_name,
+            reference_price=float(p.reference_price),
+            unit=p.unit,
+            price_date=p.price_date,
+            shop_name=p.shop_name,
+            region_id=p.region_id,
+            supplier_name=p.supplier_name
+        ))
+    return result
+
+
+def get_price_stats(db: Session, item_name: str, period_start: date = None, period_end: date = None):
+    if not period_end:
+        period_end = date.today()
+    if not period_start:
+        from datetime import timedelta
+        period_start = period_end - timedelta(days=90)
+    
+    prices = db.query(models.MarketPrice).filter(
+        models.MarketPrice.item_name.ilike(item_name),
+        models.MarketPrice.price_date >= period_start,
+        models.MarketPrice.price_date <= period_end
+    ).order_by(models.MarketPrice.price_date.asc()).all()
+    
+    if not prices:
+        return None
+    
+    all_prices_vals = [p.reference_price for p in prices]
+    current_price = all_prices_vals[-1]
+    
+    # Get previous period for comparison
+    from datetime import timedelta
+    prev_start = period_start - timedelta(days=(period_end - period_start).days)
+    prev_prices = db.query(models.MarketPrice).filter(
+        models.MarketPrice.item_name.ilike(item_name),
+        models.MarketPrice.price_date >= prev_start,
+        models.MarketPrice.price_date < period_start
+    ).order_by(models.MarketPrice.price_date.desc()).all()
+    
+    previous_price = prev_prices[0].reference_price if prev_prices else None
+    price_change = current_price - previous_price if previous_price else None
+    price_change_pct = ((current_price - previous_price) / previous_price * 100) if previous_price and previous_price > 0 else None
+    
+    return schemas.MarketPriceStats(
+        item_name=prices[0].item_name,
+        current_price=current_price,
+        previous_price=previous_price,
+        price_change=price_change,
+        price_change_pct=price_change_pct,
+        min_price=min(all_prices_vals),
+        max_price=max(all_prices_vals),
+        avg_price=sum(all_prices_vals) / len(all_prices_vals),
+        data_points=len(all_prices_vals),
+        period_start=period_start,
+        period_end=period_end
+    )
+
+
 # --- SMART AUDIT & POTENTIAL LOSS DETECTION CRUD ---
+
+def get_survey_sessions(db: Session):
+    sessions = db.query(
+        models.MarketPrice.survey_session_id,
+        func.max(models.MarketPrice.shop_name).label('shop_name'),
+        func.max(models.MarketPrice.region_id).label('region_id'),
+        func.max(models.MarketPrice.price_date).label('price_date'),
+        func.max(models.MarketPrice.surveyor_name).label('surveyor_name'),
+        func.count(models.MarketPrice.id).label('item_count'),
+        func.sum(models.MarketPrice.reference_price).label('total_value'),
+        func.max(models.MarketPrice.created_at).label('latest_created')
+    ).filter(
+        models.MarketPrice.survey_session_id.isnot(None)
+    ).group_by(
+        models.MarketPrice.survey_session_id
+    ).order_by(func.max(models.MarketPrice.created_at).desc()).all()
+
+    result = []
+    for s in sessions:
+        result.append(schemas.SurveySessionSummary(
+            survey_session_id=s.survey_session_id,
+            shop_name=s.shop_name,
+            region_id=s.region_id,
+            survey_date=s.price_date,
+            surveyor_name=s.surveyor_name,
+            item_count=s.item_count,
+            total_value=float(s.total_value or 0),
+            created_at=s.latest_created,
+        ))
+    return result
+
+
+def get_survey_session_items(db: Session, session_id: str):
+    return db.query(models.MarketPrice).filter(
+        models.MarketPrice.survey_session_id == session_id
+    ).order_by(models.MarketPrice.id.asc()).all()
+
+
+def delete_survey_session(db: Session, session_id: str) -> bool:
+    items = db.query(models.MarketPrice).filter(
+        models.MarketPrice.survey_session_id == session_id
+    ).all()
+    if not items:
+        return False
+    for item in items:
+        db.delete(item)
+    db.commit()
+    return True
+
+
+def update_market_price_entry(db: Session, price_id: int, data: schemas.MarketPriceUpdate):
+    db_mp = db.query(models.MarketPrice).filter(models.MarketPrice.id == price_id).first()
+    if not db_mp:
+        return None
+    if data.item_name is not None:
+        db_mp.item_name = data.item_name
+    if data.reference_price is not None:
+        db_mp.reference_price = data.reference_price
+    if data.unit is not None:
+        db_mp.unit = data.unit
+    if data.supplier_name is not None:
+        db_mp.supplier_name = data.supplier_name
+    if data.notes is not None:
+        db_mp.notes = data.notes
+    if data.commodity_item_id is not None:
+        db_mp.commodity_item_id = data.commodity_item_id
+    db.commit()
+    db.refresh(db_mp)
+    return db_mp
+
+
+def delete_market_price_entry(db: Session, price_id: int) -> bool:
+    db_mp = db.query(models.MarketPrice).filter(models.MarketPrice.id == price_id).first()
+    if not db_mp:
+        return False
+    db.delete(db_mp)
+    db.commit()
+    return True
+
 
 def get_market_prices(db: Session):
     return db.query(models.MarketPrice).order_by(models.MarketPrice.item_name.asc()).all()
@@ -513,37 +859,66 @@ def get_market_prices(db: Session):
 def create_or_update_market_price(db: Session, price_data: schemas.MarketPriceCreate):
     # Fallback to today if date is not provided
     p_date = price_data.price_date or date.today()
+    item_name_clean = (price_data.item_name or "").strip()
+    unit_clean = (price_data.unit or "kg").strip()
+
+    commodity_id = price_data.commodity_item_id
+    if not commodity_id and item_name_clean:
+        comm_item = get_or_create_commodity_item(
+            db,
+            item_name_clean,
+            unit=unit_clean,
+            source_desc="Otomatis ditambahkan dari input harga acuan"
+        )
+        if comm_item:
+            commodity_id = comm_item.id
+            item_name_clean = comm_item.nama
     
     # Check if there is an exact match for item_name, shop_name, and price_date
     db_mp = db.query(models.MarketPrice).filter(
-        models.MarketPrice.item_name.ilike(price_data.item_name),
+        models.MarketPrice.item_name.ilike(item_name_clean),
         models.MarketPrice.shop_name == price_data.shop_name,
         models.MarketPrice.price_date == p_date
     ).first()
     
     if db_mp:
         db_mp.reference_price = price_data.reference_price
-        db_mp.unit = price_data.unit
+        db_mp.unit = unit_clean
         db_mp.region_id = price_data.region_id
+        db_mp.supplier_name = price_data.supplier_name
+        db_mp.notes = price_data.notes
+        db_mp.commodity_item_id = commodity_id
+        if price_data.surveyor_name:
+            db_mp.surveyor_name = price_data.surveyor_name
     else:
         # Create a new record (records price history point!)
         db_mp = models.MarketPrice(
-            item_name=price_data.item_name,
+            item_name=item_name_clean,
             region_id=price_data.region_id,
             reference_price=price_data.reference_price,
-            unit=price_data.unit,
+            unit=unit_clean,
             shop_name=price_data.shop_name,
-            price_date=p_date
+            price_date=p_date,
+            supplier_name=price_data.supplier_name,
+            survey_session_id=price_data.survey_session_id,
+            notes=price_data.notes,
+            commodity_item_id=commodity_id,
+            surveyor_name=price_data.surveyor_name
         )
         db.add(db_mp)
     db.commit()
     db.refresh(db_mp)
     return db_mp
 
-def get_market_price_history(db: Session, item_name: str):
-    return db.query(models.MarketPrice).filter(
+def get_market_price_history(db: Session, item_name: str, date_from: date = None, date_to: date = None):
+    query = db.query(models.MarketPrice).filter(
         models.MarketPrice.item_name.ilike(item_name)
-    ).order_by(models.MarketPrice.price_date.asc()).all()
+    )
+    if date_from:
+        query = query.filter(models.MarketPrice.price_date >= date_from)
+    if date_to:
+        query = query.filter(models.MarketPrice.price_date <= date_to)
+    return query.order_by(models.MarketPrice.price_date.asc()).all()
 
 def find_market_price(db: Session, item_name: str) -> models.MarketPrice:
     normalized_name = item_name.strip().lower()
@@ -582,7 +957,7 @@ def find_market_price(db: Session, item_name: str) -> models.MarketPrice:
                 
     return best_match
 
-def create_audit_report(db: Session, doc_url: str, extracted_items: list, user_id: str = None) -> models.AuditReport:
+def create_audit_report(db: Session, doc_url: str, extracted_items: list, user_id: str = None, sppg_id: int = None) -> models.AuditReport:
     total_potential_loss = 0.0
     total_items = 0
     db_items = []
@@ -590,9 +965,12 @@ def create_audit_report(db: Session, doc_url: str, extracted_items: list, user_i
     max_markup = 0.0
     
     for item in extracted_items:
-        item_name = item.get("item_name")
+        item_name = (item.get("item_name") or "").strip()
+        if not item_name:
+            continue
         qty = float(item.get("qty", 1.0))
         price_per_unit = float(item.get("price_per_unit", 0.0))
+        unit = (item.get("unit") or "kg").strip()
         
         # Match with reference price
         matched_mp = find_market_price(db, item_name)
@@ -602,6 +980,33 @@ def create_audit_report(db: Session, doc_url: str, extracted_items: list, user_i
             # Fallback: if not found, assume market price is equal to the bill price (0 markup, 0 loss)
             market_price = price_per_unit
             
+        # Automatically add custom item to Master Komoditas if not exists
+        comm_item = get_or_create_commodity_item(
+            db,
+            item_name,
+            unit=unit,
+            source_desc="Otomatis ditambahkan dari Smart Audit (OCR scan)"
+        )
+        if comm_item:
+            item_name = comm_item.nama
+            # If no market price reference exists for this custom item, create initial default reference entry
+            if not matched_mp and price_per_unit > 0:
+                try:
+                    default_mp = models.MarketPrice(
+                        item_name=comm_item.nama,
+                        region_id="Kecamatan Sikur",
+                        reference_price=price_per_unit,
+                        unit=unit,
+                        shop_name="Smart Audit OCR",
+                        price_date=date.today(),
+                        commodity_item_id=comm_item.id,
+                        notes="Otomatis ditambahkan dari hasil scan Smart Audit"
+                    )
+                    db.add(default_mp)
+                    db.flush()
+                except Exception:
+                    pass
+
         # Calculation: potential loss and markup
         potential_loss_item = 0.0
         markup_pct = 0.0
@@ -636,12 +1041,14 @@ def create_audit_report(db: Session, doc_url: str, extracted_items: list, user_i
     else:
         report_status = "NORMAL"
         
-    # Create the report
+    # Create the report with sppg_id and created_by_user_id
     db_report = models.AuditReport(
         doc_url=doc_url,
         total_items=total_items,
         total_potential_loss=total_potential_loss,
-        status=report_status
+        status=report_status,
+        sppg_id=sppg_id,
+        created_by_user_id=user_id
     )
     
     db.add(db_report)
@@ -676,11 +1083,49 @@ def create_audit_report(db: Session, doc_url: str, extracted_items: list, user_i
         
     return db_report
 
-def get_audit_reports(db: Session):
-    return db.query(models.AuditReport).order_by(models.AuditReport.created_at.desc()).all()
+def get_audit_reports(db: Session, user: models.Profile = None):
+    query = db.query(models.AuditReport)
+    
+    # Scoping for bound non-global roles
+    if user and user.role in ['sppg_head', 'nutrition_inspector', 'finance_inspector']:
+        if user.sppg_id:
+            query = query.filter(
+                (models.AuditReport.sppg_id == user.sppg_id) |
+                (models.AuditReport.created_by_user_id == user.id)
+            )
+        else:
+            query = query.filter(models.AuditReport.created_by_user_id == user.id)
+            
+    reports = query.order_by(models.AuditReport.created_at.desc()).all()
+    
+    for r in reports:
+        if r.sppg:
+            r.sppg_name = r.sppg.nama
+        elif r.sppg_id:
+            unit = db.query(models.SPPGUnit).filter(models.SPPGUnit.id == r.sppg_id).first()
+            r.sppg_name = unit.nama if unit else None
+        else:
+            r.sppg_name = None
+            
+    return reports
 
-def get_audit_report(db: Session, report_id: int):
-    return db.query(models.AuditReport).filter(models.AuditReport.id == report_id).first()
+def get_audit_report(db: Session, report_id: int, user: models.Profile = None):
+    report = db.query(models.AuditReport).filter(models.AuditReport.id == report_id).first()
+    if not report:
+        return None
+        
+    if user and user.role in ['sppg_head', 'nutrition_inspector', 'finance_inspector']:
+        if user.sppg_id and report.sppg_id and report.sppg_id != user.sppg_id:
+            if report.created_by_user_id != user.id:
+                return None
+                
+    if report.sppg:
+        report.sppg_name = report.sppg.nama
+    elif report.sppg_id:
+        unit = db.query(models.SPPGUnit).filter(models.SPPGUnit.id == report.sppg_id).first()
+        report.sppg_name = unit.nama if unit else None
+        
+    return report
 
 def delete_audit_report(db: Session, report_id: int) -> bool:
     db_report = db.query(models.AuditReport).filter(models.AuditReport.id == report_id).first()

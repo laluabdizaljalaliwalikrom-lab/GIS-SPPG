@@ -57,10 +57,16 @@ const MapEvents = ({ setClickedLocation }) => {
 const ResizeHandler = ({ isFullScreen }) => {
   const map = useMapEvents({});
   useEffect(() => {
-    // Invalidate size when layout changes to fix partial map rendering
-    setTimeout(() => {
-      map.invalidateSize({ animate: true });
-    }, 800); // Wait for 700ms CSS transition to finish
+    const timer = setTimeout(() => {
+      if (map && map._leaflet_id && map.getContainer && map.getContainer()) {
+        try {
+          map.invalidateSize({ animate: true });
+        } catch {
+          // ignore safely if map was destroyed
+        }
+      }
+    }, 800);
+    return () => clearTimeout(timer);
   }, [isFullScreen, map]);
   return null;
 };

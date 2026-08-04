@@ -1,5 +1,5 @@
 # Force reload models
-from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey, Boolean, DateTime, func
+from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey, Boolean, DateTime, Text, func
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geometry, Geography
 from .database import Base
@@ -87,7 +87,10 @@ class Profile(Base):
 
     id = Column(String, primary_key=True, index=True) # Matches Supabase Auth UUID
     full_name = Column(String)
-    role = Column(String)
+    role = Column(String) # 'admin', 'kecamatan_coordinator', 'sppg_head', 'nutrition_inspector', 'finance_inspector'
+    sppg_id = Column(Integer, ForeignKey("sppg_units.id"), nullable=True)
+
+    sppg = relationship("SPPGUnit", foreign_keys=[sppg_id])
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
@@ -117,6 +120,18 @@ class SPPGPointAnswer(Base):
     point = relationship("RaportPoint")
 
 
+class CommodityItem(Base):
+    __tablename__ = "commodity_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nama = Column(String, unique=True, nullable=False, index=True)
+    kategori = Column(String, nullable=True)
+    satuan_default = Column(String, nullable=False)
+    deskripsi = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
 class MarketPrice(Base):
     __tablename__ = "market_prices"
 
@@ -127,7 +142,14 @@ class MarketPrice(Base):
     unit = Column(String, nullable=False)
     shop_name = Column(String, nullable=True)
     price_date = Column(Date, nullable=False, server_default=func.current_date())
+    supplier_name = Column(String, nullable=True)
+    survey_session_id = Column(String, nullable=True, index=True)
+    notes = Column(Text, nullable=True)
+    commodity_item_id = Column(Integer, ForeignKey("commodity_items.id"), nullable=True)
+    surveyor_name = Column(String, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
+
+    commodity = relationship("CommodityItem", foreign_keys=[commodity_item_id])
 
 
 class AuditReport(Base):
@@ -138,9 +160,12 @@ class AuditReport(Base):
     total_items = Column(Integer, default=0)
     total_potential_loss = Column(Float, default=0.0)
     status = Column(String, default="NORMAL") # 'NORMAL' | 'WARNING' | 'DANGER'
+    sppg_id = Column(Integer, ForeignKey("sppg_units.id"), nullable=True)
+    created_by_user_id = Column(String, ForeignKey("profiles.id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
     items = relationship("AuditItem", back_populates="report", cascade="all, delete-orphan")
+    sppg = relationship("SPPGUnit", foreign_keys=[sppg_id])
 
 
 class AuditItem(Base):

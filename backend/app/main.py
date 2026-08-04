@@ -1,11 +1,19 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from typing import List
+from typing import List, Optional
+from datetime import date
 from sqlalchemy.orm import Session
 from . import crud, models, schemas
 from .database import engine, get_db
-from .dependencies import coordinator_only, admin_only
+from .dependencies import (
+    coordinator_only, 
+    admin_only, 
+    finance_only, 
+    nutrition_only, 
+    sppg_staff_only, 
+    verify_sppg_access
+)
 import logging
 import os
 import pandas as pd
@@ -165,7 +173,8 @@ def get_sppg_checklist(sppg_id: int, db: Session = Depends(get_db)):
     return crud.get_sppg_answers(db, sppg_id)
 
 @app.put("/api/sppg/{sppg_id}/checklist")
-def update_sppg_checklist(sppg_id: int, checklist: schemas.SPPGChecklistUpdate, db: Session = Depends(get_db), _ = Depends(coordinator_only)):
+def update_sppg_checklist(sppg_id: int, checklist: schemas.SPPGChecklistUpdate, db: Session = Depends(get_db), current_user: models.Profile = Depends(nutrition_only)):
+    verify_sppg_access(current_user, sppg_id)
     return crud.update_sppg_checklist(db, sppg_id, checklist)
 
 
@@ -175,7 +184,7 @@ def update_sppg_checklist(sppg_id: int, checklist: schemas.SPPGChecklistUpdate, 
 async def upload_audit_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: models.Profile = Depends(coordinator_only)
+    current_user: models.Profile = Depends(finance_only)
 ):
     try:
         contents = await file.read()
@@ -229,19 +238,19 @@ async def upload_audit_file(
             raise HTTPException(status_code=400, detail="Gagal mengekstrak item dari dokumen. Silakan periksa format dokumen.")
             
         # 4. Save to database & record in audit trail logs
-        db_report = crud.create_audit_report(db, doc_url, extracted_items, current_user.id)
+        db_report = crud.create_audit_report(db, doc_url, extracted_items, current_user.id, current_user.sppg_id)
         return db_report
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal memproses file audit: {str(e)}")
 
 @app.get("/api/audit/reports", response_model=List[schemas.AuditReportResponse])
-def read_audit_reports(db: Session = Depends(get_db), current_user: models.Profile = Depends(coordinator_only)):
-    return crud.get_audit_reports(db)
+def read_audit_reports(db: Session = Depends(get_db), current_user: models.Profile = Depends(finance_only)):
+    return crud.get_audit_reports(db, user=current_user)
 
 @app.get("/api/audit/reports/{id}", response_model=schemas.AuditReportDetailResponse)
-def read_audit_report_detail(id: int, db: Session = Depends(get_db), current_user: models.Profile = Depends(coordinator_only)):
-    report = crud.get_audit_report(db, id)
+def read_audit_report_detail(id: int, db: Session = Depends(get_db), current_user: models.Profile = Depends(finance_only)):
+    report = crud.get_audit_report(db, id, user=current_user)
     if not report:
         raise HTTPException(status_code=404, detail="Laporan audit tidak ditemukan.")
     return report
@@ -254,7 +263,7 @@ def delete_audit_report(id: int, db: Session = Depends(get_db), current_user: mo
     return {"status": "success", "message": f"Berhasil menghapus laporan audit ID {id}"}
 
 @app.get("/api/audit/market-prices", response_model=List[schemas.MarketPriceResponse])
-def read_market_prices(db: Session = Depends(get_db), current_user: models.Profile = Depends(coordinator_only)):
+def read_market_prices(db: Session = Depends(get_db), current_user: models.Profile = Depends(finance_only)):
     return crud.get_market_prices(db)
 
 @app.post("/api/audit/market-prices", response_model=schemas.MarketPriceResponse)
@@ -287,10 +296,161 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
 @app.get("/api/audit/market-prices/history", response_model=List[schemas.MarketPriceResponse])
 def read_market_price_history(
     item_name: str,
+    date_from: date = None,
+    date_to: date = None,
     db: Session = Depends(get_db),
-    current_user: models.Profile = Depends(coordinator_only)
+    current_user: models.Profile = Depends(finance_only)
 ):
-    return crud.get_market_price_history(db, item_name)
+    return crud.get_market_price_history(db, item_name, date_from=date_from, date_to=date_to)
+
+
+# --- COMMODITY PRICE TRACKING ENDPOINTS ---
+
+@app.get("/api/commodities/items", response_model=List[schemas.CommodityItemResponse])
+def read_commodity_items(
+    skip: int = 0,
+    limit: int = 100,
+    kategori: str = None,
+    db: Session = Depends(get_db)
+):
+    return crud.get_commodity_items(db, skip=skip, limit=limit, kategori=kategori)
+
+
+@app.post("/api/commodities/items", response_model=schemas.CommodityItemResponse)
+def create_commodity_item(
+    data: schemas.CommodityItemCreate,
+    db: Session = Depends(get_db),
+    _ = Depends(finance_only)
+):
+    try:
+        return crud.create_commodity_item(db, data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Gagal menambah komoditas: {str(e)}")
+
+
+@app.put("/api/commodities/items/{item_id}", response_model=schemas.CommodityItemResponse)
+def update_commodity_item(
+    item_id: int,
+    data: schemas.CommodityItemCreate,
+    db: Session = Depends(get_db),
+    _ = Depends(finance_only)
+):
+    db_item = crud.update_commodity_item(db, item_id, data)
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Komoditas tidak ditemukan.")
+    return db_item
+
+
+@app.delete("/api/commodities/items/{item_id}")
+def delete_commodity_item(
+    item_id: int,
+    db: Session = Depends(get_db),
+    _ = Depends(admin_only)
+):
+    success = crud.delete_commodity_item(db, item_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Komoditas tidak ditemukan.")
+    return {"status": "success", "message": "Komoditas berhasil dihapus."}
+
+
+@app.post("/api/commodities/survey")
+def submit_market_survey(
+    survey: schemas.MarketSurveyCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Profile = Depends(finance_only)
+):
+    return crud.submit_market_survey(db, survey)
+
+
+@app.get("/api/commodities/prices", response_model=List[schemas.MarketPriceResponse])
+def read_commodity_prices(
+    item_name: str = None,
+    date_from: date = None,
+    date_to: date = None,
+    region: str = None,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    return crud.get_commodity_prices(
+        db, item_name=item_name, date_from=date_from, date_to=date_to,
+        region=region, skip=skip, limit=limit
+    )
+
+
+@app.get("/api/commodities/surveys", response_model=List[schemas.SurveySessionSummary])
+def read_survey_sessions(
+    db: Session = Depends(get_db)
+):
+    return crud.get_survey_sessions(db)
+
+
+@app.get("/api/commodities/surveys/{session_id}", response_model=List[schemas.MarketPriceResponse])
+def read_survey_session_items(
+    session_id: str,
+    db: Session = Depends(get_db)
+):
+    items = crud.get_survey_session_items(db, session_id)
+    if not items:
+        raise HTTPException(status_code=404, detail="Sesi survey tidak ditemukan.")
+    return items
+
+
+@app.delete("/api/commodities/surveys/{session_id}")
+def delete_survey_session(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.Profile = Depends(finance_only)
+):
+    success = crud.delete_survey_session(db, session_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Sesi survey tidak ditemukan.")
+    return {"status": "success", "message": f"Sesi survey {session_id} berhasil dihapus."}
+
+
+@app.put("/api/commodities/prices/{price_id}", response_model=schemas.MarketPriceResponse)
+def update_price_entry(
+    price_id: int,
+    data: schemas.MarketPriceUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.Profile = Depends(finance_only)
+):
+    db_item = crud.update_market_price_entry(db, price_id, data)
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Data harga tidak ditemukan.")
+    return db_item
+
+
+@app.delete("/api/commodities/prices/{price_id}")
+def delete_price_entry(
+    price_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Profile = Depends(finance_only)
+):
+    success = crud.delete_market_price_entry(db, price_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Data harga tidak ditemukan.")
+    return {"status": "success", "message": f"Data harga ID {price_id} berhasil dihapus."}
+
+
+@app.get("/api/commodities/prices/latest", response_model=List[schemas.LatestPriceResponse])
+def read_latest_prices(
+    db: Session = Depends(get_db)
+):
+    return crud.get_latest_prices(db)
+
+
+@app.get("/api/commodities/prices/stats", response_model=schemas.MarketPriceStats)
+def read_price_stats(
+    item_name: str = Query(..., description="Nama item (case insensitive)"),
+    period_start: date = None,
+    period_end: date = None,
+    db: Session = Depends(get_db)
+):
+    stats = crud.get_price_stats(db, item_name, period_start=period_start, period_end=period_end)
+    if not stats:
+        raise HTTPException(status_code=404, detail="Data harga tidak ditemukan untuk item tersebut.")
+    return stats
 
 
 

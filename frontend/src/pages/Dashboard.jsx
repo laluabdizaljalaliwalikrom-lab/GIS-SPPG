@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
-import { 
-  Map as MapIcon, 
-  Users, 
-  LogOut, 
-  Menu, 
+import {
+  Map as MapIcon,
+  Users,
+  LogOut,
+  Menu,
   X,
   Database,
   History,
@@ -20,6 +20,7 @@ import {
   LayoutDashboard,
   ClipboardCheck,
   ClipboardList,
+  TrendingUp,
   Settings as SettingsIcon
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
@@ -100,17 +101,38 @@ const Dashboard = () => {
     navigate('/login');
   };
 
-  const menuItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { name: 'Mapping', path: '/dashboard/mapping', icon: MapIcon },
-    { name: 'Unit SPPG', path: '/dashboard/sppg', icon: Briefcase },
-    { name: 'Raport Kinerja', path: '/dashboard/raport', icon: ClipboardList },
-    { name: 'Kelompok', path: '/dashboard/kelompok', icon: Users },
-    ...((profile?.role === 'admin' || profile?.role === 'kecamatan_coordinator')
-      ? [{ name: 'Audit Center', path: '/dashboard/audit', icon: ClipboardCheck }]
-      : []),
-    { name: 'Settings', path: '/dashboard/settings', icon: SettingsIcon },
-  ];
+  useEffect(() => {
+    if (profile?.role === 'finance_inspector') {
+      const allowedPaths = ['/dashboard', '/dashboard/', '/dashboard/komoditas-harga', '/dashboard/audit', '/dashboard/profile'];
+      if (!allowedPaths.includes(location.pathname)) {
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [profile, location.pathname, navigate]);
+
+  let menuItems = [];
+  if (profile?.role === 'finance_inspector') {
+    menuItems = [
+      { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+      { name: 'Harga Bahan Baku', path: '/dashboard/komoditas-harga', icon: TrendingUp },
+      { name: 'Audit Center', path: '/dashboard/audit', icon: ClipboardCheck },
+    ];
+  } else {
+    menuItems = [
+      { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+      { name: 'Mapping', path: '/dashboard/mapping', icon: MapIcon },
+      { name: 'Unit SPPG', path: '/dashboard/sppg', icon: Briefcase },
+      { name: 'Raport Kinerja', path: '/dashboard/raport', icon: ClipboardList },
+      { name: 'Kelompok', path: '/dashboard/kelompok', icon: Users },
+      ...((profile?.role === 'admin' || profile?.role === 'kecamatan_coordinator')
+        ? [
+            { name: 'Harga Bahan Baku', path: '/dashboard/komoditas-harga', icon: TrendingUp },
+            { name: 'Audit Center', path: '/dashboard/audit', icon: ClipboardCheck },
+          ]
+        : []),
+      { name: 'Settings', path: '/dashboard/settings', icon: SettingsIcon },
+    ];
+  }
 
   const adminItems = [
     { name: 'Landing Page', path: '/dashboard/landing-editor', icon: MapIcon },
@@ -229,9 +251,18 @@ const Dashboard = () => {
                 <User size={20} />
               </div>
               {!isCollapsed && (
-                <div className="flex-1 min-w-0 animate-in fade-in duration-500">
+                <div className="flex-1 min-w-0 animate-in fade-in duration-300">
                   <p className="text-sm font-black text-slate-800 truncate">{profile?.full_name || 'User'}</p>
-                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest leading-none mt-1">{profile?.role?.replace('_', ' ')}</p>
+                  <p className="text-[10px] text-blue-600 uppercase font-black tracking-wider leading-none mt-1">
+                    {profile?.role === 'admin' ? 'Administrator' :
+                     profile?.role === 'kecamatan_coordinator' ? 'Koordinator Kec.' :
+                     profile?.role === 'sppg_head' ? 'Kepala SPPG' :
+                     profile?.role === 'nutrition_inspector' ? 'Pengawas Gizi' :
+                     profile?.role === 'finance_inspector' ? 'Pengawas Keuangan' : profile?.role}
+                  </p>
+                  {profile?.sppg_name && (
+                    <p className="text-[9px] text-slate-400 font-bold truncate mt-0.5">🏢 {profile.sppg_name}</p>
+                  )}
                 </div>
               )}
             </div>

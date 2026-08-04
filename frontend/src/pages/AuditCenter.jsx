@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api';
 import { 
   FileSpreadsheet, 
@@ -33,6 +34,7 @@ const formatRupiah = (number) => {
 
 const AuditCenter = () => {
   const { profile } = useOutletContext();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'prices'
   const [reports, setReports] = useState([]);
   const [selectedReport, setSelectedReport] = useState(null);
@@ -61,9 +63,10 @@ const AuditCenter = () => {
   const [chartLoading, setChartLoading] = useState(false);
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
 
   // Security Role Guard
-  const isAuthorized = profile?.role === 'admin' || profile?.role === 'kecamatan_coordinator';
+  const isAuthorized = ['admin', 'kecamatan_coordinator', 'finance_inspector'].includes(profile?.role);
   const isAdmin = profile?.role === 'admin';
 
   const getFilteredCommodities = () => {
@@ -184,19 +187,22 @@ const AuditCenter = () => {
     setLoading(true);
     try {
       const [reportsRes, pricesRes] = await Promise.all([
-        api.get('/audit/reports'),
-        api.get('/audit/market-prices')
+        api.get('/audit/reports').catch(() => ({ data: [] })),
+        api.get('/audit/market-prices').catch(() => ({ data: [] }))
       ]);
-      setReports(reportsRes.data);
-      setMarketPrices(pricesRes.data);
+
+      const reportData = Array.isArray(reportsRes?.data) ? reportsRes.data : [];
+      const priceData = Array.isArray(pricesRes?.data) ? pricesRes.data : [];
+
+      setReports(reportData);
+      setMarketPrices(priceData);
       
       // Select the latest report if available
-      if (reportsRes.data.length > 0 && !selectedReport) {
-        loadReportDetails(reportsRes.data[0].id);
+      if (reportData.length > 0 && !selectedReport) {
+        await loadReportDetails(reportData[0].id);
       }
     } catch (error) {
-      console.error(error);
-      toast.error('Gagal memuat data audit.');
+      console.error("Error in AuditCenter fetchData:", error);
     } finally {
       setLoading(false);
     }
@@ -209,13 +215,17 @@ const AuditCenter = () => {
   }, [isAuthorized, fetchData]);
 
   const loadReportDetails = async (reportId) => {
+    if (!reportId) return;
     try {
       const res = await api.get(`/audit/reports/${reportId}`);
       setSelectedReport(res.data);
       setReportItems(res.data.items || []);
     } catch (error) {
-      console.error(error);
-      toast.error('Gagal memuat detail laporan.');
+      console.error("Error loading report details:", error);
+      if (error.response?.status === 404) {
+        setSelectedReport(null);
+        setReportItems([]);
+      }
     }
   };
 
@@ -303,6 +313,11 @@ const AuditCenter = () => {
       const pricesRes = await api.get('/audit/market-prices');
       setMarketPrices(pricesRes.data);
       
+      // Invalidate TanStack query cache for commodities
+      queryClient.invalidateQueries({ queryKey: ['commodity-items'] });
+      queryClient.invalidateQueries({ queryKey: ['commodity-prices'] });
+      queryClient.invalidateQueries({ queryKey: ['latest-prices'] });
+      
     } catch (error) {
       console.error(error);
       toast.error(error.response?.data?.detail || 'Gagal memproses dokumen audit.', { id: toastId });
@@ -358,6 +373,11 @@ const AuditCenter = () => {
 
       const res = await api.post('/audit/market-prices', payload);
       toast.success('Harga referensi berhasil disimpan!');
+      
+      // Invalidate TanStack query cache for commodities
+      queryClient.invalidateQueries({ queryKey: ['commodity-items'] });
+      queryClient.invalidateQueries({ queryKey: ['commodity-prices'] });
+      queryClient.invalidateQueries({ queryKey: ['latest-prices'] });
       
       // Update list by matching id instead of item_name (to support history and duplicates)
       setMarketPrices((prev) => {
@@ -620,66 +640,99 @@ const AuditCenter = () => {
 
             {/* Past Audits History */}
             <div className="bg-white p-6 rounded-[2rem] border border-blue-100 shadow-sm space-y-4 flex-1 flex flex-col">
-              <h2 className="text-base font-black text-slate-800 uppercase tracking-wider text-blue-600 flex items-center gap-2">
-                <History size={18} /> Riwayat Audit
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-black text-slate-800 uppercase tracking-wider text-blue-600 flex items-center gap-2">
+                  <History size={18} /> Riwayat Audit
+                </h2>
+                <span className="text-[11px] font-bold text-slate-400">Total: {reports.length}</span>
+              </div>
+
+              {/* Status Filter Chips */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                {[
+                  { key: 'ALL', label: 'Semua' },
+                  { key: 'DANGER', label: '🔴 Bahaya' },
+                  { key: 'WARNING', label: '🟡 Waspada' },
+                  { key: 'NORMAL', label: '🟢 Aman' }
+                ].map((st) => (
+                  <button
+                    key={st.key}
+                    type="button"
+                    onClick={() => setStatusFilter(st.key)}
+                    className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap ${
+                      statusFilter === st.key
+                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {st.label}
+                  </button>
+                ))}
+              </div>
               
-              <div className="space-y-3 overflow-y-auto max-h-[350px] pr-2 no-scrollbar">
+              <div className="space-y-3 overflow-y-auto max-h-[360px] pr-2 no-scrollbar">
                 {reports.length === 0 ? (
                   <div className="p-8 text-center border-2 border-dashed border-slate-100 rounded-2xl">
                     <p className="text-slate-400 font-bold text-xs">Belum ada riwayat audit</p>
                   </div>
                 ) : (
-                  reports.map((report) => {
-                    const isActive = selectedReport?.id === report.id;
-                    const badge = getStatusBadge(report.status);
-                    const BadgeIcon = badge.icon;
-                    
-                    return (
-                      <div 
-                        key={report.id}
-                        onClick={() => loadReportDetails(report.id)}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer flex justify-between items-center group ${
-                          isActive 
-                            ? 'border-blue-600 bg-blue-50/30 shadow-md shadow-blue-200/20' 
-                            : 'border-slate-100 hover:border-blue-200 bg-white'
-                        }`}
-                      >
-                        <div className="space-y-1.5 min-w-0">
-                          <p className="text-[10px] font-bold text-slate-400">
-                            {new Date(report.created_at).toLocaleDateString('id-ID', {
-                              day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                            })}
-                          </p>
-                          <p className="text-xs font-black text-slate-700 truncate">
-                            ID: #{report.id} - {report.total_items} Barang
-                          </p>
-                          <p className="text-sm font-black text-slate-800">
-                            {formatRupiah(report.total_potential_loss)}
-                          </p>
-                        </div>
-                        
-                        <div className="flex items-center gap-2 shrink-0">
-                          <div className={`px-2 py-1 rounded-lg border text-[10px] font-black uppercase tracking-tight flex items-center gap-1 ${badge.color}`}>
-                            <BadgeIcon size={10} />
-                            {badge.label}
+                  reports
+                    .filter(r => statusFilter === 'ALL' || r.status === statusFilter)
+                    .map((report) => {
+                      const isActive = selectedReport?.id === report.id;
+                      const badge = getStatusBadge(report.status);
+                      const BadgeIcon = badge.icon;
+                      
+                      return (
+                        <div 
+                          key={report.id}
+                          onClick={() => loadReportDetails(report.id)}
+                          className={`p-4 rounded-2xl border transition-all cursor-pointer flex justify-between items-center group ${
+                            isActive 
+                              ? 'border-blue-600 bg-blue-50/40 shadow-md shadow-blue-200/20 ring-2 ring-blue-500/20' 
+                              : 'border-slate-100 hover:border-blue-200 bg-white hover:shadow-sm'
+                          }`}
+                        >
+                          <div className="space-y-1.5 min-w-0">
+                            <p className="text-[10px] font-bold text-slate-400">
+                              {new Date(report.created_at).toLocaleDateString('id-ID', {
+                                day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                              })}
+                            </p>
+                            <p className="text-xs font-black text-slate-700 truncate">
+                              ID: #{report.id} • {report.total_items} Barang
+                            </p>
+                            {report.sppg_name && (
+                              <span className="inline-block text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                                {report.sppg_name}
+                              </span>
+                            )}
+                            <p className="text-sm font-black text-slate-800">
+                              {formatRupiah(report.total_potential_loss)}
+                            </p>
                           </div>
                           
-                          {isAdmin && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteReport(report.id);
-                              }}
-                              className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className={`px-2.5 py-1 rounded-xl border text-[10px] font-black uppercase tracking-tight flex items-center gap-1 ${badge.color}`}>
+                              <BadgeIcon size={12} />
+                              {badge.label}
+                            </div>
+                            
+                            {isAdmin && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteReport(report.id);
+                                }}
+                                className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })
+                      );
+                    })
                 )}
               </div>
             </div>
