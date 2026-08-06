@@ -7,11 +7,13 @@ import {
   Plus, Trash2, Edit2, Download,
   Loader2, ShoppingCart, Save,
   BarChart3, ShieldAlert, Database, User,
+  FileSpreadsheet
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import FormModal from '../components/FormModal';
 import SearchableCommoditySelect from '../components/SearchableCommoditySelect';
+import ExcelSurveyImportModal from '../components/ExcelSurveyImportModal';
 
 const formatRupiah = (number) => {
   return new Intl.NumberFormat('id-ID', {
@@ -54,6 +56,7 @@ const KomoditasHarga = () => {
   const [selectedInspectorItem, setSelectedInspectorItem] = useState('');
 
   const [showModal, setShowModal] = useState(false);
+  const [showExcelModal, setShowExcelModal] = useState(false);
   const [editItemId, setEditItemId] = useState(null);
   const [itemForm, setItemForm] = useState({ nama: '', kategori: '', satuan_default: 'kg', deskripsi: '', is_active: true });
 
@@ -836,14 +839,25 @@ const KomoditasHarga = () => {
         <div className="space-y-6">
           {/* Header Card — Data Survey */}
           <div className="bg-white p-6 lg:p-8 rounded-[2rem] border border-blue-100 shadow-sm">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
-                <ShoppingCart size={20} />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
+                  <ShoppingCart size={20} />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-slate-800">Data Survey</h2>
+                  <p className="text-slate-400 text-xs font-medium">Input informasi lokasi survey pasar manual atau via Excel.</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-base font-black text-slate-800">Data Survey</h2>
-                <p className="text-slate-400 text-xs font-medium">Input informasi lokasi survey pasar.</p>
-              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowExcelModal(true)}
+                className="flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all shrink-0"
+              >
+                <FileSpreadsheet size={16} />
+                Import Excel (.xlsx)
+              </button>
             </div>
 
             <form id="survey-form" onSubmit={handleSubmitSurvey}>
@@ -1627,6 +1641,18 @@ const KomoditasHarga = () => {
           </FormModal>
         </div>
       )}
+
+      {/* Excel Survey Import Modal */}
+      <ExcelSurveyImportModal
+        isOpen={showExcelModal}
+        onClose={() => setShowExcelModal(false)}
+        existingCommodities={items}
+        currentUser={profile}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['komoditas'] });
+          fetchSurveySessions();
+        }}
+      />
     </div>
   );
 };

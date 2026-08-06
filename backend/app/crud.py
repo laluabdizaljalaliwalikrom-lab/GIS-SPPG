@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, asc, text, and_
 from . import models, schemas
 import os
+import time
 import logging
 from datetime import date
 from supabase import create_client, Client
@@ -966,10 +967,16 @@ def create_audit_report(db: Session, doc_url: str, extracted_items: list, user_i
     
     for item in extracted_items:
         item_name = (item.get("item_name") or "").strip()
-        if not item_name:
-            continue
-        qty = float(item.get("qty", 1.0))
-        price_per_unit = float(item.get("price_per_unit", 0.0))
+        try:
+            qty = float(item.get("qty", 1.0))
+        except (ValueError, TypeError):
+            qty = 1.0
+
+        try:
+            price_per_unit = float(item.get("price_per_unit", 0.0))
+        except (ValueError, TypeError):
+            price_per_unit = 0.0
+
         unit = (item.get("unit") or "kg").strip()
         
         # Match with reference price
@@ -1081,6 +1088,14 @@ def create_audit_report(db: Session, doc_url: str, extracted_items: list, user_i
         logger_err.error(f"Failed to insert audit log entry: {str(e)}")
         db.rollback()
         
+    if db_report.sppg:
+        db_report.sppg_name = db_report.sppg.nama
+    elif db_report.sppg_id:
+        unit = db.query(models.SPPGUnit).filter(models.SPPGUnit.id == db_report.sppg_id).first()
+        db_report.sppg_name = unit.nama if unit else None
+    else:
+        db_report.sppg_name = None
+
     return db_report
 
 def get_audit_reports(db: Session, user: models.Profile = None):
@@ -1239,6 +1254,77 @@ def delete_market_price(db: Session, price_id: int) -> bool:
             db.rollback()
         return True
     return False
+
+
+def import_market_survey_excel(
+    db: Session,
+    req: schemas.MarketSurveyExcelImportRequest,
+    user_id: str = None
+) -> dict:
+    session_id = f"SURVEY-EXCEL-{int(time.time()*1000)}"
+    inserted_count = 0
+
+    for row in req.rows:
+        item_name = (row.item_name or "").strip()
+        if not item_name or row.reference_price <= 0:
+            continue
+
+        unit = (row.unit or "kg").strip()
+
+        # Auto-match with Master Komoditas or auto-create if new
+        comm_item = get_or_create_commodity_item(
+            db,
+            item_name,
+            unit=unit,
+            source_desc="Otomatis ditambahkan dari Import Excel Survey"
+        )
+        if comm_item:
+            item_name = comm_item.nama
+            commodity_item_id = comm_item.id
+        else:
+            commodity_item_id = None
+
+        db_price = models.MarketPrice(
+            item_name=item_name,
+            region_id=row.region_id or req.region_id or "Sikur",
+            reference_price=row.reference_price,
+            unit=unit,
+            shop_name=row.shop_name or req.shop_name,
+            price_date=req.survey_date,
+            supplier_name=row.supplier_name,
+            survey_session_id=session_id,
+            notes=row.notes or "Imported via Excel Survey",
+            commodity_item_id=commodity_item_id,
+            surveyor_name=req.surveyor_name
+        )
+        db.add(db_price)
+        inserted_count += 1
+
+    db.commit()
+
+    # Log to audit trail
+    try:
+        db.execute(
+            text("INSERT INTO audit_logs (user_id, action, target_table, target_id, details) VALUES (:uid, :action, :table, :id, :details)"),
+            {
+                "uid": user_id,
+                "action": "EXCEL_SURVEY_IMPORT",
+                "table": "market_prices",
+                "id": None,
+                "details": f"Import Excel Survey {session_id}: {inserted_count} barang dimasukkan."
+            }
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return {
+        "status": "success",
+        "survey_session_id": session_id,
+        "inserted_count": inserted_count,
+        "message": f"Berhasil mengimpor {inserted_count} data survei harga dari Excel."
+    }
+
 
 
 

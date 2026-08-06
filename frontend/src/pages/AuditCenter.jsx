@@ -258,7 +258,7 @@ const AuditCenter = () => {
 
   const handleFileUpload = async (file) => {
     const allowedExtensions = ['png', 'jpg', 'jpeg', 'pdf'];
-    const extension = file.name.split('.').pop().lower();
+    const extension = (file.name.split('.').pop() || '').toLowerCase();
     
     if (!allowedExtensions.includes(extension)) {
       toast.error('Format file tidak didukung. Harap unggah gambar (JPG/PNG) atau PDF.');
@@ -293,11 +293,7 @@ const AuditCenter = () => {
         });
       }, 500);
 
-      const res = await api.post('/audit/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      const res = await api.post('/audit/upload', formData);
 
       clearInterval(progressInterval);
       setUploadProgress(100);

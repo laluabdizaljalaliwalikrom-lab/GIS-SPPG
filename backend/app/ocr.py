@@ -73,11 +73,11 @@ def perform_ocr(file_bytes: bytes, filename: str, mime_type: str = None) -> List
                 text_response = "\n".join(lines).strip()
             
             parsed_data = json.loads(text_response)
-            if isinstance(parsed_data, list):
+            if isinstance(parsed_data, list) and len(parsed_data) > 0:
                 logger.info(f"Successfully scanned {len(parsed_data)} items from {filename} using Gemini.")
                 return parsed_data
             else:
-                logger.warning("Gemini response did not return a list. Falling back to mock data.")
+                logger.warning("Gemini response did not return a non-empty list. Falling back to smart mock data.")
                 
         except Exception as e:
             logger.error(f"Error during Gemini OCR processing: {str(e)}. Falling back to mock data.")

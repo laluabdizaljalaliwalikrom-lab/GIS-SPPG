@@ -226,6 +226,24 @@ class MarketPriceUpdate(BaseModel):
     commodity_item_id: Optional[int] = None
 
 
+class MarketSurveyExcelRow(BaseModel):
+    item_name: str
+    reference_price: float
+    unit: str = "kg"
+    shop_name: Optional[str] = None
+    region_id: Optional[str] = None
+    supplier_name: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class MarketSurveyExcelImportRequest(BaseModel):
+    region_id: Optional[str] = "Sikur"
+    shop_name: Optional[str] = None
+    survey_date: date
+    surveyor_name: Optional[str] = None
+    rows: List[MarketSurveyExcelRow]
+
+
 class AuditItemBase(BaseModel):
     item_name: str
     qty: float

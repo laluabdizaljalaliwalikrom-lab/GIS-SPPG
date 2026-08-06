@@ -241,7 +241,11 @@ async def upload_audit_file(
         db_report = crud.create_audit_report(db, doc_url, extracted_items, current_user.id, current_user.sppg_id)
         return db_report
         
+    except HTTPException:
+        raise
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Gagal memproses file audit: {str(e)}")
 
 @app.get("/api/audit/reports", response_model=List[schemas.AuditReportResponse])
@@ -360,6 +364,20 @@ def submit_market_survey(
     current_user: models.Profile = Depends(finance_only)
 ):
     return crud.submit_market_survey(db, survey)
+
+
+@app.post("/api/commodities/survey/import-excel")
+def import_market_survey_excel(
+    payload: schemas.MarketSurveyExcelImportRequest,
+    db: Session = Depends(get_db),
+    current_user: models.Profile = Depends(finance_only)
+):
+    try:
+        if not payload.surveyor_name and current_user:
+            payload.surveyor_name = current_user.full_name
+        return crud.import_market_survey_excel(db, payload, user_id=current_user.id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Gagal mengimpor data survei dari Excel: {str(e)}")
 
 
 @app.get("/api/commodities/prices", response_model=List[schemas.MarketPriceResponse])
