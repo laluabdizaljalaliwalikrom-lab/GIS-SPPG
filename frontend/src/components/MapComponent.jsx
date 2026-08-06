@@ -123,7 +123,24 @@ const CustomZoomControl = ({ sppgs, kelompoks }) => {
   );
 };
 
-const LayerControl = ({ visibility, setVisibility }) => {
+const MapFlyToController = ({ target }) => {
+  const map = useMapEvents({});
+  useEffect(() => {
+    if (target && target.lat && target.lng) {
+      try {
+        map.flyTo([target.lat, target.lng], 16, {
+          animate: true,
+          duration: 1.2
+        });
+      } catch {
+        // handle safely
+      }
+    }
+  }, [target, map]);
+  return null;
+};
+
+const LayerControl = ({ visibility, setVisibility, mapType, setMapType }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const layers = [
@@ -131,7 +148,7 @@ const LayerControl = ({ visibility, setVisibility }) => {
     { id: 'school', label: 'Sekolah (Verified)', color: 'bg-blue-600' },
     { id: 'posyandu', label: 'Posyandu (Verified)', color: 'bg-amber-500' },
     { id: 'pending', label: 'Menunggu Verifikasi', color: 'bg-red-500' },
-    { id: 'boundary', label: 'Batas Wilayah', color: 'bg-blue-400' },
+    { id: 'boundary', label: 'Batas Wilayah Desa', color: 'bg-blue-400' },
     { id: 'lines', label: 'Garis Penugasan', color: 'bg-blue-500/50' },
   ];
 
@@ -151,8 +168,8 @@ const LayerControl = ({ visibility, setVisibility }) => {
     >
       <button 
         onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
-        title="Map Layers"
-        className={`w-8 h-8 lg:w-10 lg:h-10 rounded-xl lg:rounded-2xl flex items-center justify-center transition-all shadow-xl border border-white/60 backdrop-blur-xl ${
+        title="Map Layers & Basemap"
+        className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl lg:rounded-2xl flex items-center justify-center transition-all shadow-xl border border-white/60 backdrop-blur-xl ${
           isOpen ? 'bg-blue-600 text-white' : 'bg-white/95 text-slate-700 hover:bg-slate-50'
         }`}
       >
@@ -160,31 +177,57 @@ const LayerControl = ({ visibility, setVisibility }) => {
       </button>
 
       {isOpen && (
-        <div className="w-56 lg:w-64 bg-white/95 backdrop-blur-2xl rounded-[1.5rem] lg:rounded-[2rem] shadow-2xl border border-white/60 p-4 lg:p-5 animate-in fade-in slide-in-from-top-2 duration-300">
-          <p className="text-[9px] lg:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 lg:mb-4 ml-1">Map Layers</p>
-          <div className="space-y-1 lg:space-y-2">
-            {layers.map(layer => (
+        <div className="w-60 lg:w-68 bg-white/95 backdrop-blur-2xl rounded-[1.5rem] lg:rounded-[2rem] shadow-2xl border border-white/60 p-4 lg:p-5 animate-in fade-in slide-in-from-top-2 duration-300 space-y-4">
+          <div>
+            <p className="text-[9px] lg:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Mode Peta (Basemap)</p>
+            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100/80 rounded-xl border border-slate-200/60">
               <button
-                key={layer.id}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setVisibility(prev => ({ ...prev, [layer.id]: !prev[layer.id] }));
-                }}
-                className="w-full flex items-center justify-between p-2.5 lg:p-3 rounded-xl lg:rounded-2xl hover:bg-slate-50 transition-colors group text-left"
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setMapType('street'); }}
+                className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                  mapType === 'street' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                }`}
               >
-                <div className="flex items-center gap-2 lg:gap-3">
-                  <div className={`w-2 lg:w-2.5 h-2 lg:h-2.5 rounded-full ${layer.color} shadow-sm`} />
-                  <span className={`text-[10px] lg:text-[11px] font-bold ${visibility[layer.id] ? 'text-slate-700' : 'text-slate-400 line-through decoration-2 opacity-50'}`}>
-                    {layer.label}
-                  </span>
-                </div>
-                {visibility[layer.id] ? (
-                  <Eye size={12} className="text-blue-500 lg:w-[14px] lg:h-[14px]" />
-                ) : (
-                  <EyeOff size={12} className="text-slate-300 lg:w-[14px] lg:h-[14px]" />
-                )}
+                Vektor Standard
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setMapType('satellite'); }}
+                className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                  mapType === 'satellite' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Satelit Hibrid
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[9px] lg:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Layer Objek</p>
+            <div className="space-y-1">
+              {layers.map(layer => (
+                <button
+                  key={layer.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setVisibility(prev => ({ ...prev, [layer.id]: !prev[layer.id] }));
+                  }}
+                  className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 transition-colors group text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2.5 h-2.5 rounded-full ${layer.color} shadow-sm`} />
+                    <span className={`text-[10px] lg:text-[11px] font-bold ${visibility[layer.id] ? 'text-slate-700' : 'text-slate-400 line-through opacity-50'}`}>
+                      {layer.label}
+                    </span>
+                  </div>
+                  {visibility[layer.id] ? (
+                    <Eye size={12} className="text-blue-500" />
+                  ) : (
+                    <EyeOff size={12} className="text-slate-300" />
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -192,7 +235,8 @@ const LayerControl = ({ visibility, setVisibility }) => {
   );
 };
 
-const MapComponent = ({ sppgs = [], kelompoks = [], setClickedLocation, isFullScreen, onMarkerClick }) => {
+const MapComponent = ({ sppgs = [], kelompoks = [], setClickedLocation, isFullScreen, onMarkerClick, flyToTarget }) => {
+  const [mapType, setMapType] = useState('street');
   const [visibility, setVisibility] = useState({
     sppg: true,
     school: true,
@@ -229,14 +273,22 @@ const MapComponent = ({ sppgs = [], kelompoks = [], setClickedLocation, isFullSc
 
   return (
     <MapContainer center={defaultCenter} zoom={13} className="leaflet-container" zoomControl={false}>
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-      />
+      {mapType === 'street' ? (
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+        />
+      ) : (
+        <TileLayer
+          attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        />
+      )}
       <MapEvents setClickedLocation={setClickedLocation} />
       <ResizeHandler isFullScreen={isFullScreen} />
+      <MapFlyToController target={flyToTarget} />
       <CustomZoomControl sppgs={sppgs} kelompoks={kelompoks} />
-      <LayerControl visibility={visibility} setVisibility={setVisibility} />
+      <LayerControl visibility={visibility} setVisibility={setVisibility} mapType={mapType} setMapType={setMapType} />
 
       {/* High-Precision Kecamatan Sikur Boundary from GeoJSON with Village Labels */}
       {visibility.boundary && (

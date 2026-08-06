@@ -16,7 +16,7 @@ export const useKomoditas = () => {
     queryKey: ['commodity-items'],
     queryFn: async () => {
       const { data } = await api.get('/commodities/items');
-      return data;
+      return Array.isArray(data) ? data : [];
     },
   });
 
@@ -65,7 +65,7 @@ export const useKomoditas = () => {
     queryKey: ['latest-prices'],
     queryFn: async () => {
       const { data } = await api.get('/commodities/prices/latest');
-      return data;
+      return Array.isArray(data) ? data : [];
     },
   });
 
@@ -73,7 +73,7 @@ export const useKomoditas = () => {
     queryKey: ['commodity-prices'],
     queryFn: async () => {
       const { data } = await api.get('/commodities/prices', { params: { limit: 500 } });
-      return data;
+      return Array.isArray(data) ? data : [];
     },
   });
 

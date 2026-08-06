@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { FileUp, Download, CheckCircle2, Loader2, AlertCircle, FileSpreadsheet, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -100,11 +101,22 @@ const ExcelImportButton = ({ endpoint, onSuccess, title = "Import Data Excel", t
     setResults(null);
   };
 
+  useEffect(() => {
+    if (isModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isModalOpen]);
+
   return (
     <>
       <button
         onClick={() => setIsModalOpen(true)}
-        className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-50 hover:border-blue-200 hover:text-blue-600 transition-all active:scale-95 shadow-sm text-xs"
+        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-blue-500/10 flex items-center gap-2 transition-all cursor-pointer"
       >
         <FileSpreadsheet size={16} />
         <span className="hidden md:inline">Import Data</span>
@@ -118,24 +130,20 @@ const ExcelImportButton = ({ endpoint, onSuccess, title = "Import Data Excel", t
         className="hidden"
       />
 
-      <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={closeAll}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md will-change-transform"
-            />
-
+      {isModalOpen && createPortal(
+        <AnimatePresence>
+          <div 
+            className="fixed inset-0 w-screen h-screen z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-sm overflow-hidden"
+            onClick={closeAll}
+          >
             {/* Modal Content */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              initial={{ opacity: 0, scale: 0.9, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative bg-blue-600 rounded-[2.5rem] overflow-hidden max-w-xl w-full shadow-2xl border border-blue-600"
+              exit={{ opacity: 0, scale: 0.9, y: 15 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-blue-600 rounded-[2.5rem] overflow-hidden max-w-xl w-full shadow-2xl border border-blue-600 my-auto flex flex-col max-h-[85vh]"
             >
               {/* Header */}
               <div className="p-8 bg-blue-600 text-white flex items-center justify-between -mt-px">
@@ -228,8 +236,9 @@ const ExcelImportButton = ({ endpoint, onSuccess, title = "Import Data Excel", t
               </div>
             </motion.div>
           </div>
-        )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
     </>
   );
 };

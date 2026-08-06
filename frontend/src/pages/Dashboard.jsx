@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import api from '../api';
+import DailyMotivationModal from '../components/DailyMotivationModal';
 
 const Dashboard = () => {
   const [profile, setProfile] = useState(null);
@@ -34,6 +35,7 @@ const Dashboard = () => {
   const [isPinned, setIsPinned] = useState(false);
   const isCollapsed = !isPinned && !isHovered;
   const [isAllocating, setIsAllocating] = useState(false);
+  const [showMotivationModal, setShowMotivationModal] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
@@ -49,18 +51,21 @@ const Dashboard = () => {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-
-      if (error) {
-        console.error(error);
-      } else {
-        setProfile(data);
+      try {
+        const res = await api.get('/users');
+        const currentUser = res.data.find(u => u.id === session.user.id);
+        if (currentUser) {
+          setProfile(currentUser);
+          if (!sessionStorage.getItem('has_shown_daily_motivation')) {
+            setShowMotivationModal(true);
+            sessionStorage.setItem('has_shown_daily_motivation', 'true');
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching user profile:', err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchProfile();
@@ -352,6 +357,13 @@ const Dashboard = () => {
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
+
+      {/* Daily Prayer & Motivation Modal */}
+      <DailyMotivationModal
+        isOpen={showMotivationModal}
+        onClose={() => setShowMotivationModal(false)}
+        userName={profile?.full_name}
+      />
     </div>
   );
 };

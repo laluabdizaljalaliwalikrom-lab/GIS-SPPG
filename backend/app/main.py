@@ -471,5 +471,13 @@ def read_price_stats(
     return stats
 
 
+@app.get("/api/commodities/disperindag-ntb-live", response_model=List[schemas.DisperindagLivePriceResponse])
+def read_disperindag_ntb_live_prices(
+    db: Session = Depends(get_db)
+):
+    return crud.get_disperindag_ntb_live_prices(db)
+
+
+
 
 

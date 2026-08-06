@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -213,50 +214,68 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
     }
   };
 
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const validCount = parsedRows.filter(r => r.isValid).length;
   const invalidCount = parsedRows.length - validCount;
   const newCommodityCount = parsedRows.filter(r => r.isValid && !r.isExistingMaster).length;
 
-  return (
+  return createPortal(
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/70 backdrop-blur-md overflow-y-auto">
+      <div 
+        className="fixed inset-0 w-screen h-screen z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-sm overflow-hidden"
+        onClick={onClose}
+      >
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"
+          exit={{ opacity: 0, scale: 0.95, y: 15 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white w-full max-w-3xl rounded-[2rem] shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh] my-auto"
         >
           {/* Header */}
-          <div className="p-6 sm:p-8 bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white flex items-center justify-between relative overflow-hidden shrink-0">
+          <div className="p-5 sm:p-6 bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white flex items-center justify-between relative overflow-hidden shrink-0">
             <div className="absolute -top-12 -right-12 w-48 h-48 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
             
             <div className="flex items-center gap-3 relative z-10">
-              <div className="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center border border-emerald-500/30">
-                <FileSpreadsheet size={24} />
+              <div className="w-10 h-10 bg-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center border border-emerald-500/30 shrink-0">
+                <FileSpreadsheet size={20} />
               </div>
               <div>
-                <h3 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
+                <h3 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-2">
                   Import Survey Harga Excel
-                  <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-700/50">
+                  <span className="text-[9px] font-bold text-emerald-300 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-700/50">
                     Auto-Matching
                   </span>
                 </h3>
-                <p className="text-xs text-slate-300 font-medium">Unggah file .xlsx survei harga pasar bahan baku sekaligus.</p>
+                <p className="text-[11px] text-slate-300 font-medium">Unggah file .xlsx survei harga pasar bahan baku sekaligus.</p>
               </div>
             </div>
 
             <button 
+              type="button"
               onClick={onClose} 
-              className="p-2.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-2xl transition-all relative z-10"
+              className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-all relative z-10"
+              aria-label="Tutup"
             >
               <X size={20} />
             </button>
           </div>
 
           {/* Body Content */}
-          <div className="p-6 sm:p-8 space-y-6 overflow-y-auto flex-1">
+          <div className="p-5 sm:p-6 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
 
             {/* Template Download Banner */}
             <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -488,7 +507,8 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
 
         </motion.div>
       </div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
 

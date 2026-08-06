@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useKomoditas } from '../hooks/useKomoditas';
 import api from '../api';
 import {
   TrendingUp, History, Package,
   Plus, Trash2, Edit2, Download,
   Loader2, ShoppingCart, Save,
-  BarChart3, ShieldAlert, Database, User,
-  FileSpreadsheet
+  BarChart3, Database, User,
+  FileSpreadsheet, Globe, ExternalLink, RefreshCw,
+  Radio, ArrowUpRight, ArrowDownRight, Minus,
+  CandlestickChart, TrendingDown, LayoutGrid, List
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
@@ -39,12 +42,13 @@ const UNIT_CATEGORIES = [
 
 const KomoditasHarga = () => {
   const { profile } = useOutletContext();
+  const queryClient = useQueryClient();
   const {
-    items, loadingItems,
+    items = [], loadingItems,
     createItem, updateItem, deleteItem,
     isCreating, isUpdating,
-    latestPrices, loadingPrices,
-    allPrices,
+    latestPrices = [], loadingPrices,
+    allPrices = [],
     submitSurvey, isSubmitting,
   } = useKomoditas();
 
@@ -52,11 +56,82 @@ const KomoditasHarga = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const [selectedChartItem, setSelectedChartItem] = useState('');
-  const [priceHistory, setPriceHistory] = useState([]);
   const [selectedInspectorItem, setSelectedInspectorItem] = useState('');
+  const [priceHistory, setPriceHistory] = useState([]);
 
-  const [showModal, setShowModal] = useState(false);
+  // Disperindag NTB Live Prices State
+  const [ntbLivePrices, setNtbLivePrices] = useState([]);
+  const [loadingLiveNtb, setLoadingLiveNtb] = useState(false);
+  const [selectedNtbCategory, setSelectedNtbCategory] = useState('SEMUA');
+  const [ntbSearchQuery, setNtbSearchQuery] = useState('');
+  const [masterSearchQuery, setMasterSearchQuery] = useState('');
+  const [selectedNtbItem, setSelectedNtbItem] = useState(null);
+  const [ntbLastUpdate, setNtbLastUpdate] = useState(null);
+  const [loadingNtbHistory, setLoadingNtbHistory] = useState(false);
+  const [ntbViewMode, setNtbViewMode] = useState('grid');
+
+  const fetchNtbLivePrices = async () => {
+    setLoadingLiveNtb(true);
+    try {
+      const res = await api.get('/commodities/disperindag-ntb-live');
+      setNtbLivePrices(res.data);
+      setNtbLastUpdate(new Date());
+    } catch {
+      toast.error('Gagal memuat live data harga Disperindag NTB.');
+    } finally {
+      setLoadingLiveNtb(false);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadInitial = async () => {
+      try {
+        const res = await api.get('/commodities/disperindag-ntb-live');
+        if (cancelled) return;
+        setNtbLivePrices(res.data);
+        setNtbLastUpdate(new Date());
+      } catch {
+        if (!cancelled) toast.error('Gagal memuat live data harga Disperindag NTB.');
+      }
+    };
+    loadInitial();
+    return () => { cancelled = true; };
+  }, []);
+
+  const selectNtbItem = async (item) => {
+    setSelectedNtbItem(item);
+    setLoadingNtbHistory(true);
+    setPriceHistory([]);
+    try {
+      const res = await api.get('/audit/market-prices/history', { params: { item_name: item.komoditas } });
+      setPriceHistory(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setPriceHistory([]);
+    } finally {
+      setLoadingNtbHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'ntb-live') return;
+    const interval = setInterval(() => {
+      fetchNtbLivePrices();
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [activeTab]);
+
+  const ntbCategories = ['SEMUA', 'Bahan Pokok', 'Daging & Unggas', 'Telur & Susu', 'Bumbu & Sayuran', 'Minyak & Lemak', 'Gula & Pemanis', 'Ikan & Laut', 'Gas & Energi'];
+
+  const getPrevPrice = (item) => {
+    const pct = item.perubahan ?? 0;
+    if (pct === 0) return item.harga_ntb;
+    return item.harga_ntb / (1 + pct / 100);
+  };
+
+  const getChangeRp = (item) => item.harga_ntb - getPrevPrice(item);
   const [showExcelModal, setShowExcelModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [editItemId, setEditItemId] = useState(null);
   const [itemForm, setItemForm] = useState({ nama: '', kategori: '', satuan_default: 'kg', deskripsi: '', is_active: true });
 
@@ -430,20 +505,8 @@ const KomoditasHarga = () => {
     }
   };
 
-  if (!isAuthorized) {
-    return (
-      <div className="p-8 text-center bg-white border border-red-100 rounded-3xl max-w-xl mx-auto mt-12 shadow-xl">
-        <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
-          <ShieldAlert size={36} />
-        </div>
-        <h2 className="text-2xl font-black text-slate-800 tracking-tight">Akses Ditolak</h2>
-        <p className="text-slate-500 mt-2 font-medium">Anda tidak memiliki hak akses untuk fitur Harga Bahan Baku.</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-2 sm:pt-4">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl lg:text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
@@ -458,6 +521,11 @@ const KomoditasHarga = () => {
               className={`px-3 lg:px-4 py-2.5 rounded-xl text-[11px] lg:text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === 'dashboard' ? 'bg-white text-blue-600 shadow-md shadow-blue-500/10 ring-1 ring-slate-900/5 font-black' : 'text-slate-500 hover:text-slate-800 hover:bg-white/60'}`}>
               <BarChart3 size={14} className={activeTab === 'dashboard' ? 'text-blue-600' : 'text-slate-400'} />
               <span>Dashboard</span>
+            </button>
+            <button onClick={() => { setActiveTab('ntb-live'); fetchNtbLivePrices(); }}
+              className={`px-3 lg:px-4 py-2.5 rounded-xl text-[11px] lg:text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === 'ntb-live' ? 'bg-white text-emerald-600 shadow-md shadow-emerald-500/10 ring-1 ring-slate-900/5 font-black' : 'text-slate-500 hover:text-slate-800 hover:bg-white/60'}`}>
+              <Globe size={14} className={activeTab === 'ntb-live' ? 'text-emerald-600' : 'text-slate-400'} />
+              <span>Harga NTB</span>
             </button>
             <button onClick={() => setActiveTab('survey')}
               className={`px-3 lg:px-4 py-2.5 rounded-xl text-[11px] lg:text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === 'survey' ? 'bg-white text-blue-600 shadow-md shadow-blue-500/10 ring-1 ring-slate-900/5 font-black' : 'text-slate-500 hover:text-slate-800 hover:bg-white/60'}`}>
@@ -835,6 +903,422 @@ const KomoditasHarga = () => {
         </div>
       )}
 
+      {activeTab === 'ntb-live' && (
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-emerald-700 via-teal-700 to-slate-900 text-white p-6 lg:p-8 shadow-xl shadow-emerald-900/10 border border-emerald-600/30">
+            <div className="pointer-events-none absolute -top-32 -right-32 w-96 h-96 rounded-full bg-emerald-400/20 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-40 -left-24 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl" />
+
+            <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+              <div className="flex items-start gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center shadow-inner shrink-0 border border-white/20">
+                  <Globe size={28} className="text-emerald-300" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest bg-emerald-500/30 text-emerald-200 px-3 py-1 rounded-full border border-emerald-400/30">
+                      <Radio size={10} className="animate-pulse text-emerald-300" /> Live Synchronized
+                    </span>
+                    <span className="text-[9px] font-black uppercase tracking-widest bg-white/15 text-white px-3 py-1 rounded-full border border-white/20">
+                      {ntbLivePrices.length} Komoditas Responded
+                    </span>
+                  </div>
+                  <h2 className="text-xl lg:text-2xl font-black tracking-tight mt-2">
+                    Harga Pangan Acuan <span className="text-emerald-300">Disperindag NTB & SP2KP</span>
+                  </h2>
+                  <p className="text-xs text-emerald-100/80 font-medium mt-1 max-w-xl">
+                    Pantauan harga rata-rata bahan pokok resmi dari pasar acuan se-NTB sebagai acuan utama standar perencanaan anggaran katering dan audit alokasi SPPG.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={fetchNtbLivePrices}
+                  disabled={loadingLiveNtb}
+                  className="px-4 py-3 rounded-2xl bg-emerald-400 hover:bg-emerald-300 active:scale-95 disabled:opacity-60 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-400/20 cursor-pointer"
+                >
+                  <RefreshCw size={14} className={loadingLiveNtb ? 'animate-spin' : ''} />
+                  <span>{loadingLiveNtb ? 'Memuat...' : 'Refresh Live'}</span>
+                </button>
+                <a
+                  href="https://disperindag.ntbprov.go.id/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all border border-white/15 backdrop-blur-sm"
+                >
+                  <span>Portal Disperindag</span>
+                  <ExternalLink size={13} />
+                </a>
+              </div>
+            </div>
+
+            {/* Stat Strip */}
+            <div className="relative mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/15 text-emerald-300 flex items-center justify-center shrink-0"><Package size={18} /></div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-emerald-200/80 font-bold">Total Komoditas</p>
+                  <p className="text-xl font-black text-white">{ntbLivePrices.length}</p>
+                </div>
+              </div>
+              <div className="rounded-2xl bg-rose-500/20 backdrop-blur-md border border-rose-400/30 p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/30 text-rose-200 flex items-center justify-center shrink-0"><TrendingUp size={18} /></div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-rose-200/80 font-bold">Kenaikan Harga</p>
+                  <p className="text-xl font-black text-rose-200">{ntbLivePrices.filter(i => i.status_tren === 'NAIK').length}</p>
+                </div>
+              </div>
+              <div className="rounded-2xl bg-emerald-500/20 backdrop-blur-md border border-emerald-400/30 p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/30 text-emerald-200 flex items-center justify-center shrink-0"><TrendingDown size={18} /></div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-emerald-200/80 font-bold">Penurunan Harga</p>
+                  <p className="text-xl font-black text-emerald-200">{ntbLivePrices.filter(i => i.status_tren === 'TURUN').length}</p>
+                </div>
+              </div>
+              <div className="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/15 text-slate-200 flex items-center justify-center shrink-0"><Minus size={18} /></div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-slate-200/80 font-bold">Harga Stabil</p>
+                  <p className="text-xl font-black text-white">{ntbLivePrices.filter(i => i.status_tren === 'STABIL' || !i.status_tren).length}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Clean Light Filter & View Toolbar */}
+          <div className="bg-white rounded-[2rem] border border-blue-100 p-4 lg:p-5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 shadow-sm sticky top-20 z-20">
+            <div className="flex items-center gap-3 flex-1 lg:max-w-md">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder="🔍 Cari komoditas acuan NTB..."
+                  value={ntbSearchQuery}
+                  onChange={(e) => setNtbSearchQuery(e.target.value)}
+                  className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:bg-white transition-all"
+                />
+                {ntbSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setNtbSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold text-xs p-1"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setNtbViewMode('grid')}
+                  className={`p-2 rounded-lg transition-all ${ntbViewMode === 'grid' ? 'bg-white text-emerald-600 shadow-sm font-bold' : 'text-slate-400 hover:text-slate-700'}`}
+                  title="Tampilan Grid Kartu"
+                >
+                  <LayoutGrid size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNtbViewMode('table')}
+                  className={`p-2 rounded-lg transition-all ${ntbViewMode === 'table' ? 'bg-white text-emerald-600 shadow-sm font-bold' : 'text-slate-400 hover:text-slate-700'}`}
+                  title="Tampilan Tabel"
+                >
+                  <List size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1 lg:pb-0">
+              {ntbCategories.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedNtbCategory(cat)}
+                  className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer ${
+                    selectedNtbCategory === cat
+                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                      : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/80'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Main Content Area */}
+          {(() => {
+            const filteredList = ntbLivePrices.filter(item => {
+              const matchCategory = selectedNtbCategory === 'SEMUA' || item.kategori === selectedNtbCategory;
+              const matchSearch = !ntbSearchQuery || item.komoditas.toLowerCase().includes(ntbSearchQuery.toLowerCase());
+              return matchCategory && matchSearch;
+            });
+
+            if (loadingLiveNtb) {
+              return (
+                <div className="p-12 text-center bg-white rounded-[2rem] border border-blue-100 shadow-sm">
+                  <Loader2 size={32} className="mx-auto text-emerald-600 animate-spin" />
+                  <p className="mt-3 text-xs font-bold text-slate-500">Menghubungkan ke API Disperindag & SP2KP NTB...</p>
+                </div>
+              );
+            }
+
+            if (filteredList.length === 0) {
+              return (
+                <div className="p-12 text-center bg-white rounded-[2rem] border border-blue-100 shadow-sm">
+                  <CandlestickChart size={32} className="mx-auto text-slate-300" />
+                  <p className="mt-3 text-sm font-bold text-slate-500">Komoditas tidak ditemukan.</p>
+                  <p className="text-xs text-slate-400 mt-1">Coba sesuaikan kata kunci pencarian atau kategori filter.</p>
+                </div>
+              );
+            }
+
+            // Render GRID View
+            if (ntbViewMode === 'grid') {
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-h-[620px] overflow-y-auto custom-scrollbar pr-1">
+                  {filteredList.map((item, idx) => {
+                    const isNaik = item.status_tren === 'NAIK';
+                    const isTurun = item.status_tren === 'TURUN';
+                    const changeRp = getChangeRp(item);
+                    const isSelected = selectedNtbItem?.komoditas === item.komoditas;
+
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => selectNtbItem(item)}
+                        className={`text-left p-4 lg:p-5 rounded-2xl border transition-all cursor-pointer space-y-3 relative group ${
+                          isSelected
+                            ? 'bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-500/20 shadow-md'
+                            : 'bg-white border-slate-200/80 hover:border-emerald-400 hover:shadow-md hover:-translate-y-0.5'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="text-[9px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2.5 py-0.5 rounded-lg">
+                              {item.kategori}
+                            </span>
+                            <h4 className="font-black text-slate-800 text-sm mt-2 group-hover:text-emerald-700 transition-colors leading-tight truncate">
+                              {item.komoditas}
+                            </h4>
+                          </div>
+
+                          <div className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase flex items-center gap-1 shrink-0 ${
+                            isNaik ? 'bg-rose-50 text-rose-600 border border-rose-200' :
+                            isTurun ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
+                            'bg-slate-100 text-slate-500 border border-slate-200'
+                          }`}>
+                            {isNaik ? <ArrowUpRight size={12} /> : isTurun ? <ArrowDownRight size={12} /> : <Minus size={12} />}
+                            <span>{item.perubahan !== 0 ? `${item.perubahan > 0 ? '+' : ''}${item.perubahan}%` : 'STABIL'}</span>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100">
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Harga Rata-Rata NTB</p>
+                          <p className="text-xl font-black text-slate-900 mt-0.5 flex items-baseline gap-1">
+                            Rp {item.harga_ntb.toLocaleString('id-ID')}
+                            <span className="text-xs font-bold text-slate-400">/{item.satuan}</span>
+                          </p>
+                          <div className="flex items-center justify-between mt-2 pt-2 border-t border-dashed border-slate-100">
+                            <span className={`text-[10px] font-black flex items-center gap-1 ${isNaik ? 'text-rose-600' : isTurun ? 'text-emerald-600' : 'text-slate-400'}`}>
+                              {isNaik ? <ArrowUpRight size={11} /> : isTurun ? <ArrowDownRight size={11} /> : <Minus size={11} />}
+                              {isNaik ? '+' : ''}Rp {Math.abs(Math.round(changeRp)).toLocaleString('id-ID')}
+                            </span>
+                            <span className="text-[9px] font-bold text-slate-400 truncate max-w-[110px]">📍 {item.pasar_acuan}</span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            }
+
+            // Render TABLE View
+            return (
+              <div className="bg-white rounded-[2rem] border border-blue-100 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto max-h-[620px]">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-blue-50 sticky top-0 z-10">
+                        <th className="px-5 py-4 text-xs font-black text-slate-400 uppercase tracking-wider">Komoditas</th>
+                        <th className="px-5 py-4 text-xs font-black text-slate-400 uppercase tracking-wider">Kategori</th>
+                        <th className="px-5 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-right">Harga NTB</th>
+                        <th className="px-5 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Satuan</th>
+                        <th className="px-5 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Tren</th>
+                        <th className="px-5 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-right">Selisih (Rp)</th>
+                        <th className="px-5 py-4 text-xs font-black text-slate-400 uppercase tracking-wider">Pasar Acuan</th>
+                        <th className="px-5 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredList.map((item, idx) => {
+                        const isNaik = item.status_tren === 'NAIK';
+                        const isTurun = item.status_tren === 'TURUN';
+                        const changeRp = getChangeRp(item);
+                        const isSelected = selectedNtbItem?.komoditas === item.komoditas;
+
+                        return (
+                          <tr
+                            key={idx}
+                            onClick={() => selectNtbItem(item)}
+                            className={`cursor-pointer transition-colors ${
+                              isSelected ? 'bg-emerald-50/70 font-bold' : 'hover:bg-slate-50/80'
+                            }`}
+                          >
+                            <td className="px-5 py-4">
+                              <p className="font-bold text-slate-800 text-sm">{item.komoditas}</p>
+                            </td>
+                            <td className="px-5 py-4">
+                              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black rounded-lg uppercase tracking-wider border border-emerald-200/60">
+                                {item.kategori}
+                              </span>
+                            </td>
+                            <td className="px-5 py-4 text-right font-black text-slate-900 text-sm">
+                              Rp {item.harga_ntb.toLocaleString('id-ID')}
+                            </td>
+                            <td className="px-5 py-4 text-center font-bold text-slate-500 text-xs">
+                              {item.satuan}
+                            </td>
+                            <td className="px-5 py-4 text-center">
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-black rounded-lg uppercase ${
+                                isNaik ? 'bg-rose-50 text-rose-600 border border-rose-200' :
+                                isTurun ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
+                                'bg-slate-100 text-slate-500 border border-slate-200'
+                              }`}>
+                                {isNaik ? <ArrowUpRight size={12} /> : isTurun ? <ArrowDownRight size={12} /> : <Minus size={12} />}
+                                {item.perubahan !== 0 ? `${item.perubahan > 0 ? '+' : ''}${item.perubahan}%` : 'STABIL'}
+                              </span>
+                            </td>
+                            <td className={`px-5 py-4 text-right font-black text-xs ${
+                              isNaik ? 'text-rose-600' : isTurun ? 'text-emerald-600' : 'text-slate-400'
+                            }`}>
+                              {isNaik ? '+' : ''}Rp {Math.abs(Math.round(changeRp)).toLocaleString('id-ID')}
+                            </td>
+                            <td className="px-5 py-4 text-xs font-bold text-slate-500">
+                              📍 {item.pasar_acuan}
+                            </td>
+                            <td className="px-5 py-4 text-center">
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); selectNtbItem(item); }}
+                                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all"
+                              >
+                                Detail
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Detail Drawer / Modal for Selected Item */}
+          {selectedNtbItem && (
+            <div className="bg-white p-6 lg:p-8 rounded-[2.5rem] border border-emerald-200 shadow-xl shadow-emerald-500/5 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-2xl flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20">
+                    <CandlestickChart size={22} />
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">{selectedNtbItem.kategori}</span>
+                    <h2 className="text-xl font-black text-slate-800 tracking-tight mt-1">{selectedNtbItem.komoditas}</h2>
+                    <p className="text-xs text-slate-400 font-semibold mt-0.5">Pasar acuan: {selectedNtbItem.pasar_acuan} · Disperindag NTB & SP2KP</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedNtbItem(null)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-black text-xs uppercase tracking-wider transition-all"
+                >
+                  Tutup Detail
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="rounded-2xl bg-emerald-50/70 border border-emerald-200/80 p-5">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Harga Live NTB</p>
+                  <p className="text-2xl font-black text-emerald-900 mt-1">
+                    Rp {selectedNtbItem.harga_ntb.toLocaleString('id-ID')}
+                    <span className="text-xs font-bold text-emerald-600">/{selectedNtbItem.satuan}</span>
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Perubahan (%)</p>
+                  <p className={`text-2xl font-black mt-1 flex items-center gap-1 ${selectedNtbItem.perubahan > 0 ? 'text-rose-600' : selectedNtbItem.perubahan < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
+                    {selectedNtbItem.perubahan > 0 ? <ArrowUpRight size={20} /> : selectedNtbItem.perubahan < 0 ? <ArrowDownRight size={20} /> : <Minus size={20} />}
+                    {selectedNtbItem.perubahan !== 0 ? `${selectedNtbItem.perubahan > 0 ? '+' : ''}${selectedNtbItem.perubahan}%` : 'STABIL'}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Perubahan Nominal (Rp)</p>
+                  <p className={`text-2xl font-black mt-1 flex items-center gap-1 ${getChangeRp(selectedNtbItem) > 0 ? 'text-rose-600' : getChangeRp(selectedNtbItem) < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
+                    {getChangeRp(selectedNtbItem) > 0 ? <ArrowUpRight size={20} /> : getChangeRp(selectedNtbItem) < 0 ? <ArrowDownRight size={20} /> : <Minus size={20} />}
+                    {getChangeRp(selectedNtbItem) !== 0 ? `Rp ${Math.abs(Math.round(getChangeRp(selectedNtbItem))).toLocaleString('id-ID')}` : 'STABIL'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Riwayat Harga Survey Lokal */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                    <History size={15} className="text-emerald-600" /> Riwayat Survey Pasar Lokal (Lombok Timur / Sikur)
+                  </h3>
+                </div>
+                {loadingNtbHistory ? (
+                  <div className="p-8 text-center bg-slate-50 rounded-2xl">
+                    <Loader2 size={24} className="mx-auto text-emerald-600 animate-spin" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+                    {priceHistory.length > 0 ? (
+                      priceHistory.map((h, idx) => (
+                        <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-emerald-300 transition-all">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{new Date(h.created_at || h.price_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                          <p className="text-base font-black text-slate-800 mt-1">
+                            Rp {(h.reference_price ?? 0).toLocaleString('id-ID')}
+                            <span className="text-xs font-semibold text-slate-400">/{h.unit ?? selectedNtbItem.satuan}</span>
+                          </p>
+                          {h.shop_name && <p className="text-xs text-slate-500 font-bold mt-1">📍 {h.shop_name}</p>}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 col-span-full">
+                        <p className="text-xs font-bold text-slate-400">Belum ada catatan survey lokal untuk komoditas ini.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Source Note */}
+          <div className="p-4 bg-emerald-50/70 border border-emerald-200/70 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5">
+              <Globe size={18} className="text-emerald-700 shrink-0" />
+              <p className="text-slate-700 font-medium leading-relaxed">
+                <strong className="text-emerald-900 font-bold">Sumber Resmi SP2KP & Disperindag NTB:</strong> Data harga kebutuhan pokok diperbarui secara real-time sebagai acuan standar perencanaan anggaran katering dan audit alokasi SPPG di NTB.
+              </p>
+            </div>
+            {ntbLastUpdate && (
+              <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap">
+                Update terakhir: {ntbLastUpdate.toLocaleTimeString('id-ID')}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
       {activeTab === 'survey' && (
         <div className="space-y-6">
           {/* Header Card — Data Survey */}
@@ -909,7 +1393,7 @@ const KomoditasHarga = () => {
               </button>
             </div>
 
-            <div className="p-5 lg:p-8 space-y-3 max-h-[600px] overflow-y-auto">
+            <div className="p-5 lg:p-8 space-y-3">
               {surveyItems.length === 0 ? (
                 <div className="text-center py-12 lg:py-16">
                   <div className="w-14 h-14 lg:w-16 lg:h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -1483,25 +1967,47 @@ const KomoditasHarga = () => {
       {activeTab === 'master' && (
         <div className="space-y-5 lg:space-y-6">
           <div className="bg-white rounded-2xl lg:rounded-[2rem] border border-blue-100 shadow-sm overflow-hidden">
-            <div className="p-5 lg:p-6 border-b border-blue-50 flex items-center justify-between gap-3">
+            <div className="p-5 lg:p-6 border-b border-blue-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="min-w-0">
                 <h2 className="text-sm lg:text-lg font-black text-slate-800 tracking-tight truncate">Master Komoditas</h2>
-                <p className="text-slate-400 font-medium text-[10px] lg:text-xs mt-0.5 truncate">Daftar semua komoditas bahan baku yang dipantau harganya.</p>
+                <p className="text-slate-400 font-medium text-[10px] lg:text-xs mt-0.5 truncate">
+                  Daftar semua komoditas bahan baku ({items?.length || 0} item).
+                </p>
               </div>
-              {isAuthorized && (
-                <button onClick={openAddItem}
-                  className="shrink-0 flex items-center gap-1.5 lg:gap-2 px-4 lg:px-5 py-2.5 lg:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-[10px] lg:text-xs uppercase tracking-wider shadow-lg shadow-blue-100 transition-all">
-                  <Plus size={13} /> Tambah
-                </button>
-              )}
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  placeholder="🔍 Cari komoditas..."
+                  value={masterSearchQuery}
+                  onChange={(e) => setMasterSearchQuery(e.target.value)}
+                  className="w-full sm:w-60 pl-4 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+
+                {isAuthorized && (
+                  <button 
+                    type="button"
+                    onClick={openAddItem}
+                    className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer"
+                  >
+                    <Plus size={14} />
+                    <span>Tambah</span>
+                  </button>
+                )}
+              </div>
             </div>
+
             {loadingItems ? (
-              <div className="py-12 text-center"><Loader2 className="animate-spin mx-auto text-blue-600" size={24} /></div>
-            ) : items.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 font-bold text-sm">Belum ada data komoditas.</div>
+              <div className="py-12 text-center">
+                <Loader2 className="animate-spin mx-auto text-blue-600" size={24} />
+              </div>
+            ) : items.filter(c => c && (c.nama || '').toLowerCase().includes((masterSearchQuery || '').toLowerCase())).length === 0 ? (
+              <div className="py-12 text-center text-slate-400 font-bold text-sm">
+                {masterSearchQuery ? 'Komoditas tidak ditemukan.' : 'Belum ada data komoditas.'}
+              </div>
             ) : (
-              <>
-                {/* Desktop table */}
+              <div className="divide-y divide-slate-100">
+                {/* Desktop Table */}
                 <div className="hidden lg:block overflow-x-auto max-h-[500px]">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -1514,26 +2020,46 @@ const KomoditasHarga = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {items.map((commodity) => (
-                        <tr key={commodity.id} className="hover:bg-slate-50/50 transition-colors">
+                      {items.filter(c => c && (c.nama || '').toLowerCase().includes((masterSearchQuery || '').toLowerCase())).map((commodity, idx) => (
+                        <tr key={commodity.id || idx} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-6 py-4">
                             <p className="font-bold text-slate-800 text-sm">{commodity.nama}</p>
                             {commodity.deskripsi && <p className="text-[10px] text-slate-400 mt-0.5">{commodity.deskripsi}</p>}
                           </td>
                           <td className="px-6 py-4">
-                            <span className="px-2.5 py-1 bg-blue-50 text-blue-600 text-[10px] font-black rounded-lg uppercase tracking-wider">{commodity.kategori || 'Umum'}</span>
+                            <span className="px-2.5 py-1 bg-blue-50 text-blue-600 text-[10px] font-black rounded-lg uppercase tracking-wider">
+                              {commodity.kategori || 'Umum'}
+                            </span>
                           </td>
-                          <td className="px-6 py-4 text-center font-bold text-slate-600 text-xs">{commodity.satuan_default}</td>
+                          <td className="px-6 py-4 text-center font-bold text-slate-600 text-xs">
+                            {commodity.satuan_default || 'kg'}
+                          </td>
                           <td className="px-6 py-4 text-center">
-                            <span className={`px-2.5 py-1 text-[10px] font-black rounded-lg uppercase tracking-wider ${commodity.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-400'}`}>
+                            <span className={`px-2.5 py-1 text-[10px] font-black rounded-lg uppercase tracking-wider ${
+                              commodity.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-400'
+                            }`}>
                               {commodity.is_active ? 'Aktif' : 'Nonaktif'}
                             </span>
                           </td>
                           {isAuthorized && (
                             <td className="px-6 py-4 text-center space-x-1 whitespace-nowrap">
-                              <button onClick={() => openEditItem(commodity)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all" title="Edit Komoditas"><Edit2 size={14} /></button>
+                              <button 
+                                type="button"
+                                onClick={() => openEditItem(commodity)} 
+                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all" 
+                                title="Edit Komoditas"
+                              >
+                                <Edit2 size={14} />
+                              </button>
                               {isAdmin && (
-                                <button onClick={() => handleDeleteItem(commodity.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all" title="Hapus Komoditas (Admin Only)"><Trash2 size={14} /></button>
+                                <button 
+                                  type="button"
+                                  onClick={() => handleDeleteItem(commodity.id)} 
+                                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all" 
+                                  title="Hapus Komoditas"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
                               )}
                             </td>
                           )}
@@ -1542,10 +2068,11 @@ const KomoditasHarga = () => {
                     </tbody>
                   </table>
                 </div>
-                {/* Mobile cards */}
+
+                {/* Mobile Cards */}
                 <div className="lg:hidden divide-y divide-slate-100">
-                  {items.map((commodity) => (
-                    <div key={commodity.id} className="p-4 space-y-2">
+                  {items.filter(c => c && (c.nama || '').toLowerCase().includes((masterSearchQuery || '').toLowerCase())).map((commodity, idx) => (
+                    <div key={commodity.id || idx} className="p-4 space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="font-bold text-slate-800 text-sm truncate">{commodity.nama}</p>
@@ -1554,93 +2081,111 @@ const KomoditasHarga = () => {
                         <div className="flex items-center gap-1 shrink-0">
                           {isAuthorized && (
                             <>
-                              <button onClick={() => openEditItem(commodity)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Edit Komoditas"><Edit2 size={13} /></button>
+                              <button 
+                                type="button"
+                                onClick={() => openEditItem(commodity)} 
+                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" 
+                                title="Edit Komoditas"
+                              >
+                                <Edit2 size={13} />
+                              </button>
                               {isAdmin && (
-                                <button onClick={() => handleDeleteItem(commodity.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Hapus Komoditas (Admin Only)"><Trash2 size={13} /></button>
+                                <button 
+                                  type="button"
+                                  onClick={() => handleDeleteItem(commodity.id)} 
+                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" 
+                                  title="Hapus Komoditas"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
                               )}
                             </>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] font-black rounded-lg uppercase">{commodity.kategori || 'Umum'}</span>
-                        <span className="text-[10px] font-bold text-slate-500">{commodity.satuan_default}</span>
-                        <span className={`px-2 py-0.5 text-[9px] font-black rounded-lg uppercase ${commodity.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-400'}`}>
+                        <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] font-black rounded-lg uppercase">
+                          {commodity.kategori || 'Umum'}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-500">{commodity.satuan_default || 'kg'}</span>
+                        <span className={`px-2 py-0.5 text-[9px] font-black rounded-lg uppercase ${
+                          commodity.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-400'
+                        }`}>
                           {commodity.is_active ? 'Aktif' : 'Nonaktif'}
                         </span>
                       </div>
                     </div>
                   ))}
                 </div>
-              </>
+              </div>
             )}
           </div>
-
-          {/* Modal for add/edit commodity */}
-          <FormModal
-            isOpen={showModal}
-            onClose={closeModal}
-            title={editItemId ? 'Edit Komoditas' : 'Komoditas Baru'}
-            onSubmit={handleAddItem}
-            isLoading={isCreating || isUpdating}
-            submitLabel={editItemId ? 'Simpan Perubahan' : 'Tambah Komoditas'}
-          >
-            <form onSubmit={handleAddItem} className="space-y-5" id="commodity-form">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">Nama Komoditas</label>
-                <input type="text" required placeholder="Contoh: Beras Premium"
-                  value={itemForm.nama}
-                  onChange={(e) => setItemForm(prev => ({ ...prev, nama: e.target.value }))}
-                  className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">Kategori</label>
-                  <select value={itemForm.kategori}
-                    onChange={(e) => setItemForm(prev => ({ ...prev, kategori: e.target.value }))}
-                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm appearance-none">
-                    <option value="">Pilih kategori</option>
-                    {kategoriList.map(k => <option key={k} value={k}>{k}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">Satuan Default</label>
-                  <select value={itemForm.satuan_default}
-                    onChange={(e) => setItemForm(prev => ({ ...prev, satuan_default: e.target.value }))}
-                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm appearance-none">
-                    {UNIT_CATEGORIES.map(cat => (
-                      <optgroup key={cat.label} label={cat.label}>
-                        {cat.units.map(u => (
-                          <option key={u} value={u}>{u}</option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">Status Komoditas</label>
-                <select value={itemForm.is_active ? 'active' : 'inactive'}
-                  onChange={(e) => setItemForm(prev => ({ ...prev, is_active: e.target.value === 'active' }))}
-                  className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm appearance-none">
-                  <option value="active">🟢 Aktif (Dapat Disurvey)</option>
-                  <option value="inactive">🔴 Nonaktif</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">Deskripsi (Opsional)</label>
-                <textarea value={itemForm.deskripsi}
-                  onChange={(e) => setItemForm(prev => ({ ...prev, deskripsi: e.target.value }))}
-                  placeholder="Catatan tambahan tentang komoditas ini"
-                  className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm resize-none" rows={3} />
-              </div>
-            </form>
-          </FormModal>
         </div>
       )}
+
+      {/* Modal for add/edit commodity */}
+      <FormModal
+        isOpen={showModal}
+        onClose={closeModal}
+        title={editItemId ? 'Edit Komoditas' : 'Komoditas Baru'}
+        onSubmit={handleAddItem}
+        isLoading={isCreating || isUpdating}
+        submitLabel={editItemId ? 'Simpan Perubahan' : 'Tambah Komoditas'}
+      >
+        <form onSubmit={handleAddItem} className="space-y-5" id="commodity-form">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700">Nama Komoditas</label>
+            <input type="text" required placeholder="Contoh: Beras Premium"
+              value={itemForm.nama}
+              onChange={(e) => setItemForm(prev => ({ ...prev, nama: e.target.value }))}
+              className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">Kategori</label>
+              <select value={itemForm.kategori}
+                onChange={(e) => setItemForm(prev => ({ ...prev, kategori: e.target.value }))}
+                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm appearance-none">
+                <option value="">Pilih kategori</option>
+                {kategoriList.map(k => <option key={k} value={k}>{k}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">Satuan Default</label>
+              <select value={itemForm.satuan_default}
+                onChange={(e) => setItemForm(prev => ({ ...prev, satuan_default: e.target.value }))}
+                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm appearance-none">
+                {UNIT_CATEGORIES.map(cat => (
+                  <optgroup key={cat.label} label={cat.label}>
+                    {cat.units.map(u => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700">Status Komoditas</label>
+            <select value={itemForm.is_active ? 'active' : 'inactive'}
+              onChange={(e) => setItemForm(prev => ({ ...prev, is_active: e.target.value === 'active' }))}
+              className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm appearance-none">
+              <option value="active">🟢 Aktif (Dapat Disurvey)</option>
+              <option value="inactive">🔴 Nonaktif</option>
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700">Deskripsi (Opsional)</label>
+            <textarea value={itemForm.deskripsi}
+              onChange={(e) => setItemForm(prev => ({ ...prev, deskripsi: e.target.value }))}
+              placeholder="Catatan tambahan tentang komoditas ini"
+              className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm resize-none" rows={3} />
+          </div>
+        </form>
+      </FormModal>
 
       {/* Excel Survey Import Modal */}
       <ExcelSurveyImportModal

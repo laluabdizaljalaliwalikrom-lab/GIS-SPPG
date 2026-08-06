@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, 
   Edit3, 
@@ -31,14 +32,25 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [sppgSearch, setSppgSearch] = useState('');
 
-  const isUpdating = type === 'sppg' ? isUpdatingSPPG : isUpdatingKelompok;
+  useEffect(() => {
+    if (isOpen || isAssignModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen, isAssignModalOpen]);
 
   const handleClose = () => {
     setIsEditing(false);
     onClose();
   };
 
-  if (!entity) return null;
+  if (!isOpen || !entity) return null;
+
+  const isUpdating = type === 'sppg' ? isUpdatingSPPG : isUpdatingKelompok;
 
   // RBAC Logic
   const canEdit = profile?.role === 'admin' || 
@@ -52,7 +64,7 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
   const handleVerify = async (status) => {
     try {
       await verifyKelompok({ id: entity.id, status });
-      handleClose(); // Close drawer after verification
+      handleClose();
     } catch (error) {
       console.error(error);
     }
@@ -69,7 +81,6 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
       setIsEditing(false);
     } catch (error) {
       console.error(error);
-      // Toast error is handled by hook usually, but adding explicit here just in case
       toast.error('Gagal memperbarui data');
     }
   };
@@ -91,27 +102,21 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
     }
   };
 
-  return (
+  return createPortal(
     <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={handleClose}
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[9998] will-change-transform"
-          />
-          
-          {/* Drawer */}
-          <motion.div 
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-0 right-0 h-full w-full max-w-xl bg-blue-600 shadow-2xl z-[9999] flex flex-col"
-          >
+      <div 
+        className="fixed inset-0 w-screen h-screen z-[9999] bg-slate-950/80 backdrop-blur-sm overflow-hidden"
+        onClick={handleClose}
+      >
+        {/* Drawer */}
+        <motion.div 
+          initial={{ x: '100%' }}
+          animate={{ x: 0 }}
+          exit={{ x: '100%' }}
+          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+          onClick={(e) => e.stopPropagation()}
+          className="fixed top-0 right-0 h-full w-full max-w-xl bg-blue-600 shadow-2xl z-[10000] flex flex-col"
+        >
             {/* Header */}
             <div className="p-6 flex items-center justify-between bg-blue-600 text-white">
               <div className="flex items-center gap-4">
@@ -418,9 +423,9 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
               </div>
             )}
           </AnimatePresence>
-        </>
-      )}
-    </AnimatePresence>
+      </div>
+    </AnimatePresence>,
+    document.body
   );
 };
 

@@ -264,7 +264,7 @@ class AuditReportBase(BaseModel):
     total_potential_loss: float
     status: str
     sppg_id: Optional[int] = None
-    created_by_user_id: Optional[str] = None
+    created_by_user_id: Optional[Union[str, UUID]] = None
 
 
 class AuditReportResponse(AuditReportBase):
@@ -296,5 +296,17 @@ class DashboardStats(BaseModel):
     kelompok_terlayani: int
     kelompok_belum_terlayani: int
     top_sppg: List[SPPGRaportSummary]
+
+
+class DisperindagLivePriceResponse(BaseModel):
+    komoditas: str
+    kategori: str
+    harga_ntb: float
+    satuan: str
+    perubahan: float
+    status_tren: str
+    wilayah: str
+    pasar_acuan: str
+    tanggal_update: str
 
 

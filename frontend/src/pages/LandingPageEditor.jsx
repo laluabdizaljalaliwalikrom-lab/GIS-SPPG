@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseClient';
 import { toast } from 'react-hot-toast';
 import { Save, Eye, Layout, X } from 'lucide-react';
@@ -124,30 +125,38 @@ const LandingPageEditor = () => {
       </div>
 
       {/* Preview Modal */}
-      <AnimatePresence>
-        {showPreview && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4 lg:p-10 will-change-transform">
+      {showPreview && createPortal(
+        <AnimatePresence>
+          <div 
+            className="fixed inset-0 w-screen h-screen z-[9999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-3 lg:p-8 overflow-hidden"
+            onClick={() => setShowPreview(false)}
+          >
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.92 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="relative w-full h-full bg-white rounded-[3rem] shadow-2xl overflow-hidden border-4 border-white"
+              exit={{ opacity: 0, scale: 0.92 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full h-full max-w-7xl max-h-[92vh] my-auto bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200 flex flex-col"
             >
-              <div className="absolute top-6 right-6 z-[70]">
+              <div className="absolute top-4 right-4 z-[70]">
                 <button
+                  type="button"
                   onClick={() => setShowPreview(false)}
-                  className="p-3 bg-slate-900 text-white rounded-2xl shadow-xl hover:scale-110 transition-all active:scale-95"
+                  className="p-3 bg-slate-900 text-white hover:bg-slate-800 rounded-2xl shadow-xl hover:scale-105 transition-all active:scale-95 cursor-pointer"
+                  aria-label="Tutup pratinjau"
                 >
-                  <X size={24} />
+                  <X size={22} />
                 </button>
               </div>
-              <div className="w-full h-full overflow-y-auto no-scrollbar">
+              <div className="w-full h-full overflow-y-auto custom-scrollbar">
                 <LandingPage previewData={formData} />
               </div>
             </motion.div>
           </div>
-        )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };

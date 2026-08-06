@@ -1,5 +1,6 @@
 # Force reload models
 from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey, Boolean, DateTime, Text, func
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geometry, Geography
 from .database import Base
@@ -161,7 +162,7 @@ class AuditReport(Base):
     total_potential_loss = Column(Float, default=0.0)
     status = Column(String, default="NORMAL") # 'NORMAL' | 'WARNING' | 'DANGER'
     sppg_id = Column(Integer, ForeignKey("sppg_units.id"), nullable=True)
-    created_by_user_id = Column(String, ForeignKey("profiles.id"), nullable=True)
+    created_by_user_id = Column(postgresql.UUID(as_uuid=True), ForeignKey("profiles.id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
     items = relationship("AuditItem", back_populates="report", cascade="all, delete-orphan")
