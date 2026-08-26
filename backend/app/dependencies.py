@@ -65,10 +65,10 @@ def coordinator_only(user: models.Profile = Depends(get_current_user)):
     return user
 
 def finance_only(user: models.Profile = Depends(get_current_user)):
-    if user.role not in ['admin', 'kecamatan_coordinator', 'finance_inspector']:
+    if user.role not in ['admin', 'kecamatan_coordinator', 'finance_inspector', 'sppg_head']:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operasi tidak diizinkan. Peran Pengawas Keuangan, Koordinator, atau Admin diperlukan."
+            detail="Operasi tidak diizinkan. Peran Pengawas Keuangan, Kepala SPPG, Koordinator, atau Admin diperlukan."
         )
     return user
 

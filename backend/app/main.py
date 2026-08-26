@@ -418,7 +418,7 @@ def read_survey_session_items(
 def delete_survey_session(
     session_id: str,
     db: Session = Depends(get_db),
-    current_user: models.Profile = Depends(finance_only)
+    current_user: models.Profile = Depends(admin_only)
 ):
     success = crud.delete_survey_session(db, session_id)
     if not success:

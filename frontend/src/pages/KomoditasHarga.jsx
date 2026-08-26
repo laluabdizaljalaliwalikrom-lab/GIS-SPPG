@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { motion } from 'framer-motion';
 import { useOutletContext } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useKomoditas } from '../hooks/useKomoditas';
@@ -10,7 +12,7 @@ import {
   BarChart3, Database, User,
   FileSpreadsheet, Globe, ExternalLink, RefreshCw,
   Radio, ArrowUpRight, ArrowDownRight, Minus,
-  CandlestickChart, TrendingDown, LayoutGrid, List
+  CandlestickChart, TrendingDown, LayoutGrid, List, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
@@ -121,6 +123,13 @@ const KomoditasHarga = () => {
     return () => clearInterval(interval);
   }, [activeTab]);
 
+  useEffect(() => {
+    if (!selectedNtbItem) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [selectedNtbItem]);
+
   const ntbCategories = ['SEMUA', 'Bahan Pokok', 'Daging & Unggas', 'Telur & Susu', 'Bumbu & Sayuran', 'Minyak & Lemak', 'Gula & Pemanis', 'Ikan & Laut', 'Gas & Energi'];
 
   const getPrevPrice = (item) => {
@@ -153,7 +162,7 @@ const KomoditasHarga = () => {
   const [editingPriceId, setEditingPriceId] = useState(null);
   const [editPriceForm, setEditPriceForm] = useState({ item_name: '', reference_price: '', unit: 'kg', supplier_name: '' });
 
-  const isAuthorized = ['admin', 'kecamatan_coordinator', 'finance_inspector'].includes(profile?.role);
+  const isAuthorized = ['admin', 'kecamatan_coordinator', 'finance_inspector', 'sppg_head'].includes(profile?.role);
   const isAdmin = profile?.role === 'admin';
 
   const kategoriList = [
@@ -1221,86 +1230,120 @@ const KomoditasHarga = () => {
             );
           })()}
 
-          {/* Detail Drawer / Modal for Selected Item */}
-          {selectedNtbItem && (
-            <div className="bg-white p-6 lg:p-8 rounded-[2.5rem] border border-emerald-200 shadow-xl shadow-emerald-500/5 space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-2xl flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20">
-                    <CandlestickChart size={22} />
-                  </div>
-                  <div>
-                    <span className="text-[9px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">{selectedNtbItem.kategori}</span>
-                    <h2 className="text-xl font-black text-slate-800 tracking-tight mt-1">{selectedNtbItem.komoditas}</h2>
-                    <p className="text-xs text-slate-400 font-semibold mt-0.5">Pasar acuan: {selectedNtbItem.pasar_acuan} · Disperindag NTB & SP2KP</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedNtbItem(null)}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-black text-xs uppercase tracking-wider transition-all"
-                >
-                  Tutup Detail
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="rounded-2xl bg-emerald-50/70 border border-emerald-200/80 p-5">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Harga Live NTB</p>
-                  <p className="text-2xl font-black text-emerald-900 mt-1">
-                    Rp {selectedNtbItem.harga_ntb.toLocaleString('id-ID')}
-                    <span className="text-xs font-bold text-emerald-600">/{selectedNtbItem.satuan}</span>
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Perubahan (%)</p>
-                  <p className={`text-2xl font-black mt-1 flex items-center gap-1 ${selectedNtbItem.perubahan > 0 ? 'text-rose-600' : selectedNtbItem.perubahan < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
-                    {selectedNtbItem.perubahan > 0 ? <ArrowUpRight size={20} /> : selectedNtbItem.perubahan < 0 ? <ArrowDownRight size={20} /> : <Minus size={20} />}
-                    {selectedNtbItem.perubahan !== 0 ? `${selectedNtbItem.perubahan > 0 ? '+' : ''}${selectedNtbItem.perubahan}%` : 'STABIL'}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Perubahan Nominal (Rp)</p>
-                  <p className={`text-2xl font-black mt-1 flex items-center gap-1 ${getChangeRp(selectedNtbItem) > 0 ? 'text-rose-600' : getChangeRp(selectedNtbItem) < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
-                    {getChangeRp(selectedNtbItem) > 0 ? <ArrowUpRight size={20} /> : getChangeRp(selectedNtbItem) < 0 ? <ArrowDownRight size={20} /> : <Minus size={20} />}
-                    {getChangeRp(selectedNtbItem) !== 0 ? `Rp ${Math.abs(Math.round(getChangeRp(selectedNtbItem))).toLocaleString('id-ID')}` : 'STABIL'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Riwayat Harga Survey Lokal */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
-                    <History size={15} className="text-emerald-600" /> Riwayat Survey Pasar Lokal (Lombok Timur / Sikur)
-                  </h3>
-                </div>
-                {loadingNtbHistory ? (
-                  <div className="p-8 text-center bg-slate-50 rounded-2xl">
-                    <Loader2 size={24} className="mx-auto text-emerald-600 animate-spin" />
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-64 overflow-y-auto custom-scrollbar pr-1">
-                    {priceHistory.length > 0 ? (
-                      priceHistory.map((h, idx) => (
-                        <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-emerald-300 transition-all">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{new Date(h.created_at || h.price_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                          <p className="text-base font-black text-slate-800 mt-1">
-                            Rp {(h.reference_price ?? 0).toLocaleString('id-ID')}
-                            <span className="text-xs font-semibold text-slate-400">/{h.unit ?? selectedNtbItem.satuan}</span>
-                          </p>
-                          {h.shop_name && <p className="text-xs text-slate-500 font-bold mt-1">📍 {h.shop_name}</p>}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 col-span-full">
-                        <p className="text-xs font-bold text-slate-400">Belum ada catatan survey lokal untuk komoditas ini.</p>
+          {/* Modal Detail Harga Pangan */}
+          {selectedNtbItem && createPortal(
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-sm overflow-hidden"
+              onClick={() => setSelectedNtbItem(null)}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.92, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.92, y: 15 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+                onClick={(e) => e.stopPropagation()}
+                className="relative w-full max-w-3xl flex flex-col my-auto"
+              >
+                <div className="bg-white rounded-[2.5rem] shadow-2xl flex flex-col max-h-[88vh] overflow-hidden border border-emerald-200">
+                  {/* Header */}
+                  <div className="p-6 lg:p-7 bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-start justify-between gap-4 shrink-0">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+                        <CandlestickChart size={24} />
                       </div>
-                    )}
+                      <div className="min-w-0">
+                        <span className="text-[9px] font-black uppercase tracking-widest bg-white/20 text-white px-2.5 py-1 rounded-full">{selectedNtbItem.kategori}</span>
+                        <h3 className="text-xl lg:text-2xl font-black tracking-tight mt-1.5 truncate">{selectedNtbItem.komoditas}</h3>
+                        <p className="text-emerald-100 text-[11px] font-semibold mt-0.5">Pasar acuan: {selectedNtbItem.pasar_acuan} · Disperindag NTB & SP2KP</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedNtbItem(null)}
+                      className="p-3 bg-white/10 text-white hover:bg-white/25 rounded-2xl transition-all shrink-0"
+                      aria-label="Tutup modal"
+                    >
+                      <X size={20} />
+                    </button>
                   </div>
-                )}
-              </div>
-            </div>
+
+                  {/* Content */}
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-7 space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="rounded-2xl bg-emerald-50/70 border border-emerald-200/80 p-5">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Harga Live NTB</p>
+                        <p className="text-2xl font-black text-emerald-900 mt-1">
+                          Rp {selectedNtbItem.harga_ntb.toLocaleString('id-ID')}
+                          <span className="text-xs font-bold text-emerald-600">/{selectedNtbItem.satuan}</span>
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Perubahan (%)</p>
+                        <p className={`text-2xl font-black mt-1 flex items-center gap-1 ${selectedNtbItem.perubahan > 0 ? 'text-rose-600' : selectedNtbItem.perubahan < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
+                          {selectedNtbItem.perubahan > 0 ? <ArrowUpRight size={20} /> : selectedNtbItem.perubahan < 0 ? <ArrowDownRight size={20} /> : <Minus size={20} />}
+                          {selectedNtbItem.perubahan !== 0 ? `${selectedNtbItem.perubahan > 0 ? '+' : ''}${selectedNtbItem.perubahan}%` : 'STABIL'}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Perubahan Nominal (Rp)</p>
+                        <p className={`text-2xl font-black mt-1 flex items-center gap-1 ${getChangeRp(selectedNtbItem) > 0 ? 'text-rose-600' : getChangeRp(selectedNtbItem) < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
+                          {getChangeRp(selectedNtbItem) > 0 ? <ArrowUpRight size={20} /> : getChangeRp(selectedNtbItem) < 0 ? <ArrowDownRight size={20} /> : <Minus size={20} />}
+                          {getChangeRp(selectedNtbItem) !== 0 ? `Rp ${Math.abs(Math.round(getChangeRp(selectedNtbItem))).toLocaleString('id-ID')}` : 'STABIL'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Riwayat Harga Survey Lokal */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                          <History size={15} className="text-emerald-600" /> Riwayat Survey Pasar Lokal (Lombok Timur / Sikur)
+                        </h3>
+                      </div>
+                      {loadingNtbHistory ? (
+                        <div className="p-8 text-center bg-slate-50 rounded-2xl">
+                          <Loader2 size={24} className="mx-auto text-emerald-600 animate-spin" />
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {priceHistory.length > 0 ? (
+                            priceHistory.map((h, idx) => (
+                              <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-emerald-300 transition-all">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{new Date(h.created_at || h.price_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                <p className="text-base font-black text-slate-800 mt-1">
+                                  Rp {(h.reference_price ?? 0).toLocaleString('id-ID')}
+                                  <span className="text-xs font-semibold text-slate-400">/{h.unit ?? selectedNtbItem.satuan}</span>
+                                </p>
+                                {h.shop_name && <p className="text-xs text-slate-500 font-bold mt-1">📍 {h.shop_name}</p>}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 col-span-full">
+                              <p className="text-xs font-bold text-slate-400">Belum ada catatan survey lokal untuk komoditas ini.</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="p-5 lg:p-6 border-t border-slate-100 bg-slate-50/70 flex justify-end gap-3 shrink-0 rounded-b-[2.5rem]">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedNtbItem(null)}
+                      className="px-6 py-3 rounded-2xl bg-emerald-600 text-white font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all active:scale-95"
+                    >
+                      Tutup
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>,
+            document.body
           )}
 
           {/* Source Note */}

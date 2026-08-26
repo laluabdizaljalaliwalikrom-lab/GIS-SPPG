@@ -129,7 +129,7 @@ const Dashboard = () => {
       { name: 'Unit SPPG', path: '/dashboard/sppg', icon: Briefcase },
       { name: 'Raport Kinerja', path: '/dashboard/raport', icon: ClipboardList },
       { name: 'Kelompok', path: '/dashboard/kelompok', icon: Users },
-      ...((profile?.role === 'admin' || profile?.role === 'kecamatan_coordinator')
+      ...(['admin', 'kecamatan_coordinator', 'sppg_head'].includes(profile?.role)
         ? [
             { name: 'Harga Bahan Baku', path: '/dashboard/komoditas-harga', icon: TrendingUp },
             { name: 'Audit Center', path: '/dashboard/audit', icon: ClipboardCheck },

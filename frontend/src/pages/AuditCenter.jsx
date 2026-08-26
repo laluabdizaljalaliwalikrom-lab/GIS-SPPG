@@ -66,7 +66,7 @@ const AuditCenter = () => {
   const [statusFilter, setStatusFilter] = useState('ALL');
 
   // Security Role Guard
-  const isAuthorized = ['admin', 'kecamatan_coordinator', 'finance_inspector'].includes(profile?.role);
+  const isAuthorized = ['admin', 'kecamatan_coordinator', 'finance_inspector', 'sppg_head'].includes(profile?.role);
   const isAdmin = profile?.role === 'admin';
 
   const getFilteredCommodities = () => {
