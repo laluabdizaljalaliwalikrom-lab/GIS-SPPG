@@ -109,3 +109,96 @@ def perform_ocr(file_bytes: bytes, filename: str, mime_type: str = None) -> List
             {"item_name": "Minyak Goreng Bimoli", "qty": 15.0, "price_per_unit": 19500.0},  # Ref: 16000 (Markup: 21.88% - Danger)
             {"item_name": "Susu UHT 200ml", "qty": 200.0, "price_per_unit": 5200.0}         # Ref: 5000  (Markup: 4.00% - Safe)
         ]
+
+
+def perform_survey_doc_ocr(file_bytes: bytes, filename: str, mime_type: str = None) -> Dict[str, Any]:
+    """
+    Performs OCR and extraction on official signed market survey documents.
+    Extracts header metadata (market name, date, head of market name) and item rows.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    
+    if api_key:
+        try:
+            import google.generativeai as genai
+            logger.info(f"Running Gemini OCR on official survey document {filename}...")
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            
+            if not mime_type:
+                ext = filename.split(".")[-1].lower()
+                if ext in ["jpg", "jpeg"]:
+                    mime_type = "image/jpeg"
+                elif ext == "png":
+                    mime_type = "image/png"
+                elif ext == "pdf":
+                    mime_type = "application/pdf"
+                elif ext == "webp":
+                    mime_type = "image/webp"
+                else:
+                    mime_type = "application/octet-stream"
+                    
+            prompt = (
+                "You are an expert document OCR assistant. Extract data from this official market price survey document "
+                "which has been verified/signed by the head of market (Kepala Pasar) or market surveyor. "
+                "Respond ONLY with a valid JSON object without markdown formatting. "
+                "The JSON object must have this exact structure:\n"
+                "{\n"
+                '  "shop_name": "string (name of market or shop, e.g. Pasar Sikur)",\n'
+                '  "region_id": "string (district/region, e.g. Sikur)",\n'
+                '  "survey_date": "YYYY-MM-DD (date of survey or null)",\n'
+                '  "head_of_market_name": "string (name of head of market / pengesah who signed)",\n'
+                '  "surveyor_name": "string (name of surveyor / petugas)",\n'
+                '  "items": [\n'
+                '    {\n'
+                '      "item_name": "string (e.g. Beras Premium)",\n'
+                '      "reference_price": number (price in Rupiah),\n'
+                '      "unit": "string (e.g. kg, liter, butir, ikat)",\n'
+                '      "supplier_name": "string or null",\n'
+                '      "notes": "string or null"\n'
+                '    }\n'
+                '  ]\n'
+                "}"
+            )
+            
+            contents = [
+                prompt,
+                {
+                    "mime_type": mime_type,
+                    "data": file_bytes
+                }
+            ]
+            
+            response = model.generate_content(contents)
+            text_response = response.text.strip()
+            
+            if text_response.startswith("```"):
+                lines = text_response.split("\n")
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                text_response = "\n".join(lines).strip()
+                
+            parsed_data = json.loads(text_response)
+            if isinstance(parsed_data, dict) and "items" in parsed_data:
+                logger.info(f"Successfully extracted {len(parsed_data.get('items', []))} items from survey doc {filename}")
+                return parsed_data
+        except Exception as e:
+            logger.error(f"Error during survey doc OCR: {e}. Falling back to mock data.")
+            
+    # Mock fallback for official survey doc
+    return {
+        "shop_name": "Pasar Tradisional Sikur",
+        "region_id": "Sikur",
+        "survey_date": None,
+        "head_of_market_name": "H. Ahmad Fauzi (Kepala Pasar)",
+        "surveyor_name": "Tim Survey SPPG",
+        "items": [
+            {"item_name": "Beras Premium", "reference_price": 14500.0, "unit": "kg", "supplier_name": "Toko Barokah", "notes": "Disahkan Kepala Pasar"},
+            {"item_name": "Telur Ayam Ras", "reference_price": 28500.0, "unit": "kg", "supplier_name": "UD Ternak Mandiri", "notes": "Stok Stabil"},
+            {"item_name": "Minyak Goreng Bimoli", "reference_price": 18500.0, "unit": "liter", "supplier_name": "Toko Barokah", "notes": "Kemasan Pouch"},
+            {"item_name": "Daging Ayam Broiler", "reference_price": 38000.0, "unit": "kg", "supplier_name": "Lapak Pak Slamet", "notes": "Segar"},
+            {"item_name": "Bawang Merah", "reference_price": 32000.0, "unit": "kg", "supplier_name": "Lapak Sayur Bu Nur", "notes": "Lokal NTB"}
+        ]
+    }

@@ -657,6 +657,49 @@ def submit_market_survey(db: Session, survey: schemas.MarketSurveyCreate):
             results["failed"] += 1
             results["errors"].append(f"Baris {i+1} ({item_name_clean}): {str(e)}")
     
+    # Save or update SurveySession metadata record (photos, official signed doc)
+    try:
+        session_id_clean = (survey.survey_session_id or "").strip()
+        existing_session = db.query(models.SurveySession).filter(
+            models.SurveySession.survey_session_id == session_id_clean
+        ).first()
+
+        doc_photos = survey.documentation_photos or []
+        official_doc = survey.official_doc_url or None
+        head_name = survey.head_of_market_name or None
+        notes_clean = survey.notes or None
+
+        if existing_session:
+            existing_session.shop_name = shop_name_clean
+            existing_session.region_id = region_id_clean
+            existing_session.survey_date = survey.survey_date
+            existing_session.surveyor_name = surveyor_clean
+            if head_name:
+                existing_session.head_of_market_name = head_name
+            if doc_photos:
+                existing_session.documentation_photos = doc_photos
+            if official_doc:
+                existing_session.official_doc_url = official_doc
+            if notes_clean:
+                existing_session.notes = notes_clean
+        else:
+            new_session = models.SurveySession(
+                survey_session_id=session_id_clean,
+                shop_name=shop_name_clean,
+                region_id=region_id_clean,
+                survey_date=survey.survey_date,
+                surveyor_name=surveyor_clean,
+                head_of_market_name=head_name,
+                documentation_photos=doc_photos,
+                official_doc_url=official_doc,
+                notes=notes_clean
+            )
+            db.add(new_session)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logging.getLogger("sppg_survey").warning(f"Could not persist SurveySession metadata: {e}")
+
     # Log survey to audit_logs
     try:
         db.execute(
@@ -791,14 +834,32 @@ def get_survey_sessions(db: Session):
         models.MarketPrice.survey_session_id
     ).order_by(func.max(models.MarketPrice.created_at).desc()).all()
 
+    # Pre-fetch all SurveySession records for fast mapping
+    session_ids = [s.survey_session_id for s in sessions if s.survey_session_id]
+    metadata_map = {}
+    if session_ids:
+        try:
+            meta_records = db.query(models.SurveySession).filter(
+                models.SurveySession.survey_session_id.in_(session_ids)
+            ).all()
+            for m in meta_records:
+                metadata_map[m.survey_session_id] = m
+        except Exception as e:
+            logging.getLogger("sppg_survey").warning(f"Error querying survey_sessions table: {e}")
+
     result = []
     for s in sessions:
+        meta = metadata_map.get(s.survey_session_id)
         result.append(schemas.SurveySessionSummary(
             survey_session_id=s.survey_session_id,
             shop_name=s.shop_name,
             region_id=s.region_id,
             survey_date=s.price_date,
             surveyor_name=s.surveyor_name,
+            head_of_market_name=meta.head_of_market_name if meta else None,
+            documentation_photos=meta.documentation_photos if meta and meta.documentation_photos else [],
+            official_doc_url=meta.official_doc_url if meta else None,
+            notes=meta.notes if meta else None,
             item_count=s.item_count,
             total_value=float(s.total_value or 0),
             created_at=s.latest_created,
@@ -1392,10 +1453,17 @@ def delete_survey_session(db: Session, session_id: str) -> bool:
     items = db.query(models.MarketPrice).filter(
         models.MarketPrice.survey_session_id == session_id
     ).all()
-    if not items:
+    session_meta = db.query(models.SurveySession).filter(
+        models.SurveySession.survey_session_id == session_id
+    ).first()
+
+    if not items and not session_meta:
         return False
+
     for item in items:
         db.delete(item)
+    if session_meta:
+        db.delete(session_meta)
     db.commit()
     return True
 

@@ -12,13 +12,16 @@ import {
   BarChart3, Database, User,
   FileSpreadsheet, Globe, ExternalLink, RefreshCw,
   Radio, ArrowUpRight, ArrowDownRight, Minus,
-  CandlestickChart, TrendingDown, LayoutGrid, List, X
+  CandlestickChart, TrendingDown, LayoutGrid, List, X,
+  Camera, FileCheck, CheckCircle2, Image as ImageIcon, Eye,
+  Bookmark, RotateCcw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import FormModal from '../components/FormModal';
 import SearchableCommoditySelect from '../components/SearchableCommoditySelect';
 import ExcelSurveyImportModal from '../components/ExcelSurveyImportModal';
+import { compressImage, formatFileSize } from '../utils/imageCompressor';
 
 const formatRupiah = (number) => {
   return new Intl.NumberFormat('id-ID', {
@@ -150,8 +153,36 @@ const KomoditasHarga = () => {
     region_id: 'Sikur',
     shop_name: '',
     surveyor_name: profile?.full_name || '',
+    head_of_market_name: '',
+    official_doc_url: null,
+    documentation_photos: [],
+    notes: '',
   });
+  const [uploadedPhotos, setUploadedPhotos] = useState([]); // [{ file, previewUrl, originalSize, compressedSize, savedPercent, isCompressed }]
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  const [previewMediaModal, setPreviewMediaModal] = useState(null); // { type: 'photo' | 'doc', url: string, title: string }
   const [surveyItems, setSurveyItems] = useState([]);
+  
+  // Initialize draft safely with lazy initializer (no cascading renders)
+  const [draftInfo, setDraftInfo] = useState(() => {
+    try {
+      const savedDraft = localStorage.getItem('gis_sppg_survey_draft');
+      if (savedDraft) {
+        const parsed = JSON.parse(savedDraft);
+        if (parsed && (parsed.items?.length > 0 || parsed.form?.shop_name)) {
+          return {
+            savedAt: parsed.savedAt ? new Date(parsed.savedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 'sebelumnya',
+            itemCount: parsed.items?.length || 0,
+            shopName: parsed.form?.shop_name || 'Tanpa Nama',
+            data: parsed
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to parse survey draft:', err);
+    }
+    return null;
+  });
 
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -349,6 +380,127 @@ const KomoditasHarga = () => {
     }
   };
 
+  // Handle adding photos with client-side compression
+  const handleAddDocumentationPhotos = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const toastId = toast.loading('Mengompresi foto dokumentasi kegiatan...');
+    const compressedList = [];
+
+    for (const file of files) {
+      try {
+        const comp = await compressImage(file, {
+          maxWidth: 1600,
+          maxHeight: 1600,
+          quality: 0.78,
+          mimeType: 'image/webp'
+        });
+        compressedList.push(comp);
+      } catch (err) {
+        console.warn('Error compressing photo:', err);
+        compressedList.push({
+          file,
+          previewUrl: URL.createObjectURL(file),
+          originalSize: file.size,
+          compressedSize: file.size,
+          savedPercent: 0,
+          name: file.name
+        });
+      }
+    }
+
+    setUploadedPhotos(prev => [...prev, ...compressedList]);
+    toast.success(`${compressedList.length} foto berhasil dikompresi!`, { id: toastId });
+  };
+
+  const handleUploadOfficialDocDirect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const toastId = toast.loading('Mengompresi dan mengunggah dokumen pengesahan...');
+    try {
+      let fileToUpload = file;
+      if (file.type.startsWith('image/')) {
+        const comp = await compressImage(file, {
+          maxWidth: 1800,
+          maxHeight: 1800,
+          quality: 0.82,
+          mimeType: 'image/webp'
+        });
+        fileToUpload = comp.file;
+      }
+
+      const formData = new FormData();
+      formData.append('files', fileToUpload);
+
+      const { data } = await api.post('/commodities/survey/upload-documentation', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      const uploadedUrl = data.uploaded_photos?.[0]?.url || data.url;
+      if (uploadedUrl) {
+        setSurveyForm(prev => ({ ...prev, official_doc_url: uploadedUrl }));
+        toast.success('Dokumen pengesahan berhasil diunggah!', { id: toastId });
+      } else {
+        toast.error('Gagal mendapatkan URL dokumen yang diunggah.', { id: toastId });
+      }
+    } catch (err) {
+      console.error('Error uploading official doc:', err);
+      toast.error('Gagal mengunggah dokumen pengesahan.', { id: toastId });
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const removeUploadedPhoto = (index) => {
+    setUploadedPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Draft Management Handlers
+  const handleSaveDraft = () => {
+    try {
+      const draftPayload = {
+        form: surveyForm,
+        items: surveyItems,
+        savedAt: new Date().toISOString(),
+      };
+      localStorage.setItem('gis_sppg_survey_draft', JSON.stringify(draftPayload));
+      setDraftInfo({
+        savedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        itemCount: surveyItems.length,
+        shopName: surveyForm.shop_name || 'Tanpa Nama',
+        data: draftPayload
+      });
+      toast.success('Draft survey berhasil disimpan di perangkat lokal!', { icon: '💾' });
+    } catch (err) {
+      console.error('Failed to save survey draft:', err);
+      toast.error('Gagal menyimpan draft survey.');
+    }
+  };
+
+  const handleRestoreDraft = () => {
+    if (!draftInfo?.data) return;
+    const { form, items: dItems } = draftInfo.data;
+    if (form) {
+      setSurveyForm(prev => ({
+        ...prev,
+        ...form,
+        survey_session_id: form.survey_session_id || prev.survey_session_id
+      }));
+    }
+    if (Array.isArray(dItems) && dItems.length > 0) {
+      setSurveyItems(dItems);
+    }
+    toast.success('Draft survey berhasil dipulihkan!');
+  };
+
+  const handleClearDraft = () => {
+    localStorage.removeItem('gis_sppg_survey_draft');
+    setDraftInfo(null);
+    toast.success('Draft survey telah dibersihkan.');
+  };
+
   const handleSubmitSurvey = async (e) => {
     e.preventDefault();
     if (!surveyForm.shop_name || !surveyForm.shop_name.trim()) {
@@ -374,11 +526,39 @@ const KomoditasHarga = () => {
       return;
     }
 
+    let finalPhotoUrls = surveyForm.documentation_photos || [];
+
+    // If there are newly selected local compressed photos, upload them to server first
+    if (uploadedPhotos.length > 0) {
+      setIsUploadingPhotos(true);
+      const formData = new FormData();
+      uploadedPhotos.forEach(p => {
+        formData.append('files', p.file);
+      });
+
+      try {
+        const { data } = await api.post('/commodities/survey/upload-documentation', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        const newUrls = (data.uploaded_photos || []).map(p => p.url);
+        finalPhotoUrls = [...finalPhotoUrls, ...newUrls];
+      } catch (err) {
+        console.error('Failed to upload photos:', err);
+        toast.error('Peringatan: Gagal mengunggah beberapa foto dokumentasi, melanjutkan simpan data harga.');
+      } finally {
+        setIsUploadingPhotos(false);
+      }
+    }
+
     const payload = {
       ...surveyForm,
       shop_name: surveyForm.shop_name.trim(),
       region_id: surveyForm.region_id.trim(),
       surveyor_name: surveyForm.surveyor_name ? surveyForm.surveyor_name.trim() : null,
+      head_of_market_name: surveyForm.head_of_market_name ? surveyForm.head_of_market_name.trim() : null,
+      official_doc_url: surveyForm.official_doc_url || null,
+      documentation_photos: finalPhotoUrls,
+      notes: surveyForm.notes ? surveyForm.notes.trim() : null,
       items: surveyItems.map(i => {
         const finalUnit = i.unit === 'custom' ? (i.custom_unit || 'kg').trim() : i.unit.trim();
         return {
@@ -396,12 +576,21 @@ const KomoditasHarga = () => {
     try {
       const res = await submitSurvey(payload);
       if (res && res.failed === 0) {
+        // Clear saved draft on successful submission
+        localStorage.removeItem('gis_sppg_survey_draft');
+        setDraftInfo(null);
+
         setSurveyItems([]);
+        setUploadedPhotos([]);
         setSurveyForm(prev => ({
           ...prev,
           survey_session_id: `SURVEY-${new Date().getTime()}`,
           surveyor_name: profile?.full_name || '',
           shop_name: '',
+          head_of_market_name: '',
+          official_doc_url: null,
+          documentation_photos: [],
+          notes: '',
         }));
       }
     } catch {
@@ -1377,17 +1566,66 @@ const KomoditasHarga = () => {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowExcelModal(true)}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all shrink-0"
-              >
-                <FileSpreadsheet size={16} />
-                Import Excel (.xlsx)
-              </button>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-wider transition-all border border-slate-200"
+                  title="Simpan sementara di browser untuk dilanjutkan nanti"
+                >
+                  <Bookmark size={15} className="text-amber-500" />
+                  Simpan Draft
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowExcelModal(true)}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all shrink-0"
+                >
+                  <FileSpreadsheet size={16} />
+                  Import Excel (.xlsx)
+                </button>
+              </div>
             </div>
 
-            <form id="survey-form" onSubmit={handleSubmitSurvey}>
+            {/* Draft Available Alert Banner */}
+            {draftInfo && (
+              <div className="mb-6 p-4 bg-amber-50/90 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                    <Bookmark size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-amber-900">
+                      Draft Tersimpan Ditemukan ({draftInfo.shopName} · {draftInfo.itemCount} item · pukul {draftInfo.savedAt})
+                    </h4>
+                    <p className="text-[11px] text-amber-700 font-medium mt-0.5">
+                      Anda memiliki draf survey yang belum disimpan ke server. Ingin melanjutkan pengisian?
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleRestoreDraft}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                  >
+                    <RotateCcw size={13} />
+                    Pulihkan Draft
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearDraft}
+                    className="p-2 text-amber-600 hover:text-red-600 hover:bg-amber-100 rounded-xl transition-all"
+                    title="Hapus Draft"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <form id="survey-form" onSubmit={handleSubmitSurvey} className="space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Nama Toko / Pasar <span className="text-red-400">*</span></label>
@@ -1416,6 +1654,158 @@ const KomoditasHarga = () => {
                     value={surveyForm.surveyor_name}
                     onChange={(e) => setSurveyForm(prev => ({ ...prev, surveyor_name: e.target.value }))}
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm" />
+                </div>
+              </div>
+
+              {/* Optional Section: Pengesahan Kepala Pasar & Dokumentasi Foto */}
+              <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Camera size={16} className="text-indigo-600" />
+                    <span className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                      Dokumentasi Foto & Pengesahan Pasar <span className="text-slate-400 font-normal lowercase">(opsional)</span>
+                    </span>
+                  </div>
+                  {surveyForm.official_doc_url && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-100/80 text-emerald-800 rounded-lg text-[10px] font-black">
+                      <CheckCircle2 size={12} /> Dokumen Disahkan Terlampir
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Kepala Pasar */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                      Nama Pengesah / Kepala Pasar
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: H. Ahmad Fauzi (Kepala Pasar)"
+                      value={surveyForm.head_of_market_name}
+                      onChange={(e) => setSurveyForm(prev => ({ ...prev, head_of_market_name: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-indigo-500 transition-all"
+                    />
+                  </div>
+
+                  {/* Dokumen Pengesahan URL / Status */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                      Dokumen Pengesahan Scan
+                    </label>
+                    {surveyForm.official_doc_url ? (
+                      <div className="flex items-center justify-between px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs">
+                        <span className="font-bold text-emerald-800 truncate flex items-center gap-1.5">
+                          <FileCheck size={14} className="text-emerald-600" />
+                          Berkas Tersimpan
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewMediaModal({
+                              type: 'doc',
+                              url: surveyForm.official_doc_url,
+                              title: `Dokumen Pengesahan: ${surveyForm.shop_name || 'Survey'}`
+                            })}
+                            className="p-1 text-emerald-700 hover:text-emerald-900"
+                            title="Pratinjau"
+                          >
+                            <ExternalLink size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSurveyForm(prev => ({ ...prev, official_doc_url: null }))}
+                            className="p-1 text-slate-400 hover:text-red-500"
+                            title="Hapus"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <label
+                          htmlFor="upload-official-doc-direct"
+                          className="cursor-pointer w-full px-3 py-2 bg-white hover:bg-slate-50 border border-dashed border-indigo-300 rounded-xl text-xs font-bold text-indigo-600 flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                        >
+                          <FileCheck size={14} /> Upload Dokumen Pengesahan
+                        </label>
+                        <input
+                          id="upload-official-doc-direct"
+                          type="file"
+                          accept="image/*,application/pdf"
+                          onChange={handleUploadOfficialDocDirect}
+                          className="hidden"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Catatan Sesi */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                      Catatan Survey
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Catatan kondisi pasar, stok, dll."
+                      value={surveyForm.notes}
+                      onChange={(e) => setSurveyForm(prev => ({ ...prev, notes: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-indigo-500 transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Upload Foto Kegiatan Lapangan */}
+                <div className="space-y-2 pt-2 border-t border-slate-200/60">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <ImageIcon size={13} className="text-slate-400" />
+                      Foto Dokumentasi Kegiatan ({uploadedPhotos.length + (surveyForm.documentation_photos?.length || 0)} foto)
+                    </label>
+
+                    <label
+                      htmlFor="survey-photo-upload"
+                      className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all border border-indigo-200"
+                    >
+                      <Plus size={13} /> Tambah Foto (Otomatis Kompres)
+                    </label>
+                    <input
+                      id="survey-photo-upload"
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleAddDocumentationPhotos}
+                      className="hidden"
+                    />
+                  </div>
+
+                  {/* Photos Grid */}
+                  {uploadedPhotos.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                      {uploadedPhotos.map((p, idx) => (
+                        <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 bg-white aspect-square flex flex-col shadow-sm">
+                          <img
+                            src={p.previewUrl}
+                            alt="Dokumentasi"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
+                            <button
+                              type="button"
+                              onClick={() => removeUploadedPhoto(idx)}
+                              className="self-end p-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                            <span className="text-[9px] text-white font-bold truncate">
+                              {formatFileSize(p.compressedSize)} (-{p.savedPercent}%)
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </form>
@@ -1542,11 +1932,23 @@ const KomoditasHarga = () => {
                   <span className="mx-1.5">·</span>
                   Nilai <span className="font-black text-emerald-700">{formatRupiah(surveyItems.reduce((sum, i) => sum + ((parseFloat(i.reference_price) || 0) * (parseFloat(i.qty) || 0)), 0))}</span>
                 </div>
-                <button type="submit" form="survey-form" disabled={isSubmitting}
-                  className="shrink-0 px-5 lg:px-6 py-2.5 lg:py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 transition-all flex items-center gap-2 uppercase tracking-widest text-[10px] lg:text-xs disabled:opacity-50">
-                  {isSubmitting ? <Loader2 className="animate-spin" size={14} /> : <Save size={13} />}
-                  Simpan ({surveyItems.filter(i => i.item_name && i.reference_price).length})
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveDraft}
+                    className="shrink-0 px-4 lg:px-5 py-2.5 lg:py-3 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl border border-slate-200 shadow-sm transition-all flex items-center gap-1.5 uppercase tracking-widest text-[10px] lg:text-xs"
+                    title="Simpan sementara di memori lokal"
+                  >
+                    <Bookmark size={14} className="text-amber-500" />
+                    Simpan Draft
+                  </button>
+
+                  <button type="submit" form="survey-form" disabled={isSubmitting || isUploadingPhotos}
+                    className="shrink-0 px-5 lg:px-6 py-2.5 lg:py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 transition-all flex items-center gap-2 uppercase tracking-widest text-[10px] lg:text-xs disabled:opacity-50">
+                    {isSubmitting || isUploadingPhotos ? <Loader2 className="animate-spin" size={14} /> : <Save size={13} />}
+                    {isUploadingPhotos ? 'Mengunggah Foto...' : `Simpan (${surveyItems.filter(i => i.item_name && i.reference_price).length})`}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1590,11 +1992,21 @@ const KomoditasHarga = () => {
                           else { setExpandedSessionId(session.survey_session_id); fetchSessionItems(session.survey_session_id); }
                         }}>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex flex-wrap items-center gap-2 mb-1.5">
                             <h3 className="font-bold text-slate-800 text-sm truncate">{session.shop_name || 'Tanpa Nama'}</h3>
                             <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] font-black rounded-md uppercase">{session.region_id || '-'}</span>
+                            {session.official_doc_url && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-black rounded-md border border-emerald-200">
+                                <FileCheck size={10} /> Disahkan
+                              </span>
+                            )}
+                            {session.documentation_photos?.length > 0 && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[9px] font-black rounded-md border border-indigo-100">
+                                <Camera size={10} /> {session.documentation_photos.length} Foto
+                              </span>
+                            )}
                           </div>
-                          <div className="flex items-center gap-3 text-[10px] text-slate-500 font-medium">
+                          <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-500 font-medium">
                             <span>{session.survey_date ? new Date(session.survey_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}</span>
                             <span className="w-1 h-1 bg-slate-300 rounded-full" />
                             <span>{session.item_count} item</span>
@@ -1605,7 +2017,16 @@ const KomoditasHarga = () => {
                                 <span className="w-1 h-1 bg-slate-300 rounded-full" />
                                 <span className="flex items-center gap-1">
                                   <User size={10} className="text-slate-400" />
-                                  {session.surveyor_name}
+                                  Petugas: {session.surveyor_name}
+                                </span>
+                              </>
+                            )}
+                            {session.head_of_market_name && (
+                              <>
+                                <span className="w-1 h-1 bg-slate-300 rounded-full" />
+                                <span className="flex items-center gap-1 text-blue-700 font-bold">
+                                  <FileCheck size={10} />
+                                  Pengesah: {session.head_of_market_name}
                                 </span>
                               </>
                             )}
@@ -1624,9 +2045,62 @@ const KomoditasHarga = () => {
                         </div>
                       </div>
 
-                      {/* Expanded Items */}
+                      {/* Expanded Items & Attachments */}
                       {isExpanded && (
-                        <div className="border-t border-slate-100 bg-slate-50/30">
+                        <div className="border-t border-slate-100 bg-slate-50/30 p-4 space-y-4">
+                          {/* Attachments Bar */}
+                          {(session.official_doc_url || (session.documentation_photos && session.documentation_photos.length > 0) || session.notes) && (
+                            <div className="bg-white p-4 rounded-xl border border-slate-200/80 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                  <Camera size={12} className="text-indigo-600" />
+                                  Bukti Fisik & Dokumentasi Survey
+                                </span>
+                                {session.notes && (
+                                  <span className="text-xs text-slate-500 italic max-w-md truncate">
+                                    "{session.notes}"
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-3">
+                                {/* Dokumen Pengesahan */}
+                                {session.official_doc_url && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewMediaModal({
+                                      type: 'doc',
+                                      url: session.official_doc_url,
+                                      title: `Dokumen Pengesahan: ${session.shop_name}`
+                                    })}
+                                    className="flex items-center gap-2 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold transition-all shadow-sm"
+                                  >
+                                    <FileCheck size={14} className="text-emerald-600" />
+                                    Lihat Lembar Pengesahan ({session.head_of_market_name || 'Kepala Pasar'})
+                                  </button>
+                                )}
+
+                                {/* Foto-foto Dokumentasi */}
+                                {session.documentation_photos?.map((photoUrl, pIdx) => (
+                                  <button
+                                    key={pIdx}
+                                    type="button"
+                                    onClick={() => setPreviewMediaModal({
+                                      type: 'photo',
+                                      url: photoUrl,
+                                      title: `Dokumentasi Foto ${pIdx + 1}: ${session.shop_name}`
+                                    })}
+                                    className="relative group w-12 h-12 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shadow-sm shrink-0 hover:scale-105 transition-all"
+                                  >
+                                    <img src={photoUrl} alt={`Dokumentasi ${pIdx + 1}`} className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                      <Eye size={12} />
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           {items.length === 0 ? (
                             <div className="p-6 text-center text-sm text-slate-400 font-medium">
                               <Loader2 className="animate-spin mx-auto mb-2" size={18} />
@@ -2241,6 +2715,51 @@ const KomoditasHarga = () => {
           fetchSurveySessions();
         }}
       />
+
+      {/* Media Lightbox / Modal Preview */}
+      {previewMediaModal && createPortal(
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+          <div className="relative max-w-4xl max-h-[90vh] bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col border border-slate-200">
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <span className="text-xs font-bold truncate pr-4">{previewMediaModal.title}</span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewMediaModal.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-200 hover:text-white transition-all"
+                  title="Buka di tab baru"
+                >
+                  <ExternalLink size={15} />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewMediaModal(null)}
+                  className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-200 hover:text-white transition-all"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            </div>
+            <div className="p-2 overflow-auto max-h-[80vh] flex items-center justify-center bg-slate-950/20">
+              {previewMediaModal.url?.endsWith('.pdf') ? (
+                <iframe
+                  src={previewMediaModal.url}
+                  title="Pratinjau Dokumen"
+                  className="w-full h-[70vh] rounded-xl border border-slate-200"
+                />
+              ) : (
+                <img
+                  src={previewMediaModal.url}
+                  alt={previewMediaModal.title}
+                  className="max-h-[75vh] w-auto object-contain rounded-xl shadow-md"
+                />
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

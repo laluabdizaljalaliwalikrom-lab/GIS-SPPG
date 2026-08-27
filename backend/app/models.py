@@ -184,3 +184,19 @@ class AuditItem(Base):
     report = relationship("AuditReport", back_populates="items")
 
 
+class SurveySession(Base):
+    __tablename__ = "survey_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    survey_session_id = Column(String, unique=True, index=True, nullable=False)
+    shop_name = Column(String, nullable=False)
+    region_id = Column(String, default="Sikur")
+    survey_date = Column(Date, nullable=False, server_default=func.current_date())
+    surveyor_name = Column(String, nullable=True)
+    head_of_market_name = Column(String, nullable=True)
+    documentation_photos = Column(postgresql.JSONB, default=list) # Array of photo URLs
+    official_doc_url = Column(String, nullable=True) # Signed official survey document URL
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+

@@ -19,6 +19,10 @@ class MarketSurveyCreate(BaseModel):
     region_id: str = Field(..., min_length=1)
     shop_name: str = Field(..., min_length=1)
     surveyor_name: Optional[str] = None
+    head_of_market_name: Optional[str] = None
+    documentation_photos: Optional[List[str]] = Field(default_factory=list)
+    official_doc_url: Optional[str] = None
+    notes: Optional[str] = None
     items: List[SurveyInputItem] = Field(..., min_items=1)
 
 class SPPGUnitBase(BaseModel):
@@ -213,6 +217,10 @@ class SurveySessionSummary(BaseModel):
     region_id: Optional[str] = None
     survey_date: Optional[date] = None
     surveyor_name: Optional[str] = None
+    head_of_market_name: Optional[str] = None
+    documentation_photos: Optional[List[str]] = Field(default_factory=list)
+    official_doc_url: Optional[str] = None
+    notes: Optional[str] = None
     item_count: int
     total_value: float
     created_at: Optional[datetime] = None

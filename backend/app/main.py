@@ -380,6 +380,121 @@ def import_market_survey_excel(
         raise HTTPException(status_code=400, detail=f"Gagal mengimpor data survei dari Excel: {str(e)}")
 
 
+@app.post("/api/commodities/survey/upload-documentation")
+async def upload_survey_documentation(
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.Profile = Depends(finance_only)
+):
+    """
+    Upload and compress survey activity documentation photos.
+    Compresses image files (max 1600px, WebP/JPEG, quality 80) and saves to Supabase Storage or local fallback.
+    """
+    from .media_utils import compress_and_save_image
+    uploaded_urls = []
+    bucket_name = "survey_documentation"
+
+    for file in files:
+        try:
+            contents = await file.read()
+            unique_filename, compressed_bytes, mime = compress_and_save_image(
+                contents, file.filename, file.content_type, max_dimension=1600, quality=80, output_format="WEBP"
+            )
+            
+            file_url = None
+            if crud.supabase:
+                try:
+                    try:
+                        crud.supabase.storage.create_bucket(bucket_name, options={"public": True})
+                    except Exception:
+                        pass
+                    crud.supabase.storage.from_(bucket_name).upload(
+                        path=unique_filename,
+                        file=compressed_bytes,
+                        file_options={"content-type": mime}
+                    )
+                    file_url = crud.supabase.storage.from_(bucket_name).get_public_url(unique_filename)
+                except Exception as e:
+                    logging.getLogger("sppg_survey").warning(f"Supabase upload warning: {e}")
+
+            if not file_url:
+                local_path = os.path.join(UPLOAD_DIR, unique_filename)
+                with open(local_path, "wb") as f_out:
+                    f_out.write(compressed_bytes)
+                file_url = f"/static/uploads/{unique_filename}"
+
+            uploaded_urls.append({
+                "original_filename": file.filename,
+                "url": file_url,
+                "original_size": len(contents),
+                "compressed_size": len(compressed_bytes),
+                "saved_percentage": round((1 - (len(compressed_bytes) / max(len(contents), 1))) * 100, 1)
+            })
+        except Exception as e:
+            logging.getLogger("sppg_survey").error(f"Failed to upload photo {file.filename}: {e}")
+
+    return {"uploaded_photos": uploaded_urls}
+
+
+@app.post("/api/commodities/survey/scan-official-doc")
+async def scan_official_survey_document(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.Profile = Depends(finance_only)
+):
+    """
+    Upload, compress, and perform OCR extraction on an official survey document signed by Head of Market.
+    """
+    from .media_utils import compress_and_save_image
+    from .ocr import perform_survey_doc_ocr
+
+    try:
+        contents = await file.read()
+        unique_filename, compressed_bytes, mime = compress_and_save_image(
+            contents, file.filename, file.content_type, max_dimension=1800, quality=82, output_format="WEBP"
+        )
+        
+        doc_url = None
+        bucket_name = "survey_official_documents"
+
+        if crud.supabase:
+            try:
+                try:
+                    crud.supabase.storage.create_bucket(bucket_name, options={"public": True})
+                except Exception:
+                    pass
+                crud.supabase.storage.from_(bucket_name).upload(
+                    path=unique_filename,
+                    file=compressed_bytes,
+                    file_options={"content-type": mime}
+                )
+                doc_url = crud.supabase.storage.from_(bucket_name).get_public_url(unique_filename)
+            except Exception as e:
+                logging.getLogger("sppg_survey").warning(f"Supabase upload warning: {e}")
+
+        if not doc_url:
+            local_path = os.path.join(UPLOAD_DIR, unique_filename)
+            with open(local_path, "wb") as f_out:
+                f_out.write(compressed_bytes)
+            doc_url = f"/static/uploads/{unique_filename}"
+
+        # Run OCR extraction
+        ocr_result = perform_survey_doc_ocr(compressed_bytes, file.filename, mime)
+
+        return {
+            "doc_url": doc_url,
+            "filename": file.filename,
+            "original_size": len(contents),
+            "compressed_size": len(compressed_bytes),
+            "saved_percentage": round((1 - (len(compressed_bytes) / max(len(contents), 1))) * 100, 1),
+            "extracted_data": ocr_result
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Gagal memproses dan memindai dokumen survey: {str(e)}")
+
+
 @app.get("/api/commodities/prices", response_model=List[schemas.MarketPriceResponse])
 def read_commodity_prices(
     item_name: str = None,
