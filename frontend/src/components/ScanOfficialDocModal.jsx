@@ -115,46 +115,47 @@ const ScanOfficialDocModal = ({ isOpen, onClose, onApplyExtractedData }) => {
         />
 
         <motion.div
-          initial={{ scale: 0.95, opacity: 0, y: 20 }}
+          initial={{ scale: 0.95, opacity: 0, y: 10 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.95, opacity: 0, y: 20 }}
-          className="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden z-10 border border-slate-100 flex flex-col max-h-[90vh]"
+          exit={{ scale: 0.95, opacity: 0, y: 10 }}
+          transition={{ duration: 0.2 }}
+          className="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl overflow-hidden z-10 border border-slate-200 flex flex-col max-h-[88vh]"
         >
           {/* Header */}
-          <div className="p-6 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 text-white flex items-center justify-between shrink-0">
+          <div className="px-6 py-4 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner">
-                <FileCheck size={24} className="text-blue-200" />
+              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                <FileCheck size={16} />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-black tracking-tight">Scan Dokumen Pengesahan Kepala Pasar</h3>
-                  <span className="px-2 py-0.5 rounded-full bg-blue-400/30 text-[10px] font-bold uppercase tracking-wider border border-white/20">
+                  <h3 className="text-base font-bold text-slate-900">Scan Dokumen Pengesahan Kepala Pasar</h3>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
                     AI OCR Vision
                   </span>
                 </div>
-                <p className="text-xs text-blue-100/80 font-medium mt-0.5">
-                  Unggah berkas bertanda tangan/cap resmi untuk diekstrak otomatis & dikompresi hemat penyimpanan.
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Unggah berkas bertanda tangan/cap resmi untuk diekstrak otomatis.
                 </p>
               </div>
             </div>
             <button
               onClick={handleClose}
-              className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all text-white/80 hover:text-white"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
             >
               <X size={18} />
             </button>
           </div>
 
           {/* Body */}
-          <div className="p-6 overflow-y-auto space-y-6">
+          <div className="p-6 overflow-y-auto space-y-4">
             {/* Upload Box */}
             {!scanResult && (
               <div
                 onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
                 onDragLeave={() => setDragActive(false)}
                 onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer ${
+                className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
                   dragActive 
                     ? 'border-blue-500 bg-blue-50/50' 
                     : file 
@@ -171,28 +172,29 @@ const ScanOfficialDocModal = ({ isOpen, onClose, onApplyExtractedData }) => {
                   className="hidden"
                 />
 
-                <div className="w-16 h-16 rounded-2xl bg-blue-100/60 text-blue-600 flex items-center justify-center mx-auto mb-4">
-                  <UploadCloud size={32} />
+                <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
+                  <UploadCloud size={24} />
                 </div>
 
-                <h4 className="text-sm font-bold text-slate-800">
+                <h4 className="text-sm font-semibold text-slate-800">
                   {file ? file.name : 'Pilih Berkas atau Tarik ke Sini'}
                 </h4>
-                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto font-medium">
                   Format gambar (JPG, PNG, WebP) atau PDF hasil scan lembar pengesahan harga kepala pasar.
                 </p>
 
                 {compressedResult && (
-                  <div className="mt-4 inline-flex items-center gap-3 px-4 py-2 bg-white rounded-xl border border-slate-200 shadow-sm text-xs">
+                  <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-slate-200 shadow-sm text-xs">
                     <span className="text-slate-400">Asli: <strong className="text-slate-700">{formatFileSize(compressedResult.originalSize)}</strong></span>
                     <span className="text-slate-300">→</span>
-                    <span className="text-emerald-700 font-black">
+                    <span className="text-emerald-700 font-semibold">
                       Terkompresi: {formatFileSize(compressedResult.compressedSize)} ({compressedResult.savedPercent}% hemat)
                     </span>
                   </div>
                 )}
               </div>
             )}
+
 
             {/* Scanned Result Preview */}
             {scanResult && (

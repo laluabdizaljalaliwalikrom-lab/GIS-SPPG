@@ -169,42 +169,42 @@ const LayerControl = ({ visibility, setVisibility, mapType, setMapType }) => {
       <button 
         onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
         title="Map Layers & Basemap"
-        className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl lg:rounded-2xl flex items-center justify-center transition-all shadow-xl border border-white/60 backdrop-blur-xl ${
-          isOpen ? 'bg-blue-600 text-white' : 'bg-white/95 text-slate-700 hover:bg-slate-50'
+        className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all shadow-md border ${
+          isOpen ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
         }`}
       >
-        <Layers size={isOpen ? 18 : 20} />
+        <Layers size={16} />
       </button>
 
       {isOpen && (
-        <div className="w-60 lg:w-68 bg-white/95 backdrop-blur-2xl rounded-[1.5rem] lg:rounded-[2rem] shadow-2xl border border-white/60 p-4 lg:p-5 animate-in fade-in slide-in-from-top-2 duration-300 space-y-4">
+        <div className="w-56 bg-white rounded-xl shadow-xl border border-slate-200 p-3.5 animate-in fade-in duration-200 space-y-3">
           <div>
-            <p className="text-[9px] lg:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Mode Peta (Basemap)</p>
-            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100/80 rounded-xl border border-slate-200/60">
+            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Mode Peta</p>
+            <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-lg">
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setMapType('street'); }}
-                className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                  mapType === 'street' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                className={`py-1 px-2 rounded-md text-xs font-semibold transition-all ${
+                  mapType === 'street' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                Vektor Standard
+                Vektor
               </button>
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setMapType('satellite'); }}
-                className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                className={`py-1 px-2 rounded-md text-xs font-semibold transition-all ${
                   mapType === 'satellite' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                Satelit Hibrid
+                Satelit
               </button>
             </div>
           </div>
 
           <div>
-            <p className="text-[9px] lg:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Layer Objek</p>
-            <div className="space-y-1">
+            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Layer Objek</p>
+            <div className="space-y-0.5">
               {layers.map(layer => (
                 <button
                   key={layer.id}
@@ -212,18 +212,18 @@ const LayerControl = ({ visibility, setVisibility, mapType, setMapType }) => {
                     e.stopPropagation();
                     setVisibility(prev => ({ ...prev, [layer.id]: !prev[layer.id] }));
                   }}
-                  className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 transition-colors group text-left"
+                  className="w-full flex items-center justify-between p-1.5 rounded-lg hover:bg-slate-50 transition-colors text-left"
                 >
                   <div className="flex items-center gap-2">
-                    <div className={`w-2.5 h-2.5 rounded-full ${layer.color} shadow-sm`} />
-                    <span className={`text-[10px] lg:text-[11px] font-bold ${visibility[layer.id] ? 'text-slate-700' : 'text-slate-400 line-through opacity-50'}`}>
+                    <div className={`w-2 h-2 rounded-full ${layer.color}`} />
+                    <span className={`text-xs font-medium ${visibility[layer.id] ? 'text-slate-700' : 'text-slate-400 line-through opacity-60'}`}>
                       {layer.label}
                     </span>
                   </div>
                   {visibility[layer.id] ? (
-                    <Eye size={12} className="text-blue-500" />
+                    <Eye size={13} className="text-blue-600" />
                   ) : (
-                    <EyeOff size={12} className="text-slate-300" />
+                    <EyeOff size={13} className="text-slate-300" />
                   )}
                 </button>
               ))}

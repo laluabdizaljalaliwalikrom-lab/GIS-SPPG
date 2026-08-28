@@ -32,84 +32,93 @@ const RaportPointManager = () => {
   ];
 
   return (
-    <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-      <div className="flex items-center justify-between mb-8">
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-xl font-black text-slate-800">Manajemen Poin Raport</h3>
-          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Kustomisasi Kriteria Penilaian SPPG</p>
+          <h3 className="text-base font-bold text-slate-900">Manajemen Poin Raport</h3>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">Kustomisasi kriteria checklist penilaian unit SPPG.</p>
         </div>
       </div>
 
       {/* Add New Point */}
-      <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 mb-10">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="md:col-span-1">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Kategori</label>
+      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="sm:col-span-1">
+            <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Kategori</label>
             <select 
               value={newPoint.category}
               onChange={(e) => setNewPoint({ ...newPoint, category: e.target.value })}
-              className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-500/10 outline-none appearance-none"
+              className="input"
             >
               {categories.map(cat => (
                 <option key={cat.id} value={cat.id}>{cat.label}</option>
               ))}
             </select>
           </div>
-          <div className="md:col-span-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Deskripsi Poin Penilaian</label>
+          <div className="sm:col-span-2">
+            <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Deskripsi Poin Penilaian</label>
             <div className="flex gap-2">
               <input 
                 type="text"
                 value={newPoint.text}
                 onChange={(e) => setNewPoint({ ...newPoint, text: e.target.value })}
                 placeholder="Contoh: Ketersediaan air bersih yang memadai..."
-                className="flex-1 px-5 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-500/10 outline-none"
+                className="input flex-1"
               />
               <button 
                 onClick={handleAdd}
                 disabled={loading || !newPoint.text.trim()}
-                className="px-6 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all disabled:opacity-50 active:scale-95"
+                className="btn-primary shrink-0"
               >
-                <Plus size={20} />
+                <Plus size={16} />
+                <span>Tambah</span>
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* List of Points */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {categories.map(cat => (
-          <div key={cat.id} className="space-y-4">
-            <div className="flex items-center gap-3 px-1 mb-4">
-              <div className={`w-8 h-8 ${cat.bg} ${cat.color} rounded-xl flex items-center justify-center`}>
-                <cat.icon size={18} />
-              </div>
-              <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">{cat.label}</h4>
-            </div>
+      {/* Points by Category */}
+      <div className="space-y-4">
+        {categories.map(cat => {
+          const points = raportPoints.filter(p => p.category === cat.id);
+          const Icon = cat.icon;
 
-            <div className="space-y-2">
-              {raportPoints.filter(p => p.category === cat.id).length === 0 ? (
-                <p className="text-[10px] text-slate-400 italic px-2">Belum ada poin kriteria.</p>
-              ) : (
-                raportPoints.filter(p => p.category === cat.id).map(point => (
-                  <div 
-                    key={point.id}
-                    className="group flex items-start justify-between p-4 bg-white border border-slate-100 rounded-2xl hover:border-blue-200 hover:shadow-md transition-all animate-in fade-in"
-                  >
-                    <p className="text-xs font-bold text-slate-600 leading-relaxed pr-4">{point.text}</p>
-                    <button 
-                      onClick={() => deletePoint(point.id)}
-                      className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+          return (
+            <div key={cat.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={`p-1.5 rounded-lg ${cat.bg} ${cat.color}`}>
+                    <Icon size={16} />
                   </div>
-                ))
-              )}
+                  <span className="font-semibold text-slate-800 text-xs">{cat.label}</span>
+                </div>
+                <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  {points.length} Poin
+                </span>
+              </div>
+
+              <div className="p-3 divide-y divide-slate-100">
+                {points.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-3 text-center italic">Belum ada poin kriteria pada kategori ini.</p>
+                ) : (
+                  points.map(p => (
+                    <div key={p.id} className="py-2.5 px-2 flex items-center justify-between gap-3 group hover:bg-slate-50 rounded-lg transition-colors">
+                      <span className="text-xs text-slate-700 font-medium">{p.text}</span>
+                      <button
+                        onClick={() => deletePoint(p.id)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all shrink-0"
+                        title="Hapus Kriteria"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

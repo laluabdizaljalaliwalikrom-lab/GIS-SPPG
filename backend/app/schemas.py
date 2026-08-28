@@ -115,8 +115,15 @@ class UserCreate(ProfileBase):
 
 class ProfileResponse(ProfileBase):
     id: Union[str, UUID]
+    email: Optional[str] = None
     sppg_name: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+class UserPasswordReset(BaseModel):
+    new_password: str = Field(..., min_length=6)
+
+class UserEmailUpdate(BaseModel):
+    new_email: str = Field(..., min_length=5)
 
 class RaportPointBase(BaseModel):
     category: str
@@ -249,6 +256,9 @@ class MarketSurveyExcelImportRequest(BaseModel):
     shop_name: Optional[str] = None
     survey_date: date
     surveyor_name: Optional[str] = None
+    head_of_market_name: Optional[str] = None
+    official_doc_url: Optional[str] = None
+    documentation_photos: Optional[List[str]] = Field(default_factory=list)
     rows: List[MarketSurveyExcelRow]
 
 

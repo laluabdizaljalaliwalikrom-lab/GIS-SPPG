@@ -56,55 +56,44 @@ const KelompokForm = ({ initialData, onSubmit, formId }) => {
   const jenisKelompok = useWatch({ control, name: 'jenis_kelompok' });
 
   return (
-    <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+    <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       {/* Section 1: Basic Info */}
-      <div className="space-y-6">
-         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
-            <span className="w-8 h-[2px] bg-blue-600" /> Profil Institusi
-         </h3>
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="space-y-4">
+         <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Profil Kelompok</h4>
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Nama Lengkap</label>
+               <label className="text-xs font-semibold text-slate-700">Nama Lengkap Kelompok / Sekolah *</label>
                <input 
                  {...register('nama')}
-                 className={`w-full px-4 py-4 bg-slate-50 border ${errors.nama ? 'border-red-500' : 'border-slate-200'} rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm`}
-                 placeholder="Masukkan nama kelompok..."
+                 className={`input ${errors.nama ? 'border-red-500' : ''}`}
+                 placeholder="Contoh: SDN 1 Sikur"
                />
-               {errors.nama && <p className="text-[10px] text-red-500 font-bold ml-1">{errors.nama.message}</p>}
+               {errors.nama && <p className="text-xs text-red-500 font-medium">{errors.nama.message}</p>}
             </div>
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Kode Unik</label>
+               <label className="text-xs font-semibold text-slate-700">Kode Unik *</label>
                <input 
                  {...register('kode_kelompok')}
-                 className={`w-full px-4 py-4 bg-slate-50 border ${errors.kode_kelompok ? 'border-red-500' : 'border-slate-200'} rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm uppercase`}
-                 placeholder="K-000"
+                 className={`input uppercase ${errors.kode_kelompok ? 'border-red-500' : ''}`}
+                 placeholder="SCH-001 / POS-001"
                />
-               {errors.kode_kelompok && <p className="text-[10px] text-red-500 font-bold ml-1">{errors.kode_kelompok.message}</p>}
+               {errors.kode_kelompok && <p className="text-xs text-red-500 font-medium">{errors.kode_kelompok.message}</p>}
             </div>
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Tipe Kelompok</label>
-               <div className="grid grid-cols-2 gap-3">
-                  <button 
-                    type="button"
-                    onClick={() => setValue('jenis_kelompok', 'School')}
-                    className={`flex items-center justify-center gap-2 py-4 rounded-2xl border-2 transition-all ${jenisKelompok === 'School' ? 'border-blue-600 bg-blue-50 text-blue-600 shadow-lg shadow-blue-100' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
-                  >
-                     <School size={18} /> <span className="font-bold text-xs uppercase tracking-tight">Sekolah</span>
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setValue('jenis_kelompok', 'Posyandu')}
-                    className={`flex items-center justify-center gap-2 py-4 rounded-2xl border-2 transition-all ${jenisKelompok === 'Posyandu' ? 'border-blue-600 bg-blue-50 text-blue-600 shadow-lg shadow-blue-100' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
-                  >
-                     <Activity size={18} /> <span className="font-bold text-xs uppercase tracking-tight">Posyandu</span>
-                  </button>
-               </div>
+               <label className="text-xs font-semibold text-slate-700">Jenis Institusi</label>
+               <select 
+                 {...register('jenis_kelompok')}
+                 className="input"
+               >
+                  <option value="School">Sekolah (School)</option>
+                  <option value="Posyandu">Posyandu</option>
+               </select>
             </div>
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Status Kepemilikan</label>
+               <label className="text-xs font-semibold text-slate-700">Status Kepemilikan</label>
                <select 
                  {...register('jenis_kepemilikan')}
-                 className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm appearance-none"
+                 className="input"
                >
                   <option value="Negeri">Negeri</option>
                   <option value="Swasta">Swasta</option>
@@ -114,107 +103,154 @@ const KelompokForm = ({ initialData, onSubmit, formId }) => {
          </div>
       </div>
 
-      {/* Section 2: Contact & Location */}
-      <div className="space-y-6">
-         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
-            <span className="w-8 h-[2px] bg-blue-600" /> Alamat & Kontak
-         </h3>
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {/* Section 2: Detail Porsi & Sasaran */}
+      <div className="space-y-4 pt-2 border-t border-slate-100">
+         <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            {jenisKelompok === 'School' ? 'Rincian Sasaran Sekolah' : 'Rincian Sasaran Posyandu'}
+         </h4>
+         
+         {jenisKelompok === 'School' ? (
+           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="space-y-1.5">
+                 <label className="text-xs font-medium text-slate-600">Porsi Kecil (1-3)</label>
+                 <input 
+                   type="number"
+                   {...register('detail.porsi_kecil', { valueAsNumber: true })}
+                   className="input"
+                 />
+              </div>
+              <div className="space-y-1.5">
+                 <label className="text-xs font-medium text-slate-600">Porsi Besar (4-6)</label>
+                 <input 
+                   type="number"
+                   {...register('detail.porsi_besar', { valueAsNumber: true })}
+                   className="input"
+                 />
+              </div>
+              <div className="space-y-1.5">
+                 <label className="text-xs font-medium text-slate-600">Jumlah Guru</label>
+                 <input 
+                   type="number"
+                   {...register('detail.jumlah_guru', { valueAsNumber: true })}
+                   className="input"
+                 />
+              </div>
+              <div className="space-y-1.5">
+                 <label className="text-xs font-medium text-slate-600">Jumlah Tendik</label>
+                 <input 
+                   type="number"
+                   {...register('detail.jumlah_tendik', { valueAsNumber: true })}
+                   className="input"
+                 />
+              </div>
+           </div>
+         ) : (
+           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="space-y-1.5">
+                 <label className="text-xs font-medium text-slate-600">Ibu Menyusui</label>
+                 <input 
+                   type="number"
+                   {...register('detail.jumlah_busui', { valueAsNumber: true })}
+                   className="input"
+                 />
+              </div>
+              <div className="space-y-1.5">
+                 <label className="text-xs font-medium text-slate-600">Ibu Hamil</label>
+                 <input 
+                   type="number"
+                   {...register('detail.jumlah_bumil', { valueAsNumber: true })}
+                   className="input"
+                 />
+              </div>
+              <div className="space-y-1.5">
+                 <label className="text-xs font-medium text-slate-600">Balita Non-PAUD</label>
+                 <input 
+                   type="number"
+                   {...register('detail.jumlah_balita_non_paud', { valueAsNumber: true })}
+                   className="input"
+                 />
+              </div>
+              <div className="space-y-1.5">
+                 <label className="text-xs font-medium text-slate-600">Kader Posyandu</label>
+                 <input 
+                   type="number"
+                   {...register('detail.jumlah_kader', { valueAsNumber: true })}
+                   className="input"
+                 />
+              </div>
+           </div>
+         )}
+      </div>
+
+      {/* Section 3: Kontak & PIC */}
+      <div className="space-y-4 pt-2 border-t border-slate-100">
+         <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Kontak Penanggung Jawab</h4>
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Nama P.J (Kontak)</label>
+               <label className="text-xs font-semibold text-slate-700">Nama P.J / Kepala *</label>
                <input 
                  {...register('pj_nama')}
-                 className={`w-full px-4 py-4 bg-slate-50 border ${errors.pj_nama ? 'border-red-500' : 'border-slate-200'} rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm`}
+                 className={`input ${errors.pj_nama ? 'border-red-500' : ''}`}
+                 placeholder="Nama penanggung jawab"
                />
-               {errors.pj_nama && <p className="text-[10px] text-red-500 font-bold ml-1">{errors.pj_nama.message}</p>}
+               {errors.pj_nama && <p className="text-xs text-red-500 font-medium">{errors.pj_nama.message}</p>}
             </div>
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">WhatsApp / HP</label>
+               <label className="text-xs font-semibold text-slate-700">Nomor WhatsApp *</label>
                <input 
                  {...register('no_whatsapp')}
-                 className={`w-full px-4 py-4 bg-slate-50 border ${errors.no_whatsapp ? 'border-red-500' : 'border-slate-200'} rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm`}
+                 className={`input ${errors.no_whatsapp ? 'border-red-500' : ''}`}
+                 placeholder="08123456789"
                />
-               {errors.no_whatsapp && <p className="text-[10px] text-red-500 font-bold ml-1">{errors.no_whatsapp.message}</p>}
+               {errors.no_whatsapp && <p className="text-xs text-red-500 font-medium">{errors.no_whatsapp.message}</p>}
             </div>
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Email Resmi</label>
+               <label className="text-xs font-semibold text-slate-700">Email Resmi *</label>
                <input 
                  {...register('email')}
-                 className={`w-full px-4 py-4 bg-slate-50 border ${errors.email ? 'border-red-500' : 'border-slate-200'} rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm`}
-                 placeholder="nama@institusi.com"
+                 className={`input ${errors.email ? 'border-red-500' : ''}`}
+                 placeholder="institusi@domain.com"
                />
-               {errors.email && <p className="text-[10px] text-red-500 font-bold ml-1">{errors.email.message}</p>}
-            </div>
-            <div className="md:col-span-2 space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Alamat Domisili</label>
-               <textarea 
-                 {...register('alamat_lengkap')}
-                 rows={2}
-                 className={`w-full px-4 py-4 bg-slate-50 border ${errors.alamat_lengkap ? 'border-red-500' : 'border-slate-200'} rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm resize-none`}
-               />
-               {errors.alamat_lengkap && <p className="text-[10px] text-red-500 font-bold ml-1">{errors.alamat_lengkap.message}</p>}
-            </div>
-            <div className="grid grid-cols-2 gap-4 md:col-span-2">
-              <div className="space-y-1.5">
-                 <label className="text-xs font-bold text-slate-700 ml-1 text-center block">Latitude</label>
-                 <input 
-                   type="number" step="any"
-                   {...register('lat', { valueAsNumber: true })}
-                   className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-mono text-xs text-center"
-                 />
-              </div>
-              <div className="space-y-1.5">
-                 <label className="text-xs font-bold text-slate-700 ml-1 text-center block">Longitude</label>
-                 <input 
-                   type="number" step="any"
-                   {...register('lng', { valueAsNumber: true })}
-                   className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-mono text-xs text-center"
-                 />
-              </div>
+               {errors.email && <p className="text-xs text-red-500 font-medium">{errors.email.message}</p>}
             </div>
          </div>
       </div>
 
-      {/* Section 3: Detail Target Gizi */}
-      <div className="space-y-6">
-         <div className="p-6 lg:p-8 bg-blue-600 rounded-[2rem] shadow-xl shadow-blue-200 relative overflow-hidden">
-            <h3 className="text-sm font-black text-white mb-6 uppercase tracking-widest relative z-10 flex items-center gap-2">
-               <Activity size={18} /> Target Porsi Gizi
-            </h3>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 relative z-10">
-               {jenisKelompok === 'School' ? (
-                 <>
-                   <DetailField label="Porsi Kecil" {...register('detail.porsi_kecil', { valueAsNumber: true })} />
-                   <DetailField label="Porsi Besar" {...register('detail.porsi_besar', { valueAsNumber: true })} />
-                   <DetailField label="Jumlah Guru" {...register('detail.jumlah_guru', { valueAsNumber: true })} />
-                   <DetailField label="Jumlah Tendik" {...register('detail.jumlah_tendik', { valueAsNumber: true })} />
-                 </>
-               ) : (
-                 <>
-                   <DetailField label="Busui" {...register('detail.jumlah_busui', { valueAsNumber: true })} />
-                   <DetailField label="Bumil" {...register('detail.jumlah_bumil', { valueAsNumber: true })} />
-                   <DetailField label="Balita" {...register('detail.jumlah_balita_non_paud', { valueAsNumber: true })} />
-                   <DetailField label="Kader" {...register('detail.jumlah_kader', { valueAsNumber: true })} />
-                 </>
-               )}
+      {/* Section 4: Geografis */}
+      <div className="space-y-4 pt-2 border-t border-slate-100">
+         <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Lokasi Koordinat</h4>
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2 space-y-1.5">
+               <label className="text-xs font-semibold text-slate-700">Alamat Lengkap *</label>
+               <textarea 
+                 {...register('alamat_lengkap')}
+                 rows={2}
+                 className={`input resize-none ${errors.alamat_lengkap ? 'border-red-500' : ''}`}
+                 placeholder="Alamat jalan / Desa..."
+               />
+               {errors.alamat_lengkap && <p className="text-xs text-red-500 font-medium">{errors.alamat_lengkap.message}</p>}
             </div>
-            
-            <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
+            <div className="space-y-1.5">
+               <label className="text-xs font-semibold text-slate-700">Latitude</label>
+               <input 
+                 type="number" step="any"
+                 {...register('lat', { valueAsNumber: true })}
+                 className="input font-mono text-xs"
+               />
+            </div>
+            <div className="space-y-1.5">
+               <label className="text-xs font-semibold text-slate-700">Longitude</label>
+               <input 
+                 type="number" step="any"
+                 {...register('lng', { valueAsNumber: true })}
+                 className="input font-mono text-xs"
+               />
+            </div>
          </div>
       </div>
     </form>
   );
 };
 
-const DetailField = ({ label, ...props }) => (
-  <div className="space-y-1.5">
-     <label className="text-[10px] font-black text-blue-200 uppercase tracking-widest text-center block">{label}</label>
-     <input 
-       type="number"
-       {...props}
-       className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl focus:bg-white focus:text-blue-600 outline-none transition-all font-black text-white text-center shadow-inner"
-     />
-  </div>
-);
-
 export default KelompokForm;
+

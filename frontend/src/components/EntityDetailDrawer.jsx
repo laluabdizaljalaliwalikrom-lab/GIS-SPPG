@@ -113,30 +113,30 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
           initial={{ x: '100%' }}
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
-          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+          transition={{ duration: 0.25 }}
           onClick={(e) => e.stopPropagation()}
-          className="fixed top-0 right-0 h-full w-full max-w-xl bg-blue-600 shadow-2xl z-[10000] flex flex-col"
+          className="fixed top-0 right-0 h-full w-full max-w-lg bg-white shadow-2xl z-[10000] flex flex-col border-l border-slate-200"
         >
             {/* Header */}
-            <div className="p-6 flex items-center justify-between bg-blue-600 text-white">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md shadow-inner">
-                   {type === 'sppg' ? <Layers size={24} /> : <Activity size={24} />}
+            <div className="px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
+                   {type === 'sppg' ? <Layers size={18} /> : <Activity size={18} />}
                 </div>
                 <div>
-                  <h2 className="text-xl font-black tracking-tight">{isEditing ? 'Edit Informasi' : 'Detail Informasi'}</h2>
-                  <p className="text-blue-100 text-[10px] font-black uppercase tracking-[0.2em]">{type === 'sppg' ? 'Unit Gizi SPPG' : 'Kelompok Penerima'}</p>
+                  <h2 className="text-base font-bold text-slate-900">{isEditing ? 'Edit Data' : 'Detail Informasi'}</h2>
+                  <p className="text-xs text-slate-500 font-medium">{type === 'sppg' ? 'Unit Gizi SPPG' : 'Kelompok Penerima'}</p>
                 </div>
               </div>
-              <button onClick={handleClose} className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all">
-                <X size={20} />
+              <button onClick={handleClose} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all">
+                <X size={18} />
               </button>
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-white">
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-white">
               {isEditing ? (
-                <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+                <div className="animate-in fade-in duration-200">
                   <EntityDetailForm 
                     type={type}
                     formId="detail-edit-form"
@@ -145,36 +145,36 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                   />
                 </div>
               ) : (
-                <div className="space-y-10 animate-in fade-in slide-in-from-right-4 duration-500">
+                <div className="space-y-6 animate-in fade-in duration-200">
                   {/* Title & Badge Section */}
                   <div>
-                    <div className="flex gap-2 mb-4">
-                      <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[10px] font-black rounded-full uppercase tracking-widest border border-blue-100">
+                    <div className="flex flex-wrap gap-1.5 mb-2.5">
+                      <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-semibold rounded border border-blue-100">
                         {entity.kode_sppg || entity.kode_kelompok}
                       </span>
                       {entity.status_operasional && (
-                        <span className={`px-3 py-1 text-[10px] font-black rounded-full uppercase tracking-widest border ${
-                          entity.status_operasional === 'Aktif' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'
+                        <span className={`px-2 py-0.5 text-xs font-semibold rounded border ${
+                          entity.status_operasional === 'Aktif' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
                         }`}>
                           {entity.status_operasional}
                         </span>
                       )}
                       {entity.jenis_kelompok && (
-                        <span className="px-3 py-1 bg-slate-50 text-slate-500 text-[10px] font-black rounded-full uppercase tracking-widest border border-slate-100">
+                        <span className="px-2 py-0.5 bg-slate-50 text-slate-600 text-xs font-semibold rounded border border-slate-200">
                           {entity.jenis_kelompok}
                         </span>
                       )}
                     </div>
-                    <h3 className="text-3xl lg:text-4xl font-black text-slate-800 leading-tight">{entity.nama}</h3>
+                    <h3 className="text-xl font-bold text-slate-900 leading-snug">{entity.nama}</h3>
                   </div>
 
                   {/* Information Cards */}
-                  <div className="grid grid-cols-1 gap-5">
+                  <div className="grid grid-cols-1 gap-3">
                     <InfoCard 
                       icon={MapPin} 
                       label="Lokasi & Alamat" 
                       value={entity.alamat_desa || entity.alamat_lengkap} 
-                      subValue={`${entity.lat.toFixed(6)}, ${entity.lng.toFixed(6)}`}
+                      subValue={`${entity.lat?.toFixed(6)}, ${entity.lng?.toFixed(6)}`}
                     />
                     <InfoCard 
                       icon={User} 
@@ -187,7 +187,7 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                         icon={Phone} 
                         label="Kontak" 
                         value={entity.no_whatsapp || entity.email} 
-                        subValue={entity.email ? 'Email Address' : 'WhatsApp Number'}
+                        subValue={entity.email ? 'Email' : 'WhatsApp'}
                       />
                     )}
                     {type === 'kelompok' && entity.assigned_sppg_id && (
@@ -200,46 +200,33 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                     )}
                   </div>
 
-                  {/* SPPG Specific: Production Capacity & Raport */}
+                  {/* SPPG Specific: Production Capacity */}
                   {type === 'sppg' && (
-                    <div className="space-y-6">
-                      <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 relative overflow-hidden group">
-                        <div className="relative z-10">
-                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-6">
-                            <AlertCircle size={14} className="text-blue-500" /> Kapasitas Produksi
-                          </h4>
-                          <div className="flex items-baseline gap-3">
-                            <span className="text-5xl font-black text-slate-800 tracking-tighter">{entity.kapasitas_produksi.toLocaleString()}</span>
-                            <span className="text-slate-400 font-bold text-sm uppercase tracking-widest">Porsi / Hari</span>
-                          </div>
-                        </div>
-                        <Layers className="absolute -bottom-6 -right-6 text-slate-200/50 w-32 h-32 rotate-12 group-hover:scale-110 transition-transform duration-700" />
+                    <div className="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Kapasitas Produksi</p>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl font-bold text-slate-900">{entity.kapasitas_produksi?.toLocaleString()}</span>
+                        <span className="text-slate-500 text-xs font-medium">Porsi / Hari</span>
                       </div>
-
                     </div>
                   )}
 
                   {/* Kelompok Specific: Target Gizi */}
                   {type === 'kelompok' && entity.detail && (
-                    <div className="p-8 bg-blue-600 rounded-[2.5rem] text-white shadow-2xl shadow-blue-200 relative overflow-hidden group">
-                      <div className="relative z-10">
-                        <h4 className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-6 flex items-center gap-2">
-                          <Activity size={14} /> Target Distribusi Gizi
-                        </h4>
-                        <div className="grid grid-cols-2 gap-4">
-                          {Object.entries(entity.detail).map(([key, val]) => (
-                            val > 0 && (
-                              <div key={key} className="bg-white/10 p-4 rounded-[1.5rem] border border-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors">
-                                <p className="text-[9px] font-black text-blue-200 uppercase tracking-[0.1em] mb-1">
-                                  {key.replace('jumlah_', '').replace('_', ' ')}
-                                </p>
-                                <p className="text-2xl font-black">{val.toLocaleString()}</p>
-                              </div>
-                            )
-                          ))}
-                        </div>
+                    <div className="p-5 bg-slate-900 rounded-xl text-white space-y-3">
+                      <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Target Distribusi Gizi</p>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        {Object.entries(entity.detail).map(([key, val]) => (
+                          val > 0 && (
+                            <div key={key} className="bg-white/10 p-3 rounded-lg border border-white/10">
+                              <p className="text-[10px] text-slate-300 capitalize">
+                                {key.replace('jumlah_', '').replace(/_/g, ' ')}
+                              </p>
+                              <p className="text-lg font-bold text-white">{val.toLocaleString()}</p>
+                            </div>
+                          )
+                        ))}
                       </div>
-                      <div className="absolute -top-10 -left-10 w-40 h-40 bg-white/5 rounded-full blur-3xl" />
                     </div>
                   )}
                 </div>
@@ -247,21 +234,21 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
             </div>
 
             {/* Sticky Action Footer */}
-            <div className="p-6 lg:p-8 bg-white border-t border-slate-100 flex gap-4">
+            <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-end gap-2">
               {isEditing ? (
                 <>
                   <button 
                     onClick={() => setIsEditing(false)}
-                    className="flex-1 px-8 py-4 bg-white border border-slate-200 text-slate-500 font-black rounded-2xl hover:bg-slate-100 transition-all uppercase tracking-widest text-[10px]"
+                    className="btn-secondary"
                   >
-                    Batalkan
+                    Batal
                   </button>
                   <button 
                     form="detail-edit-form"
                     disabled={isUpdating}
-                    className="flex-[2] px-8 py-4 bg-blue-600 text-white font-black rounded-2xl shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px] disabled:opacity-50 active:scale-95"
+                    className="btn-primary"
                   >
-                    {isUpdating ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={18} />}
+                    {isUpdating ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={16} />}
                     Simpan Perubahan
                   </button>
                 </>
@@ -270,48 +257,46 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                   {canDelete && (
                     <button 
                       onClick={handleDelete}
-                      className="p-4 bg-red-50 text-red-600 rounded-2xl hover:bg-red-600 hover:text-white transition-all shadow-sm group"
+                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                       title="Hapus Data"
                     >
-                      <Trash2 size={22} className="group-hover:scale-110 transition-transform" />
+                      <Trash2 size={18} />
                     </button>
                   )}
-                  <div className="flex gap-2">
-                    {canVerify && (
-                      <>
-                        <button 
-                          onClick={() => handleVerify('verified')}
-                          className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all active:scale-95"
-                        >
-                           <Check size={16} /> Verifikasi
-                        </button>
-                        <button 
-                          onClick={() => handleVerify('rejected')}
-                          className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-red-100 text-red-600 rounded-xl font-bold text-xs hover:bg-red-50 transition-all active:scale-95"
-                        >
-                           <XCircle size={16} /> Tolak
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  {canVerify && (
+                    <>
+                      <button 
+                        onClick={() => handleVerify('verified')}
+                        className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold text-xs transition-all flex items-center gap-1.5"
+                      >
+                         <Check size={14} /> Verifikasi
+                      </button>
+                      <button 
+                        onClick={() => handleVerify('rejected')}
+                        className="px-3 py-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg font-semibold text-xs transition-all flex items-center gap-1.5"
+                      >
+                         <XCircle size={14} /> Tolak
+                      </button>
+                    </>
+                  )}
                   {canEdit && (
                     <button 
                       onClick={() => setIsEditing(true)}
-                      className="flex-1 px-8 py-4 bg-blue-600 text-white font-black rounded-2xl shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px] active:scale-95"
+                      className="btn-secondary text-xs"
                     >
-                      <Edit3 size={18} />
-                      Edit Informasi
+                      <Edit3 size={15} />
+                      Edit
                     </button>
                   )}
                   {type === 'kelompok' && canEdit && (
-                    <div className="flex-1">
+                    <div>
                       {!entity.assigned_sppg_id ? (
                         <button 
                           onClick={() => setIsAssignModalOpen(true)}
-                          className="w-full px-8 py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px] active:scale-95"
+                          className="btn-primary text-xs"
                         >
-                          <Layers size={18} />
-                          Assign to SPPG
+                          <Layers size={15} />
+                          Assign SPPG
                         </button>
                       ) : (
                         <button 
@@ -325,10 +310,10 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                               });
                             }
                           }}
-                          className="w-full px-8 py-4 bg-red-50 text-red-600 border-2 border-red-100 font-black rounded-2xl hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px] active:scale-95 group"
+                          className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg font-semibold text-xs transition-all flex items-center gap-1.5"
                         >
-                          <XCircle size={18} className="group-hover:scale-110 transition-transform" />
-                          Unassign SPPG
+                          <XCircle size={14} />
+                          Unassign
                         </button>
                       )}
                     </div>
@@ -336,9 +321,9 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                   {!canEdit && (
                     <button 
                       onClick={onClose}
-                      className="flex-1 px-8 py-4 bg-slate-800 text-white font-black rounded-2xl hover:bg-slate-900 transition-all uppercase tracking-widest text-[10px]"
+                      className="btn-secondary"
                     >
-                      Tutup Detail
+                      Tutup
                     </button>
                   )}
                 </>
@@ -355,28 +340,28 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   onClick={() => setIsAssignModalOpen(false)}
-                  className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                  className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
                 />
                 <motion.div 
-                  initial={{ scale: 0.9, opacity: 0 }}
+                  initial={{ scale: 0.95, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.9, opacity: 0 }}
+                  exit={{ scale: 0.95, opacity: 0 }}
                   className="relative w-full max-w-md flex flex-col"
                 >
-                  <div className="bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 will-change-transform">
-                    <div className="p-6 lg:p-8 bg-blue-600 text-white">
-                      <h3 className="text-xl font-black mb-1">Assign to SPPG</h3>
-                      <p className="text-blue-100 text-xs">Pilih unit SPPG untuk alokasi kelompok ini.</p>
+                  <div className="bg-white rounded-xl shadow-2xl overflow-hidden border border-slate-200">
+                    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                      <h3 className="text-base font-bold text-slate-900">Assign ke SPPG</h3>
+                      <p className="text-xs text-slate-500 font-medium">Pilih unit SPPG untuk alokasi kelompok ini.</p>
                     </div>
-                    <div className="p-6 lg:p-8">
+                    <div className="p-6">
                     <input 
-                      type="text"
+                      type="text" 
                       placeholder="Cari SPPG..."
                       value={sppgSearch}
                       onChange={(e) => setSppgSearch(e.target.value)}
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all mb-4 text-sm font-medium"
+                      className="input mb-3"
                     />
-                    <div className="max-h-64 overflow-y-auto space-y-2 custom-scrollbar pr-2">
+                    <div className="max-h-60 overflow-y-auto space-y-1.5 custom-scrollbar pr-1">
                       {Array.isArray(sppgs) && sppgs
                         .filter(s => s.nama && s.nama.toLowerCase().includes(sppgSearch.toLowerCase()))
                         .map(s => (
@@ -397,23 +382,23 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
                               }
                             }}
                             disabled={isAssigning}
-                            className="w-full p-4 flex items-center justify-between bg-slate-50 hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded-2xl transition-all group"
+                            className="w-full p-3 flex items-center justify-between bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 rounded-lg transition-all text-left"
                           >
-                            <div className="text-left">
-                              <p className="font-bold text-slate-800 group-hover:text-blue-700 transition-colors">{s.nama}</p>
-                              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Kapasitas Sisa: <span className="text-blue-600">{(s.remaining_capacity || 0).toLocaleString()}</span></p>
+                            <div>
+                              <p className="font-semibold text-sm text-slate-800">{s.nama}</p>
+                              <p className="text-xs text-slate-500">Sisa: <span className="text-blue-600 font-medium">{(s.remaining_capacity || 0).toLocaleString()}</span></p>
                             </div>
-                            <Save size={18} className="text-slate-300 group-hover:text-blue-600 transition-colors" />
+                            <Save size={16} className="text-slate-400" />
                           </button>
                         ))
                       }
-                      {(!Array.isArray(sppgs) || sppgs.length === 0) && <p className="text-center py-8 text-slate-400 text-sm italic">Tidak ada SPPG tersedia.</p>}
+                      {(!Array.isArray(sppgs) || sppgs.length === 0) && <p className="text-center py-6 text-slate-400 text-xs italic">Tidak ada SPPG tersedia.</p>}
                     </div>
                   </div>
-                  <div className="p-6 bg-slate-50 flex gap-3">
+                  <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
                     <button 
                       onClick={() => setIsAssignModalOpen(false)}
-                      className="flex-1 py-4 bg-white border border-slate-200 text-slate-500 font-black rounded-2xl hover:bg-slate-100 transition-all uppercase tracking-widest text-[10px]"
+                      className="btn-secondary"
                     >
                       Batal
                     </button>
@@ -430,33 +415,34 @@ const EntityDetailDrawer = ({ isOpen, onClose, entity, type, profile }) => {
 };
 
 const ScoreBar = ({ label, score, color }) => (
-  <div className="space-y-2">
-    <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-      <span className="text-slate-400">{label}</span>
+  <div className="space-y-1.5">
+    <div className="flex justify-between items-center text-xs font-semibold">
+      <span className="text-slate-500">{label}</span>
       <span className="text-slate-800">{score}%</span>
     </div>
-    <div className="h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
       <motion.div 
         initial={{ width: 0 }}
         animate={{ width: `${score}%` }}
-        transition={{ duration: 1, ease: "easeOut" }}
-        className={`h-full ${color} rounded-full shadow-[0_0_10px_rgba(37,99,235,0.2)]`}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className={`h-full ${color} rounded-full`}
       />
     </div>
   </div>
 );
 
 const InfoCard = ({ icon: Icon, label, value, subValue }) => (
-  <div className="flex gap-5 p-5 rounded-[2rem] border border-slate-100 bg-white hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-300 group">
-    <div className="w-14 h-14 bg-slate-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
-      <Icon size={24} />
+  <div className="flex gap-3.5 p-3.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-all">
+    <div className="w-10 h-10 bg-slate-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
+      <Icon size={18} />
     </div>
     <div className="min-w-0 flex-1">
-      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">{label}</p>
-      <p className="text-slate-800 font-bold text-lg leading-tight truncate">{value}</p>
-      {subValue && <p className="text-xs text-slate-500 font-medium mt-1 tracking-tight">{subValue}</p>}
+      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">{label}</p>
+      <p className="text-slate-900 font-semibold text-sm leading-snug truncate">{value}</p>
+      {subValue && <p className="text-xs text-slate-500 font-medium mt-0.5 truncate">{subValue}</p>}
     </div>
   </div>
 );
 
 export default EntityDetailDrawer;
+

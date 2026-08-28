@@ -89,98 +89,79 @@ const UserManagement = () => {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-           <h1 className="text-2xl lg:text-3xl font-black text-slate-800 tracking-tight">Manajemen User & Hak Akses</h1>
-           <p className="text-slate-500 font-medium text-sm lg:text-base">Kelola 5 peran pengguna dan ikatan unit SPPG pengguna.</p>
+          <h1 className="page-header">Manajemen User</h1>
+          <p className="page-subtitle">Kelola 5 peran pengguna dan ikatan unit SPPG.</p>
         </div>
-        
         <div className="flex gap-2">
-           <div className="relative flex-1 lg:flex-none">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input 
-                type="text" 
-                placeholder="Cari nama, role, atau SPPG..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full lg:w-72 pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
-              />
-           </div>
-           <button 
-             onClick={() => { setEditingUser(null); setIsModalOpen(true); }}
-             className="hidden lg:flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
-           >
-              <Plus size={18} /> Tambah User
-           </button>
+          <div className="relative flex-1 sm:flex-none">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input type="text" placeholder="Cari nama, role, atau SPPG..." value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:w-64 pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm"
+            />
+          </div>
+          <button onClick={() => { setEditingUser(null); setIsModalOpen(true); }}
+            className="hidden sm:flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 transition-all shadow-sm">
+            <Plus size={15} /> Tambah User
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? (
           [1,2,3].map(i => (
-            <div key={i} className="h-48 bg-white rounded-[2rem] animate-pulse border border-slate-100" />
+            <div key={i} className="h-40 bg-white rounded-xl animate-pulse border border-slate-200" />
           ))
         ) : filteredUsers.map((u) => (
-          <div key={u.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-2xl hover:shadow-blue-200/30 transition-all group relative overflow-hidden flex flex-col justify-between">
-             <div className="space-y-4">
-               <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-4">
-                     <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0 font-black">
-                        <UserIcon size={24} />
-                     </div>
-                     <div className="min-w-0">
-                        <h3 className="text-base font-black text-slate-800 truncate">{u.full_name || 'No Name'}</h3>
-                        <p className="text-[9px] font-mono text-slate-400 truncate">{u.id}</p>
-                     </div>
+          <div key={u.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                  <UserIcon size={18} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-slate-800 truncate">{u.full_name || 'No Name'}</h3>
+                  <p className="text-[10px] font-mono text-slate-400 truncate">{u.id}</p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <RoleBadge role={u.role} />
+                {u.sppg_id ? (
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-slate-700 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200 w-fit">
+                    <Building2 size={13} className="text-blue-600 shrink-0" />
+                    <span className="truncate max-w-[160px]">{u.sppg_name || `SPPG #${u.sppg_id}`}</span>
                   </div>
-               </div>
-
-               <div className="space-y-2">
-                  <RoleBadge role={u.role} />
-                  
-                  {u.sppg_id ? (
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200/80">
-                      <Building2 size={14} className="text-blue-600 shrink-0" />
-                      <span className="truncate">{u.sppg_name || `SPPG Unit #${u.sppg_id}`}</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 text-[10px] font-black text-blue-600 bg-blue-50/70 px-3 py-1 rounded-xl uppercase tracking-wider">
-                      🌐 Akses Global (Tanpa Ikatan Unit)
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2 text-emerald-600 font-black text-[10px] tracking-widest uppercase bg-emerald-50 w-fit px-3 py-1 rounded-full">
-                     <CheckCircle2 size={12} /> Akun Aktif
+                ) : (
+                  <div className="flex items-center gap-1 text-[10px] font-medium text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md w-fit">
+                    🌐 Akses Global
                   </div>
-               </div>
-             </div>
+                )}
+                <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md w-fit">
+                  <CheckCircle2 size={12} /> Akun Aktif
+                </div>
+              </div>
+            </div>
 
-             <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end gap-2">
-                <button 
-                  onClick={() => { setEditingUser(u); setIsModalOpen(true); }}
-                  className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                >
-                   <Edit2 size={18} />
-                </button>
-                <button 
-                  onClick={() => handleDelete(u.id)}
-                  className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                >
-                   <Trash2 size={18} />
-                </button>
-             </div>
-             
-             <div className="absolute top-0 right-0 w-20 h-20 bg-blue-50/50 rounded-full blur-3xl -mr-10 -mt-10" />
+            <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end gap-1.5">
+              <button onClick={() => { setEditingUser(u); setIsModalOpen(true); }}
+                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+                <Edit2 size={15} />
+              </button>
+              <button onClick={() => handleDelete(u.id)}
+                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
+                <Trash2 size={15} />
+              </button>
+            </div>
           </div>
         ))}
       </div>
 
-      <button 
-        onClick={() => { setEditingUser(null); setIsModalOpen(true); }}
-        className="lg:hidden fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-2xl shadow-blue-400 flex items-center justify-center active:scale-90 transition-transform z-50 ring-4 ring-white"
-      >
-         <Plus size={28} />
+      <button onClick={() => { setEditingUser(null); setIsModalOpen(true); }} className="fab">
+        <Plus size={22} />
       </button>
 
       {isModalOpen && createPortal(

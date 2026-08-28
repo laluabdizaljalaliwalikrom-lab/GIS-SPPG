@@ -1,14 +1,14 @@
 fastapi==0.110.1
 uvicorn==0.29.0
 sqlalchemy==2.0.29
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.12
 geoalchemy2==0.14.7
 alembic==1.13.1
-pydantic==2.6.4
-pydantic-settings==2.2.1
+# pydantic==2.6.4          # disabled sementara
+# pydantic-settings==2.2.1 # disabled sementara
 supabase==2.4.3
 python-jose[cryptography]
-pandas==2.2.1
+# pandas==2.2.1
 openpyxl==3.1.2
 python-multipart==0.0.9
 google-generativeai

@@ -60,85 +60,71 @@ const AuditLogs = () => {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-           <h1 className="text-2xl lg:text-3xl font-black text-slate-800 tracking-tight">Audit Trail</h1>
-           <p className="text-slate-500 font-medium text-sm lg:text-base">Rekaman riwayat aktivitas administratif sistem.</p>
+          <h1 className="page-header">Audit Trail</h1>
+          <p className="page-subtitle">Rekaman riwayat aktivitas administratif sistem.</p>
         </div>
-        
-        <div className="relative w-full lg:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Cari aktivitas..." 
-            value={searchTerm}
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <input type="text" placeholder="Cari aktivitas..." value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
+            className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm"
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
+      <div className="space-y-3">
         {loading ? (
           [1,2,3].map(i => (
-            <div key={i} className="h-24 bg-white rounded-[2.5rem] animate-pulse border border-slate-100" />
+            <div key={i} className="h-20 bg-white rounded-xl animate-pulse border border-slate-200" />
           ))
         ) : filteredLogs.map((log) => (
-          <div key={log.id} className="bg-white p-5 lg:p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-md transition-all group overflow-hidden">
-             <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8">
-                {/* Status Column */}
-                <div className="flex items-center gap-4 lg:w-48 shrink-0">
-                   <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${getActionColor(log.action)}`}>
-                      <History size={20} />
-                   </div>
-                   <div className="min-w-0">
-                      <p className="text-xs font-black uppercase tracking-widest text-slate-400">Action</p>
-                      <p className={`text-sm font-black ${getActionTextColor(log.action)}`}>{log.action}</p>
-                   </div>
+          <div key={log.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex items-center gap-3 sm:w-44 shrink-0">
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${getActionColor(log.action)}`}>
+                  <History size={16} />
                 </div>
+                <div>
+                  <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Action</p>
+                  <p className={`text-sm font-semibold ${getActionTextColor(log.action)}`}>{log.action}</p>
+                </div>
+              </div>
 
-                {/* Details Column */}
-                <div className="flex-1 min-w-0 border-l border-slate-50 pl-4 lg:pl-8">
-                   <div className="flex items-start gap-3">
-                      <div className="mt-1">
-                        <Info size={14} className="text-blue-400" />
-                      </div>
-                      <div>
-                        <p className="text-slate-600 font-medium text-sm leading-relaxed">{log.details}</p>
-                        <div className="flex items-center gap-4 mt-2">
-                           <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-                              <User size={12} />
-                              {log.profiles?.full_name || 'System / Auto'}
-                           </span>
-                           <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-                              <Calendar size={12} />
-                              {new Date(log.created_at).toLocaleString('id-ID')}
-                           </span>
-                        </div>
-                      </div>
-                   </div>
+              <div className="flex-1 min-w-0 sm:border-l sm:border-slate-100 sm:pl-4">
+                <div className="flex items-start gap-2">
+                  <Info size={13} className="text-blue-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm text-slate-600 leading-relaxed">{log.details}</p>
+                    <div className="flex items-center gap-4 mt-1.5">
+                      <span className="flex items-center gap-1 text-xs text-slate-400">
+                        <User size={11} />{log.profiles?.full_name || 'System / Auto'}
+                      </span>
+                      <span className="flex items-center gap-1 text-xs text-slate-400">
+                        <Calendar size={11} />{new Date(log.created_at).toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                  </div>
                 </div>
+              </div>
 
-                {/* Meta Column */}
-                <div className="hidden lg:flex flex-col items-end gap-1 shrink-0 px-8 border-l border-slate-50">
-                   <div className="flex items-center gap-2 text-[10px] font-black text-slate-300">
-                      <Database size={12} />
-                      {log.target_table}
-                   </div>
-                   <div className="text-[10px] font-mono text-slate-300">ID: {log.target_id}</div>
+              <div className="hidden lg:flex flex-col items-end gap-1 shrink-0 pl-4 border-l border-slate-100">
+                <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <Database size={11} />{log.target_table}
                 </div>
-             </div>
+                <div className="text-[10px] font-mono text-slate-300">ID: {log.target_id}</div>
+              </div>
+            </div>
           </div>
         ))}
       </div>
 
       {!loading && filteredLogs.length === 0 && (
-        <div className="p-20 text-center bg-white rounded-[2.5rem] border border-slate-100">
-           <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-             <Filter size={40} className="text-slate-200" />
-           </div>
-           <p className="text-slate-400 font-bold">Belum ada catatan aktivitas.</p>
+        <div className="py-20 text-center bg-white rounded-xl border border-slate-200">
+          <div className="empty-state"><Filter size={22} className="text-slate-300" /></div>
+          <p className="text-sm font-medium text-slate-400">Belum ada catatan aktivitas.</p>
         </div>
       )}
     </div>

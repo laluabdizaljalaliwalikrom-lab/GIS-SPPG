@@ -528,56 +528,55 @@ const AuditCenter = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 pb-16">
       {/* Title Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-            <span className="bg-gradient-to-r from-blue-600 to-sky-500 bg-clip-text text-transparent">Smart Audit Center</span>
-          </h1>
-          <p className="text-slate-500 font-medium text-sm lg:text-base mt-1">Audit markup harga nota secara otomatis dengan model Vision OCR.</p>
+          <h1 className="page-header">Smart Audit Center</h1>
+          <p className="page-subtitle">Audit markup harga nota secara otomatis dengan integrasi AI OCR & harga pasar.</p>
         </div>
 
         {/* Tab Controls */}
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl w-fit">
+        <div className="flex bg-slate-100 p-1 rounded-lg w-fit border border-slate-200/80">
           <button
             onClick={() => setActiveTab('dashboard')}
-            className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'dashboard' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+            className={`px-4 py-2 rounded-md text-xs font-semibold transition-all ${activeTab === 'dashboard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
           >
-            <span className="flex items-center gap-2"><Activity size={14} /> Audit Dashboard</span>
+            <span className="flex items-center gap-1.5"><Activity size={14} /> Audit Dashboard</span>
           </button>
           <button
             onClick={() => setActiveTab('prices')}
-            className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'prices' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+            className={`px-4 py-2 rounded-md text-xs font-semibold transition-all ${activeTab === 'prices' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
           >
-            <span className="flex items-center gap-2"><Tag size={14} /> Referensi Harga</span>
+            <span className="flex items-center gap-1.5"><Tag size={14} /> Referensi Harga</span>
           </button>
           <button
             onClick={() => setActiveTab('chart')}
-            className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'chart' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+            className={`px-4 py-2 rounded-md text-xs font-semibold transition-all ${activeTab === 'chart' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
           >
-            <span className="flex items-center gap-2"><TrendingUp size={14} /> Tren Harga</span>
+            <span className="flex items-center gap-1.5"><TrendingUp size={14} /> Tren Harga</span>
           </button>
         </div>
       </div>
 
+
       {loading ? (
-        <div className="min-h-[400px] bg-white rounded-[2rem] border border-blue-50 flex items-center justify-center shadow-sm">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="animate-spin text-blue-600" size={32} />
-            <p className="text-slate-400 font-bold text-sm">Memuat modul audit...</p>
+        <div className="min-h-[350px] bg-white rounded-xl border border-slate-200 flex items-center justify-center shadow-sm">
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="animate-spin text-blue-600" size={28} />
+            <p className="text-slate-500 font-medium text-xs">Memuat modul audit...</p>
           </div>
         </div>
       ) : activeTab === 'dashboard' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           
           {/* Left Column: Drag & Drop Scanner & History list */}
-          <div className="lg:col-span-1 space-y-6">
+          <div className="lg:col-span-1 space-y-5">
             
             {/* Document Scanner Area */}
-            <div className="bg-white p-6 rounded-[2rem] border border-blue-100 shadow-sm space-y-4">
-              <h2 className="text-base font-black text-slate-800 uppercase tracking-wider text-blue-600 flex items-center gap-2">
-                <UploadCloud size={18} /> Unggah Nota/RAB
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3.5">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <UploadCloud size={16} className="text-blue-600" /> Unggah Nota / RAB
               </h2>
               
               <div 
@@ -585,10 +584,10 @@ const AuditCenter = () => {
                 onDragOver={handleDrag}
                 onDragLeave={handleDrag}
                 onDrop={handleDrop}
-                className={`relative border-2 border-dashed rounded-2xl p-8 text-center flex flex-col items-center justify-center transition-all ${
+                className={`relative border-2 border-dashed rounded-xl p-6 text-center flex flex-col items-center justify-center transition-all ${
                   dragActive 
-                    ? 'border-blue-500 bg-blue-50/50 scale-[1.02]' 
-                    : 'border-blue-200 hover:border-blue-400 bg-slate-50/50 hover:bg-blue-50/10'
+                    ? 'border-blue-500 bg-blue-50/50' 
+                    : 'border-slate-200 hover:border-slate-300 bg-slate-50/50 hover:bg-slate-50'
                 }`}
               >
                 <input 
@@ -601,14 +600,14 @@ const AuditCenter = () => {
                 />
                 
                 {isUploading ? (
-                  <div className="w-full space-y-4 py-4">
-                    <Loader2 className="animate-spin text-blue-600 mx-auto" size={40} />
-                    <div className="space-y-1">
-                      <p className="text-sm font-bold text-slate-700">Menganalisis Dokumen...</p>
-                      <p className="text-xs text-slate-400">Menjalankan parser Vision AI</p>
+                  <div className="w-full space-y-3 py-3">
+                    <Loader2 className="animate-spin text-blue-600 mx-auto" size={32} />
+                    <div className="space-y-0.5">
+                      <p className="text-xs font-semibold text-slate-800">Menganalisis Dokumen...</p>
+                      <p className="text-[11px] text-slate-400 font-medium">Menjalankan parser OCR Vision</p>
                     </div>
                     {/* Progress Bar */}
-                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                       <motion.div 
                         className="bg-blue-600 h-full rounded-full" 
                         initial={{ width: 0 }}
@@ -618,16 +617,16 @@ const AuditCenter = () => {
                     </div>
                   </div>
                 ) : (
-                  <label htmlFor="audit-file-upload" className="cursor-pointer space-y-4 py-4 w-full block">
-                    <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm group-hover:scale-110 transition-transform">
-                      <UploadCloud size={28} />
+                  <label htmlFor="audit-file-upload" className="cursor-pointer space-y-3 py-2 w-full block">
+                    <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mx-auto shadow-sm">
+                      <UploadCloud size={20} />
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-bold text-slate-700">Tarik & lepas file di sini</p>
-                      <p className="text-xs text-slate-400">atau klik untuk menelusuri file</p>
+                    <div className="space-y-0.5">
+                      <p className="text-xs font-semibold text-slate-800">Tarik & lepas file di sini</p>
+                      <p className="text-[11px] text-slate-400 font-medium">atau klik untuk memilih file</p>
                     </div>
-                    <div className="text-[10px] text-slate-400 font-mono">
-                      Format: PNG, JPG, JPEG, PDF (Maks 10MB)
+                    <div className="text-[10px] text-slate-400 font-medium">
+                      PNG, JPG, PDF (Maks 10MB)
                     </div>
                   </label>
                 )}
@@ -635,13 +634,14 @@ const AuditCenter = () => {
             </div>
 
             {/* Past Audits History */}
-            <div className="bg-white p-6 rounded-[2rem] border border-blue-100 shadow-sm space-y-4 flex-1 flex flex-col">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3.5 flex-1 flex flex-col">
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-black text-slate-800 uppercase tracking-wider text-blue-600 flex items-center gap-2">
-                  <History size={18} /> Riwayat Audit
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <History size={16} className="text-blue-600" /> Riwayat Audit
                 </h2>
-                <span className="text-[11px] font-bold text-slate-400">Total: {reports.length}</span>
+                <span className="text-xs text-slate-400 font-medium">Total: {reports.length}</span>
               </div>
+
 
               {/* Status Filter Chips */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
@@ -740,47 +740,45 @@ const AuditCenter = () => {
             
             {/* If no report is selected */}
             {!selectedReport ? (
-              <div className="min-h-[500px] bg-white rounded-[2rem] border border-blue-50 shadow-sm flex flex-col items-center justify-center p-8 text-center">
-                <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mb-6">
-                  <FileSpreadsheet size={40} />
+              <div className="min-h-[400px] bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center p-8 text-center">
+                <div className="w-14 h-14 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center mb-4">
+                  <FileSpreadsheet size={28} />
                 </div>
-                <h3 className="text-xl font-black text-slate-800 tracking-tight">Belum Ada Laporan Terpilih</h3>
-                <p className="text-slate-400 mt-2 max-w-md font-medium text-sm">Silakan unggah RAB/Nota belanja baru atau pilih salah satu laporan audit dari daftar riwayat untuk meninjau detail potensi kerugian.</p>
+                <h3 className="text-base font-bold text-slate-900">Belum Ada Laporan Terpilih</h3>
+                <p className="text-slate-500 mt-1 max-w-sm font-medium text-xs">Silakan unggah RAB/Nota belanja baru atau pilih salah satu laporan audit dari daftar riwayat.</p>
               </div>
             ) : (
               <motion.div 
-                initial={{ opacity: 0, y: 15 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="space-y-6"
+                className="space-y-5"
               >
                 {/* Summary Cards Row */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {/* Card 1: Total Loss */}
-                  <div className="bg-white p-6 rounded-[2rem] border border-blue-100 shadow-sm flex items-center gap-4 relative overflow-hidden group">
-                    <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center shrink-0">
-                      <DollarSign size={24} />
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+                    <div className="w-10 h-10 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center shrink-0">
+                      <DollarSign size={20} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kerugian Terdeteksi</p>
-                      <h3 className="text-xl font-black text-rose-600 mt-1 truncate">
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Potensi Kerugian</p>
+                      <h3 className="text-base font-bold text-rose-600 truncate mt-0.5">
                         {formatRupiah(selectedReport.total_potential_loss)}
                       </h3>
                     </div>
-                    <div className="absolute top-0 right-0 w-16 h-16 bg-rose-50/30 rounded-full blur-2xl -mr-8 -mt-8" />
                   </div>
 
                   {/* Card 2: Total Items */}
-                  <div className="bg-white p-6 rounded-[2rem] border border-blue-100 shadow-sm flex items-center gap-4 relative overflow-hidden group">
-                    <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
-                      <Activity size={24} />
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
+                      <Activity size={20} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Item Di-Audit</p>
-                      <h3 className="text-xl font-black text-slate-800 mt-1">
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Item Di-Audit</p>
+                      <h3 className="text-base font-bold text-slate-900 mt-0.5">
                         {selectedReport.total_items} Barang
                       </h3>
                     </div>
-                    <div className="absolute top-0 right-0 w-16 h-16 bg-blue-50/30 rounded-full blur-2xl -mr-8 -mt-8" />
                   </div>
 
                   {/* Card 3: Risk Level */}
@@ -788,18 +786,18 @@ const AuditCenter = () => {
                     const badge = getStatusBadge(selectedReport.status);
                     const BadgeIcon = badge.icon;
                     return (
-                      <div className="bg-white p-6 rounded-[2rem] border border-blue-100 shadow-sm flex items-center gap-4 relative overflow-hidden group">
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
                           selectedReport.status === 'DANGER' ? 'bg-rose-50 text-rose-600' :
-                          selectedReport.status === 'WARNING' ? 'bg-amber-50 text-amber-600' : 'bg-sky-50 text-sky-600'
+                          selectedReport.status === 'WARNING' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
                         }`}>
-                          <BadgeIcon size={24} />
+                          <BadgeIcon size={20} />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tingkat Risiko</p>
-                          <h3 className={`text-xl font-black mt-1 ${
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Status Risiko</p>
+                          <h3 className={`text-base font-bold mt-0.5 ${
                             selectedReport.status === 'DANGER' ? 'text-rose-600' :
-                            selectedReport.status === 'WARNING' ? 'text-amber-600' : 'text-sky-600'
+                            selectedReport.status === 'WARNING' ? 'text-amber-600' : 'text-emerald-600'
                           }`}>
                             {badge.label}
                           </h3>
@@ -810,11 +808,11 @@ const AuditCenter = () => {
                 </div>
 
                 {/* Audit Details Results Table */}
-                <div className="bg-white rounded-[2rem] border border-blue-100 shadow-sm overflow-hidden flex flex-col">
-                  <div className="p-6 border-b border-blue-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                  <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
                     <div>
-                      <h2 className="text-lg font-black text-slate-800 tracking-tight">Rincian Markup Detail</h2>
-                      <p className="text-slate-400 font-medium text-xs mt-0.5">Ditemukan dari hasil OCR dokumen nota / RAB yang diunggah.</p>
+                      <h2 className="text-sm font-bold text-slate-900">Rincian Markup Dokumen</h2>
+                      <p className="text-slate-500 font-medium text-xs mt-0.5">Hasil ekstraksi OCR dan pencocokan harga pasar.</p>
                     </div>
                     
                     <div className="flex gap-2">
@@ -823,11 +821,12 @@ const AuditCenter = () => {
                           href={selectedReport.doc_url.startsWith('http') ? selectedReport.doc_url : `${api.defaults.baseURL.replace('/api', '')}${selectedReport.doc_url}`}
                           target="_blank" 
                           rel="noreferrer"
-                          className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-wider transition-all"
+                          className="btn-secondary text-xs"
                         >
-                          <Download size={14} /> Lihat File Asli
+                          <Download size={14} /> File Asli
                         </a>
                       )}
+
                       
                       <button
                         onClick={handleExportExcel}
@@ -914,22 +913,22 @@ const AuditCenter = () => {
         </div>
       ) : activeTab === 'prices' ? (
         /* TAB: Reference prices management */
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           
           {/* Form to add reference price (restricted to Admin) */}
           <div className="lg:col-span-1">
-            <div className="bg-white p-6 rounded-[2rem] border border-blue-100 shadow-sm space-y-6">
-              <div className="space-y-1">
-                <h2 className="text-base font-black text-slate-800 uppercase tracking-wider text-blue-600 flex items-center gap-2">
-                  <Plus size={18} /> Acuan Harga Baru
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Plus size={16} className="text-blue-600" /> Acuan Harga Baru
                 </h2>
-                <p className="text-slate-400 text-xs font-medium">Tambah atau ubah harga referensi pasar komoditas gizi.</p>
+                <p className="text-slate-500 text-xs font-medium mt-0.5">Tambah atau ubah harga acuan pasar komoditas.</p>
               </div>
 
               {isAdmin ? (
-                <form onSubmit={handleAddPrice} className="space-y-4">
+                <form onSubmit={handleAddPrice} className="space-y-3.5">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">Nama Barang</label>
+                    <label className="text-xs font-semibold text-slate-700">Nama Barang *</label>
                     <input
                       type="text"
                       required
@@ -937,26 +936,27 @@ const AuditCenter = () => {
                       disabled={editingPriceId !== null}
                       value={newPrice.item_name}
                       onChange={(e) => setNewPrice((prev) => ({ ...prev, item_name: e.target.value }))}
-                      className={`w-full px-4 py-3.5 border rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm ${
+                      className={`input ${
                         editingPriceId !== null 
-                          ? 'bg-slate-100 border-slate-300 text-slate-400 cursor-not-allowed' 
-                          : 'bg-slate-50 border-slate-200'
+                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                          : ''
                       }`}
                     />
                     {editingPriceId !== null && (
-                      <p className="text-[10px] text-amber-600 font-bold ml-1">
-                        * Nama barang tidak dapat diubah saat mode edit. Hapus dan buat baru jika ingin mengganti nama.
+                      <p className="text-[11px] text-amber-600 font-medium">
+                        * Nama barang tidak dapat diubah saat mode edit.
                       </p>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700">Satuan Unit</label>
+                      <label className="text-xs font-semibold text-slate-700">Satuan Unit</label>
                       <select
                         value={newPrice.unit}
                         onChange={(e) => setNewPrice((prev) => ({ ...prev, unit: e.target.value }))}
-                        className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm appearance-none"
+                        className="input"
                       >
                         <optgroup label="Satuan Berat (Massa)">
                           <option value="kg">Kilogram (kg)</option>
@@ -991,11 +991,11 @@ const AuditCenter = () => {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700">Wilayah (Kecamatan)</label>
+                      <label className="text-xs font-semibold text-slate-700">Wilayah (Kecamatan)</label>
                       <select
                         value={newPrice.region_id}
                         onChange={(e) => setNewPrice((prev) => ({ ...prev, region_id: e.target.value }))}
-                        className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm appearance-none"
+                        className="input"
                       >
                         <option value="Aikmel">Aikmel</option>
                         <option value="Jerowaru">Jerowaru</option>
@@ -1022,48 +1022,48 @@ const AuditCenter = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700">Nama Toko (Opsional)</label>
+                      <label className="text-xs font-semibold text-slate-700">Nama Toko (Opsional)</label>
                       <input
                         type="text"
                         placeholder="Contoh: Toko Barokah"
                         value={newPrice.shop_name}
                         onChange={(e) => setNewPrice((prev) => ({ ...prev, shop_name: e.target.value }))}
-                        className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
+                        className="input"
                       />
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700">Tanggal Acuan</label>
+                      <label className="text-xs font-semibold text-slate-700">Tanggal Acuan</label>
                       <input
                         type="date"
                         required
                         value={newPrice.price_date}
                         onChange={(e) => setNewPrice((prev) => ({ ...prev, price_date: e.target.value }))}
-                        className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
+                        className="input"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">Harga Acuan (Rp)</label>
+                    <label className="text-xs font-semibold text-slate-700">Harga Acuan Resmi (Rp) *</label>
                     <input
                       type="number"
                       required
-                      placeholder="14000"
+                      placeholder="0"
                       value={newPrice.reference_price}
                       onChange={(e) => setNewPrice((prev) => ({ ...prev, reference_price: e.target.value }))}
-                      className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
+                      className="input font-semibold"
                     />
                   </div>
 
-                  <div className="flex gap-3">
+                  <div className="flex gap-2 pt-2">
                     {editingPriceId !== null && (
                       <button
                         type="button"
                         onClick={handleCancelPriceEdit}
-                        className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold rounded-2xl transition-all uppercase tracking-widest text-xs"
+                        className="btn-secondary text-xs flex-1"
                       >
                         Batal
                       </button>
@@ -1071,24 +1071,21 @@ const AuditCenter = () => {
                     <button
                       type="submit"
                       disabled={savingPrice}
-                      className={`font-bold rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-xs ${
-                        editingPriceId !== null 
-                          ? 'flex-[2] py-4 bg-amber-600 hover:bg-amber-700 text-white shadow-amber-100 hover:shadow-amber-200' 
-                          : 'w-full py-4 bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 hover:shadow-blue-300'
-                      }`}
+                      className="btn-primary text-xs flex-1"
                     >
                       {savingPrice ? (
-                        <Loader2 className="animate-spin" size={18} />
+                        <Loader2 className="animate-spin" size={15} />
                       ) : (
-                        <>{editingPriceId !== null ? "Simpan Perubahan" : "Simpan Acuan Harga"}</>
+                        <>{editingPriceId !== null ? "Simpan Perubahan" : "Simpan Acuan"}</>
                       )}
                     </button>
                   </div>
                 </form>
               ) : (
-                <div className="p-6 text-center border-2 border-dashed border-amber-100 rounded-2xl bg-amber-50/10 text-amber-700">
-                  <ShieldAlert size={28} className="mx-auto mb-2 opacity-80" />
-                  <p className="text-xs font-bold">Hanya Admin yang dapat menambahkan atau mengedit harga referensi pasar.</p>
+                <div className="p-4 text-center border border-amber-200 rounded-xl bg-amber-50/50 text-amber-800">
+                  <ShieldAlert size={20} className="mx-auto mb-1 text-amber-600" />
+                  <p className="text-xs font-semibold">Akses Terbatas</p>
+                  <p className="text-[11px] text-amber-700/80 mt-0.5">Hanya Admin yang dapat menambahkan atau mengedit harga acuan pasar.</p>
                 </div>
               )}
             </div>
@@ -1096,26 +1093,30 @@ const AuditCenter = () => {
 
           {/* Reference prices table (viewable by everyone) */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-[2rem] border border-blue-100 shadow-sm overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-blue-50">
-                <h2 className="text-lg font-black text-slate-800 tracking-tight">Daftar Acuan Pasar Aktif</h2>
-                <p className="text-slate-400 font-medium text-xs mt-0.5">Daftar komoditas yang dicocokkan otomatis saat melakukan audit.</p>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+              <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">Daftar Acuan Pasar Aktif</h2>
+                  <p className="text-slate-500 font-medium text-xs mt-0.5">Daftar komoditas yang dicocokkan otomatis saat melakukan audit.</p>
+                </div>
+                <span className="text-xs text-slate-500 font-medium">{marketPrices.length} Komoditas</span>
               </div>
 
               <div className="overflow-x-auto max-h-[500px]">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-blue-50">
-                      <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider">Nama Barang</th>
-                      <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider">Wilayah</th>
-                      <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Unit</th>
-                      <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-left">Toko</th>
-                      <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Tanggal</th>
-                      <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-right">Harga Referensi</th>
-                      {isAdmin && <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Aksi</th>}
+                    <tr className="bg-slate-50/80 border-b border-slate-200">
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600">Nama Barang</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600">Wilayah</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 text-center">Unit</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600">Toko</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 text-center">Tanggal</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 text-right">Harga Acuan</th>
+                      {isAdmin && <th className="px-4 py-3 text-xs font-semibold text-slate-600 text-center">Aksi</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
+
                     {marketPrices.length === 0 ? (
                       <tr>
                         <td colSpan={isAdmin ? 7 : 6} className="text-center py-12 text-slate-400 font-bold text-sm">
@@ -1177,16 +1178,16 @@ const AuditCenter = () => {
         </div>
       ) : (
         /* TAB: Price Trend Chart */
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           
           {/* List of commodities */}
           <div className="lg:col-span-1 space-y-4">
-            <div className="bg-white p-6 rounded-[2rem] border border-blue-100 shadow-sm space-y-4">
-              <div className="space-y-1">
-                <h2 className="text-base font-black text-slate-800 uppercase tracking-wider text-blue-600 flex items-center gap-2">
-                  <TrendingUp size={18} /> Pilih Komoditas
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3.5">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <TrendingUp size={16} className="text-blue-600" /> Pilih Komoditas
                 </h2>
-                <p className="text-slate-400 text-xs font-medium">Pilih barang untuk melihat grafik tren harga dari waktu ke waktu.</p>
+                <p className="text-slate-500 text-xs font-medium mt-0.5">Lihat grafik tren harga pasar dari waktu ke waktu.</p>
               </div>
               
               <input
@@ -1194,20 +1195,20 @@ const AuditCenter = () => {
                 placeholder="Cari komoditas..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all text-xs font-medium"
+                className="input text-xs"
               />
               
-              <div className="space-y-2 overflow-y-auto max-h-[350px] pr-2 no-scrollbar">
+              <div className="space-y-1.5 overflow-y-auto max-h-[350px] pr-1 custom-scrollbar">
                 {getFilteredCommodities().map((item_name) => {
                   const isActive = selectedChartItem === item_name;
                   return (
                     <button
                       key={item_name}
                       onClick={() => setSelectedChartItem(item_name)}
-                      className={`w-full p-4 rounded-2xl border text-left font-bold text-sm transition-all ${
+                      className={`w-full p-2.5 rounded-lg border text-left text-xs font-semibold transition-all ${
                         isActive
-                          ? 'border-blue-600 bg-blue-50/30 text-blue-700 shadow-sm'
-                          : 'border-slate-100 hover:border-blue-200 bg-slate-50/30 text-slate-700'
+                          ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm'
+                          : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
                       }`}
                     >
                       {item_name}
@@ -1215,23 +1216,24 @@ const AuditCenter = () => {
                   );
                 })}
                 {getFilteredCommodities().length === 0 && (
-                  <p className="text-center text-xs text-slate-400 font-medium py-6">Komoditas tidak ditemukan</p>
+                  <p className="text-center text-xs text-slate-400 font-medium py-6 italic">Komoditas tidak ditemukan</p>
                 )}
               </div>
             </div>
           </div>
           
           {/* Chart Panel */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white p-6 rounded-[2rem] border border-blue-100 shadow-sm relative flex flex-col min-h-[400px]">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+          <div className="lg:col-span-2 space-y-5">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative flex flex-col min-h-[400px]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-100">
                 <div>
-                  <h2 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
-                    Visualisasi Tren Harga: <span className="text-blue-600">{selectedChartItem}</span>
+                  <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    Visualisasi Tren: <span className="text-blue-600 font-bold">{selectedChartItem}</span>
                   </h2>
-                  <p className="text-slate-400 font-medium text-xs mt-0.5">Grafik pergerakan harga referensi pasar berdasarkan histori input.</p>
+                  <p className="text-slate-500 font-medium text-xs mt-0.5">Grafik pergerakan harga referensi pasar berdasarkan histori input.</p>
                 </div>
               </div>
+
               
               {chartLoading ? (
                 <div className="flex-1 flex flex-col items-center justify-center py-12 gap-2">

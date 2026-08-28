@@ -4,10 +4,12 @@ import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileSpreadsheet, Download, UploadCloud, X, AlertCircle, 
-  CheckCircle2, Sparkles, Loader2, Info, Building2, MapPin, Calendar
+  CheckCircle2, Sparkles, Loader2, Info, Building2, MapPin, Calendar,
+  Camera, FileCheck, Image as ImageIcon, User, Trash2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api';
+import { compressImage, formatFileSize } from '../utils/imageCompressor';
 
 const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onSuccess, currentUser }) => {
   const [file, setFile] = useState(null);
@@ -15,12 +17,21 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
   const [dragActive, setDragActive] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Form Fields
   const [headerForm, setHeaderForm] = useState({
     region_id: 'Sikur',
     shop_name: '',
     survey_date: new Date().toISOString().split('T')[0],
-    surveyor_name: currentUser?.full_name || ''
+    surveyor_name: currentUser?.full_name || '',
+    head_of_market_name: '',
+    official_doc_url: ''
   });
+
+  // Documentation Photos & Official Doc Upload State
+  const [uploadedPhotos, setUploadedPhotos] = useState([]);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  const [officialDocFile, setOfficialDocFile] = useState(null);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
 
   const regionList = [
     'Aikmel', 'Jerowaru', 'Keruak', 'Labuhan Haji', 'Lenek', 'Masbagik',
@@ -31,6 +42,88 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
 
   // Helper to normalize strings for comparison
   const normalize = (str) => (str || '').toLowerCase().trim();
+
+  // Handle Documentation Photos Selection with compression
+  const handleAddDocumentationPhotos = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const toastId = toast.loading('Mengompresi foto dokumentasi kegiatan...');
+    const compressedList = [];
+
+    for (const file of files) {
+      try {
+        const comp = await compressImage(file, {
+          maxWidth: 1600,
+          maxHeight: 1600,
+          quality: 0.78,
+          mimeType: 'image/webp'
+        });
+        compressedList.push(comp);
+      } catch (err) {
+        console.warn('Error compressing photo:', err);
+        compressedList.push({
+          file,
+          previewUrl: URL.createObjectURL(file),
+          originalSize: file.size,
+          compressedSize: file.size,
+          savedPercent: 0,
+          name: file.name
+        });
+      }
+    }
+
+    setUploadedPhotos(prev => [...prev, ...compressedList]);
+    toast.success(`${compressedList.length} foto berhasil dikompresi!`, { id: toastId });
+  };
+
+  const removePhoto = (index) => {
+    setUploadedPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Handle Official Verification Document Upload
+  const handleUploadOfficialDocDirect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const toastId = toast.loading('Mengompresi & mengunggah dokumen pengesahan...');
+    setIsUploadingDoc(true);
+    try {
+      let fileToUpload = file;
+      let preview = null;
+      if (file.type.startsWith('image/')) {
+        const comp = await compressImage(file, {
+          maxWidth: 1800,
+          maxHeight: 1800,
+          quality: 0.82,
+          mimeType: 'image/webp'
+        });
+        fileToUpload = comp.file;
+        preview = comp.previewUrl;
+      }
+
+      const formData = new FormData();
+      formData.append('file', fileToUpload);
+
+      const { data } = await api.post('/commodities/survey/upload-official-doc', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      setHeaderForm(prev => ({ ...prev, official_doc_url: data.url }));
+      setOfficialDocFile({
+        name: file.name,
+        size: file.size,
+        url: data.url,
+        preview
+      });
+      toast.success('Dokumen pengesahan berhasil diunggah!', { id: toastId });
+    } catch (err) {
+      console.error('Error uploading official doc:', err);
+      toast.error('Gagal mengunggah dokumen pengesahan.', { id: toastId });
+    } finally {
+      setIsUploadingDoc(false);
+    }
+  };
 
   // Handle Download Excel Template
   const handleDownloadTemplate = () => {
@@ -65,7 +158,6 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
     ];
 
     const worksheet = XLSX.utils.json_to_sheet(templateData);
-    // Set column widths for readability
     worksheet['!cols'] = [
       { wch: 25 }, { wch: 18 }, { wch: 10 }, { wch: 20 },
       { wch: 15 }, { wch: 20 }, { wch: 25 }
@@ -166,6 +258,8 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
   const handleReset = () => {
     setFile(null);
     setParsedRows([]);
+    setUploadedPhotos([]);
+    setOfficialDocFile(null);
   };
 
   const handleSubmitImport = async () => {
@@ -176,16 +270,40 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
     }
 
     setIsSubmitting(true);
-    const toastId = toast.loading('Memproses Batch Import Excel...', {
-      style: { borderRadius: '1.5rem', background: '#1e293b', color: '#fff', padding: '1rem 1.5rem' }
-    });
+    const toastId = toast.loading('Memproses Batch Import Excel & Berkas...');
 
     try {
+      let finalPhotoUrls = [];
+
+      // Upload local compressed photos if any
+      if (uploadedPhotos.length > 0) {
+        setIsUploadingPhotos(true);
+        const photoFormData = new FormData();
+        uploadedPhotos.forEach(p => {
+          photoFormData.append('files', p.file);
+        });
+
+        try {
+          const { data } = await api.post('/commodities/survey/upload-documentation', photoFormData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          finalPhotoUrls = (data.uploaded_photos || []).map(p => p.url);
+        } catch (photoErr) {
+          console.error('Error uploading photos:', photoErr);
+          toast.error('Peringatan: Gagal mengunggah beberapa foto dokumentasi, melanjutkan simpan survei.');
+        } finally {
+          setIsUploadingPhotos(false);
+        }
+      }
+
       const payload = {
         region_id: headerForm.region_id,
         shop_name: headerForm.shop_name,
         survey_date: headerForm.survey_date,
         surveyor_name: headerForm.surveyor_name,
+        head_of_market_name: headerForm.head_of_market_name || null,
+        official_doc_url: headerForm.official_doc_url || null,
+        documentation_photos: finalPhotoUrls,
         rows: validRows.map(r => ({
           item_name: r.item_name,
           reference_price: r.reference_price,
@@ -198,7 +316,7 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
       };
 
       const res = await api.post('/commodities/survey/import-excel', payload);
-      toast.success(res.data.message || `Berhasil mengimpor ${validRows.length} item survei!`, {
+      toast.success(res.data.message || `Berhasil mengimpor ${validRows.length} item survei dengan berkas!`, {
         id: toastId,
         icon: '🚀'
       });
@@ -213,6 +331,7 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
       setIsSubmitting(false);
     }
   };
+
 
   useEffect(() => {
     if (isOpen) {
@@ -238,76 +357,75 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
         onClick={onClose}
       >
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
+          initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+          transition={{ duration: 0.2 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-white w-full max-w-3xl rounded-[2rem] shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh] my-auto"
+          className="bg-white w-full max-w-3xl rounded-xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[88vh] my-auto"
         >
           {/* Header */}
-          <div className="p-5 sm:p-6 bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white flex items-center justify-between relative overflow-hidden shrink-0">
-            <div className="absolute -top-12 -right-12 w-48 h-48 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
-            
-            <div className="flex items-center gap-3 relative z-10">
-              <div className="w-10 h-10 bg-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center border border-emerald-500/30 shrink-0">
-                <FileSpreadsheet size={20} />
+          <div className="px-6 py-4 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
+                <FileSpreadsheet size={16} />
               </div>
               <div>
-                <h3 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-2">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                   Import Survey Harga Excel
-                  <span className="text-[9px] font-bold text-emerald-300 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-700/50">
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                     Auto-Matching
                   </span>
                 </h3>
-                <p className="text-[11px] text-slate-300 font-medium">Unggah file .xlsx survei harga pasar bahan baku sekaligus.</p>
+                <p className="text-xs text-slate-500 font-medium">Unggah file .xlsx survei harga pasar bahan baku sekaligus.</p>
               </div>
             </div>
 
             <button 
               type="button"
               onClick={onClose} 
-              className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-all relative z-10"
+              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
               aria-label="Tutup"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
           </div>
 
           {/* Body Content */}
-          <div className="p-5 sm:p-6 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
+          <div className="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar bg-white">
 
             {/* Template Download Banner */}
-            <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20">
-                  <Download size={20} />
+                <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
+                  <Download size={16} />
                 </div>
                 <div>
-                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Belum Memiliki Format Template?</h4>
-                  <p className="text-xs text-slate-500 font-medium">Unduh file template Excel resmi dengan kolom terstandar.</p>
+                  <h4 className="text-xs font-semibold text-slate-900">Format Template Survei</h4>
+                  <p className="text-xs text-slate-500 font-medium">Unduh file template Excel resmi dengan kolom acuan terstandar.</p>
                 </div>
               </div>
 
               <button
                 type="button"
                 onClick={handleDownloadTemplate}
-                className="w-full sm:w-auto px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 transition-all shrink-0"
+                className="btn-secondary text-xs shrink-0"
               >
                 <Download size={14} /> Download Template (.xlsx)
               </button>
             </div>
 
+
             {/* Header Form Settings (Applied to all rows if not explicitly set in Excel) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-200/80">
-              <div>
-                <label className="text-[11px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-1.5 mb-1.5">
-                  <MapPin size={12} className="text-blue-600" /> Wilayah / Kecamatan *
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <MapPin size={13} className="text-blue-600" /> Wilayah / Kecamatan *
                 </label>
                 <select
                   value={headerForm.region_id}
                   onChange={(e) => setHeaderForm({ ...headerForm, region_id: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="input text-xs"
                 >
                   {regionList.map((reg) => (
                     <option key={reg} value={reg}>{reg}</option>
@@ -315,30 +433,160 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
                 </select>
               </div>
 
-              <div>
-                <label className="text-[11px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-1.5 mb-1.5">
-                  <Building2 size={12} className="text-blue-600" /> Nama Pasar / Toko
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Building2 size={13} className="text-blue-600" /> Nama Pasar / Toko
                 </label>
                 <input
                   type="text"
                   placeholder="Contoh: Pasar Sikur"
                   value={headerForm.shop_name}
                   onChange={(e) => setHeaderForm({ ...headerForm, shop_name: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="input text-xs"
                 />
               </div>
 
-              <div>
-                <label className="text-[11px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-1.5 mb-1.5">
-                  <Calendar size={12} className="text-blue-600" /> Tanggal Survey *
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Calendar size={13} className="text-blue-600" /> Tanggal Survey *
                 </label>
                 <input
                   type="date"
                   value={headerForm.survey_date}
                   onChange={(e) => setHeaderForm({ ...headerForm, survey_date: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="input text-xs"
                 />
               </div>
+            </div>
+
+            {/* Pengesahan & Dokumentasi Kegiatan Survei */}
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    <FileCheck size={14} className="text-blue-600" /> Pengesahan & Dokumentasi Survei
+                  </h4>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">Lengkapi penanggung jawab, surat pengesahan pasar, dan foto kegiatan survei.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                    <User size={13} className="text-slate-400" /> Surveyor Lapangan
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Nama petugas survei"
+                    value={headerForm.surveyor_name}
+                    onChange={(e) => setHeaderForm({ ...headerForm, surveyor_name: e.target.value })}
+                    className="input text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                    <User size={13} className="text-slate-400" /> Kepala Pasar / P.J Toko
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Nama kepala pasar / pemilik toko"
+                    value={headerForm.head_of_market_name}
+                    onChange={(e) => setHeaderForm({ ...headerForm, head_of_market_name: e.target.value })}
+                    className="input text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Upload Surat Pengesahan & Foto Dokumentasi Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-slate-200/80">
+                {/* Dokumen Pengesahan */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <FileCheck size={13} className="text-emerald-600" /> Surat / Berkas Pengesahan
+                    </span>
+                    {headerForm.official_doc_url && (
+                      <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                        <CheckCircle2 size={11} /> Terunggah
+                      </span>
+                    )}
+                  </label>
+                  
+                  {officialDocFile ? (
+                    <div className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg">
+                      <div className="flex items-center gap-2 truncate">
+                        <FileCheck size={16} className="text-emerald-600 shrink-0" />
+                        <span className="text-xs font-semibold text-emerald-900 truncate">{officialDocFile.name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setOfficialDocFile(null); setHeaderForm(prev => ({ ...prev, official_doc_url: '' })); }}
+                        className="p-1 text-emerald-700 hover:text-red-600 transition-colors"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex items-center justify-center gap-2 p-2.5 bg-white border border-slate-200 border-dashed hover:border-blue-400 rounded-lg cursor-pointer transition-colors text-xs font-semibold text-slate-600 hover:text-blue-600">
+                      <UploadCloud size={15} />
+                      <span>{isUploadingDoc ? 'Mengunggah...' : 'Upload Dokumen / Foto Pengesahan'}</span>
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        onChange={handleUploadOfficialDocDirect}
+                        disabled={isUploadingDoc}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* Foto Dokumentasi Lapangan */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Camera size={13} className="text-blue-600" /> Foto Dokumentasi Kegiatan
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">{uploadedPhotos.length} Foto</span>
+                  </label>
+
+                  <label className="flex items-center justify-center gap-2 p-2.5 bg-white border border-slate-200 border-dashed hover:border-blue-400 rounded-lg cursor-pointer transition-colors text-xs font-semibold text-slate-600 hover:text-blue-600">
+                    <Camera size={15} />
+                    <span>Pilih Foto Dokumentasi Lapangan</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleAddDocumentationPhotos}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Photo Previews */}
+              {uploadedPhotos.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {uploadedPhotos.map((p, idx) => (
+                    <div key={idx} className="relative group w-14 h-14 rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+                      {p.previewUrl ? (
+                        <img src={p.previewUrl} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-400"><ImageIcon size={16} /></div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(idx)}
+                        className="absolute inset-0 bg-red-600/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Hapus foto"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Dropzone Upload Area */}
@@ -348,12 +596,13 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
                 onDragOver={handleDrag}
                 onDragLeave={handleDrag}
                 onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-3xl p-8 text-center flex flex-col items-center justify-center transition-all cursor-pointer ${
+                className={`border-2 border-dashed rounded-xl p-6 text-center flex flex-col items-center justify-center transition-all cursor-pointer ${
                   dragActive 
-                    ? 'border-emerald-500 bg-emerald-50/50 scale-[1.01]' 
-                    : 'border-slate-200 hover:border-emerald-400 bg-slate-50/50 hover:bg-emerald-50/20'
+                    ? 'border-emerald-500 bg-emerald-50/50' 
+                    : 'border-slate-200 hover:border-emerald-400 bg-slate-50/50 hover:bg-emerald-50/10'
                 }`}
               >
+
                 <input
                   type="file"
                   id="excel-survey-file-input"

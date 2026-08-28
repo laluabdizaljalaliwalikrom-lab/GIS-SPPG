@@ -43,48 +43,46 @@ const SPPGUnitForm = ({ initialData, onSubmit, formId }) => {
   });
 
   return (
-    <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+    <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       {/* Section 1: Basic Identitas */}
-      <div className="space-y-6">
-         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
-            <span className="w-8 h-[2px] bg-blue-600" /> Identitas Unit
-         </h3>
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="space-y-4">
+         <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Identitas Unit</h4>
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Nama Unit Gizi</label>
+               <label className="text-xs font-semibold text-slate-700">Nama Unit Gizi *</label>
                <input 
                  {...register('nama')}
-                 className={`w-full px-4 py-4 bg-slate-50 border ${errors.nama ? 'border-red-500' : 'border-slate-200'} rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm`}
-                 placeholder="Contoh: SPPG Unit A"
+                 className={`input ${errors.nama ? 'border-red-500' : ''}`}
+                 placeholder="Contoh: SPPG Sikur Barat"
                />
-               {errors.nama && <p className="text-[10px] text-red-500 font-bold ml-1">{errors.nama.message}</p>}
+               {errors.nama && <p className="text-xs text-red-500 font-medium">{errors.nama.message}</p>}
             </div>
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Kode Unik SPPG</label>
+               <label className="text-xs font-semibold text-slate-700">Kode Unik SPPG *</label>
                <input 
                  {...register('kode_sppg')}
-                 className={`w-full px-4 py-4 bg-slate-50 border ${errors.kode_sppg ? 'border-red-500' : 'border-slate-200'} rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm uppercase`}
+                 className={`input uppercase ${errors.kode_sppg ? 'border-red-500' : ''}`}
                  placeholder="SPPG-001"
                />
-               {errors.kode_sppg && <p className="text-[10px] text-red-500 font-bold ml-1">{errors.kode_sppg.message}</p>}
+               {errors.kode_sppg && <p className="text-xs text-red-500 font-medium">{errors.kode_sppg.message}</p>}
             </div>
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1 text-blue-600">Kapasitas Produksi (Porti/Hari)</label>
+               <label className="text-xs font-semibold text-slate-700">Kapasitas Produksi (Porsi/Hari) *</label>
                <div className="relative">
-                  <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-600/50" size={18} />
+                  <Package className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                   <input 
                     type="number" 
                     {...register('kapasitas_produksi', { valueAsNumber: true })}
-                    className={`w-full pl-12 pr-4 py-4 bg-blue-50/50 border ${errors.kapasitas_produksi ? 'border-red-500' : 'border-blue-100'} rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-black text-blue-700`}
+                    className={`input pl-9 font-semibold ${errors.kapasitas_produksi ? 'border-red-500' : ''}`}
                   />
                </div>
-               {errors.kapasitas_produksi && <p className="text-[10px] text-red-500 font-bold ml-1">{errors.kapasitas_produksi.message}</p>}
+               {errors.kapasitas_produksi && <p className="text-xs text-red-500 font-medium">{errors.kapasitas_produksi.message}</p>}
             </div>
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Status Operasi</label>
+               <label className="text-xs font-semibold text-slate-700">Status Operasi</label>
                <select 
                  {...register('status_operasional')}
-                 className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm appearance-none"
+                 className="input"
                >
                   <option value="Aktif">Aktif</option>
                   <option value="Maintenance">Maintenance</option>
@@ -95,81 +93,81 @@ const SPPGUnitForm = ({ initialData, onSubmit, formId }) => {
       </div>
 
       {/* Section 2: Personel */}
-      <div className="space-y-6">
-         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
-            <span className="w-8 h-[2px] bg-blue-600" /> Manajemen & Pengawas
-         </h3>
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="space-y-4 pt-2 border-t border-slate-100">
+         <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Manajemen & Pengawas</h4>
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Nama Kepala Unit</label>
+               <label className="text-xs font-semibold text-slate-700">Nama Kepala Unit *</label>
                <input 
                  {...register('nama_kepala')}
-                 className={`w-full px-4 py-4 bg-slate-50 border ${errors.nama_kepala ? 'border-red-500' : 'border-slate-200'} rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm`}
+                 className={`input ${errors.nama_kepala ? 'border-red-500' : ''}`}
+                 placeholder="Nama Kepala SPPG"
                />
-               {errors.nama_kepala && <p className="text-[10px] text-red-500 font-bold ml-1">{errors.nama_kepala.message}</p>}
+               {errors.nama_kepala && <p className="text-xs text-red-500 font-medium">{errors.nama_kepala.message}</p>}
             </div>
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Pengawas Gizi</label>
+               <label className="text-xs font-semibold text-slate-700">Pengawas Gizi</label>
                <input 
                  {...register('pengawas_gizi')}
-                 className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
+                 className="input"
+                 placeholder="Nama Ahli Gizi"
                />
             </div>
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Pengawas Keuangan</label>
+               <label className="text-xs font-semibold text-slate-700">Pengawas Keuangan</label>
                <input 
                  {...register('pengawas_keuangan')}
-                 className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
+                 className="input"
+                 placeholder="Nama Pengawas Keuangan"
                />
             </div>
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Institusi / Yayasan</label>
+               <label className="text-xs font-semibold text-slate-700">Institusi / Yayasan</label>
                <input 
                  {...register('nama_yayasan')}
-                 className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
-                 placeholder="Nama Yayasan"
+                 className="input"
+                 placeholder="Nama Yayasan Penyelenggara"
                />
             </div>
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">P.I.C Yayasan</label>
+               <label className="text-xs font-semibold text-slate-700">P.I.C Yayasan</label>
                <input 
                  {...register('pic_yayasan')}
-                 className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm"
-                 placeholder="Nama PIC"
+                 className="input"
+                 placeholder="Nama Penanggung Jawab"
                />
             </div>
          </div>
       </div>
 
       {/* Section 3: Geografis */}
-      <div className="space-y-6">
-         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
-            <span className="w-8 h-[2px] bg-blue-600" /> Lokasi Geografis
-         </h3>
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="space-y-4 pt-2 border-t border-slate-100">
+         <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Lokasi Geografis</h4>
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2 space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Alamat Lengkap</label>
+               <label className="text-xs font-semibold text-slate-700">Alamat Lengkap / Desa *</label>
                <textarea 
                  {...register('alamat_desa')}
                  rows={2}
-                 className={`w-full px-4 py-4 bg-slate-50 border ${errors.alamat_desa ? 'border-red-500' : 'border-slate-200'} rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm resize-none`}
+                 className={`input resize-none ${errors.alamat_desa ? 'border-red-500' : ''}`}
+                 placeholder="Alamat jalan / RT / RW / Desa..."
                />
-               {errors.alamat_desa && <p className="text-[10px] text-red-500 font-bold ml-1">{errors.alamat_desa.message}</p>}
+               {errors.alamat_desa && <p className="text-xs text-red-500 font-medium">{errors.alamat_desa.message}</p>}
             </div>
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Latitude</label>
+               <label className="text-xs font-semibold text-slate-700">Latitude</label>
                <input 
                  type="number" step="any"
                  {...register('lat', { valueAsNumber: true })}
-                 className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-mono text-xs"
+                 className="input font-mono text-xs"
                />
             </div>
             <div className="space-y-1.5">
-               <label className="text-xs font-bold text-slate-700 ml-1">Longitude</label>
+               <label className="text-xs font-semibold text-slate-700">Longitude</label>
                <input 
                  type="number" step="any"
                  {...register('lng', { valueAsNumber: true })}
-                 className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-mono text-xs"
+                 className="input font-mono text-xs"
                />
             </div>
          </div>

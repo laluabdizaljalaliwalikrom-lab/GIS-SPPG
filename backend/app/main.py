@@ -328,6 +328,8 @@ def create_commodity_item(
 ):
     try:
         return crud.create_commodity_item(db, data)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Gagal menambah komoditas: {str(e)}")
 
@@ -339,10 +341,17 @@ def update_commodity_item(
     db: Session = Depends(get_db),
     _ = Depends(finance_only)
 ):
-    db_item = crud.update_commodity_item(db, item_id, data)
-    if not db_item:
-        raise HTTPException(status_code=404, detail="Komoditas tidak ditemukan.")
-    return db_item
+    try:
+        db_item = crud.update_commodity_item(db, item_id, data)
+        if not db_item:
+            raise HTTPException(status_code=404, detail="Komoditas tidak ditemukan.")
+        return db_item
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Gagal memperbarui komoditas: {str(e)}")
 
 
 @app.delete("/api/commodities/items/{item_id}")
@@ -363,7 +372,7 @@ def submit_market_survey(
     db: Session = Depends(get_db),
     current_user: models.Profile = Depends(finance_only)
 ):
-    return crud.submit_market_survey(db, survey)
+    return crud.submit_market_survey(db, survey, current_user)
 
 
 @app.post("/api/commodities/survey/import-excel")

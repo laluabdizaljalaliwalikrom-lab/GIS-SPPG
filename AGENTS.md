@@ -205,17 +205,43 @@ Base URL: `http://localhost:8000/api`
 - Api call via Axios instance (`api.js`) — base URL otomatis switch localhost/render
 - Routing: React Router v7 — `ProtectedRoute` wrapper cek session Supabase
 - Form: `react-hook-form` + `zodResolver`
-- Styling: Tailwind utility classes diprioritaskan; gunakan kelas kustom dari `index.css` untuk pattern umum
+- Styling: Tailwind CSS diprioritaskan menggunakan kelas terstandar dari `index.css`
 - Map: `react-leaflet` dengan `MapContainer`, custom div icons, GeoJSON boundary, animated polylines
 - Notifikasi: `react-hot-toast`
 
-### Design System (CSS Classes)
-- **Card:** `.card`, `.card-lg`, `.card-glass`, `.card-section`
-- **Button:** `.btn-primary`, `.btn-ghost`, `.btn-danger`
-- **Input:** `.input`, `.input-search`
-- **Badge:** `.badge-aktif`, `.badge-nonaktif`, `.badge-pending`, `.badge-verified`, `.badge-rejected`
-- **Table:** `.table-header`, `.table-row`
-- **Other:** `.chip`, `.chip-active`, `.fab`, `.section-title`, `.page-header`, `.glass-panel`, `.skeleton`, `.no-scrollbar`
+### Standar Desain Antarmuka (Design System Guidelines)
+Untuk menjaga konsistensi visual di seluruh pembaruan mendatang, patuhi aturan berikut:
+1. **Prinsip Estetika**: Bersih, simple, elegan, profesional (Modern SaaS — gaya Supabase / Linear / Notion).
+2. **Radius / Sudut**: Gunakan `rounded-xl` (12px) atau `rounded-lg` (8px) untuk card, input, dan modal. **Hindari sudut berlebihan** seperti `rounded-[2.5rem]` atau `rounded-[3rem]`.
+3. **Warna & Bayangan**:
+   - Background halaman: `bg-slate-50`
+   - Background kartu/panel: `bg-white` dengan border halus `border-slate-200` dan bayangan minimal `shadow-sm`.
+   - Primary Action: `bg-blue-600 hover:bg-blue-700 text-white`
+   - Secondary Action: `bg-white border border-slate-200 hover:bg-slate-50 text-slate-700`
+   - Typography: Font `Plus Jakarta Sans`, judul `text-slate-900 font-bold`, teks sekunder `text-slate-500 font-medium`.
+4. **Header Halaman**:
+   - Judul: `<h1 className="page-header">Judul Halaman</h1>`
+   - Subtitle: `<p className="page-subtitle">Deskripsi singkat fungsi halaman...</p>`
+5. **Form Input**:
+   - Gunakan `<input className="input" />` atau `<select className="input">`
+   - Label: `<label className="text-xs font-semibold text-slate-700">Label Input</label>`
+6. **Tombol**:
+   - Utama: `<button className="btn-primary">Aksi Utama</button>`
+   - Sekunder/Batal: `<button className="btn-secondary">Batal / Kembali</button>`
+   - Bahaya/Hapus: `<button className="btn-danger">Hapus</button>`
+   - Ikon Saja: `p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg`
+7. **Modal & Drawer**:
+   - Header modal: `px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between`
+   - Footer modal: `px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2`
+   - Dialog overlay: `bg-slate-950/80 backdrop-blur-sm`
+8. **Daftar Kelas CSS Reusable (`index.css`)**:
+   - `.card`, `.card-lg`, `.card-section`, `.card-glass`
+   - `.btn-primary`, `.btn-secondary`, `.btn-ghost`, `.btn-danger`
+   - `.input`, `.input-search`
+   - `.page-header`, `.page-subtitle`, `.section-title`
+   - `.badge-aktif`, `.badge-nonaktif`, `.badge-pending`, `.badge-verified`, `.badge-rejected`
+   - `.table-header`, `.table-row`, `.chip`, `.chip-active`, `.chip-inactive`, `.fab`
+
 
 ---
 

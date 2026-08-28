@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func, asc, text, and_
 from . import models, schemas
+from fastapi import HTTPException
 import os
 import time
 import logging
@@ -278,7 +279,29 @@ def allocate_automatic(db: Session):
 
 def get_users(db: Session):
     profiles = db.query(models.Profile).all()
+    
+    # Try to enrich email from Supabase Auth admin if available
+    auth_email_map = {}
+    if supabase:
+        try:
+            users_res = supabase.auth.admin.list_users()
+            if hasattr(users_res, 'users'):
+                auth_users = users_res.users
+            elif isinstance(users_res, list):
+                auth_users = users_res
+            else:
+                auth_users = getattr(users_res, 'data', [])
+            for u in auth_users:
+                uid = str(getattr(u, 'id', ''))
+                uemail = getattr(u, 'email', None)
+                if uid and uemail:
+                    auth_email_map[uid] = uemail
+        except Exception as e:
+            print(f"Warning fetching auth emails: {e}")
+
     for p in profiles:
+        str_id = str(p.id)
+        p.email = auth_email_map.get(str_id, None)
         if p.sppg_id and not hasattr(p, 'sppg_name'):
             sppg = db.query(models.SPPGUnit).filter(models.SPPGUnit.id == p.sppg_id).first()
             p.sppg_name = sppg.nama if sppg else None
@@ -302,25 +325,48 @@ def update_user(db: Session, user_id: str, profile: schemas.ProfileBase):
         db.commit()
     return db_profile
 
-def delete_user(db: Session, user_id: str):
+def reset_user_password(db: Session, user_id: str, new_password: str, admin_user_id: str = None):
     if not supabase:
         raise Exception("Supabase Admin client not initialized")
-        
+    
     db_profile = db.query(models.Profile).filter(models.Profile.id == user_id).first()
-    if db_profile:
-        # Delete from Supabase Auth
-        try:
-            supabase.auth.admin.delete_user(user_id)
-        except Exception as e:
-            print(f"Warning: Could not delete user from auth: {e}")
-            
-        # Delete from public.profiles
-        db.delete(db_profile)
-        db.commit()
-        db.execute(text("INSERT INTO audit_logs (action, target_table, target_id, details) VALUES (:action, :table, :id, :details)"), 
-                   {"action": "DELETE_USER", "table": "profiles", "id": None, "details": f"Deleted profile ID {user_id}"})
-        db.commit()
-    return db_profile
+    if not db_profile:
+        raise Exception("User not found")
+        
+    try:
+        supabase.auth.admin.update_user_by_id(
+            user_id,
+            {"password": new_password}
+        )
+    except Exception as e:
+        raise Exception(f"Gagal mereset password di Supabase Auth: {str(e)}")
+
+    db.execute(text("INSERT INTO audit_logs (user_id, action, target_table, target_id, details) VALUES (:uid, :action, :table, :id, :details)"), 
+               {"uid": admin_user_id, "action": "RESET_PASSWORD", "table": "profiles", "id": None, "details": f"Reset password for user {db_profile.full_name} ({user_id})"})
+    db.commit()
+    return {"status": "success", "message": f"Password user {db_profile.full_name} berhasil diubah."}
+
+def update_user_email(db: Session, user_id: str, new_email: str, admin_user_id: str = None):
+    if not supabase:
+        raise Exception("Supabase Admin client not initialized")
+    
+    db_profile = db.query(models.Profile).filter(models.Profile.id == user_id).first()
+    if not db_profile:
+        raise Exception("User not found")
+        
+    try:
+        supabase.auth.admin.update_user_by_id(
+            user_id,
+            {"email": new_email, "email_confirm": True}
+        )
+    except Exception as e:
+        raise Exception(f"Gagal memperbarui email di Supabase Auth: {str(e)}")
+
+    db.execute(text("INSERT INTO audit_logs (user_id, action, target_table, target_id, details) VALUES (:uid, :action, :table, :id, :details)"), 
+               {"uid": admin_user_id, "action": "UPDATE_EMAIL", "table": "profiles", "id": None, "details": f"Updated email to {new_email} for user {db_profile.full_name} ({user_id})"})
+    db.commit()
+    return {"status": "success", "message": f"Email user {db_profile.full_name} berhasil diubah menjadi {new_email}."}
+
 
 def create_user(db: Session, user_data: schemas.UserCreate):
     if not supabase:
@@ -540,6 +586,12 @@ def get_commodity_items(db: Session, skip: int = 0, limit: int = 100, kategori: 
 
 
 def create_commodity_item(db: Session, data: schemas.CommodityItemCreate):
+    # Cek duplikat nama (case-insensitive)
+    existing = db.query(models.CommodityItem).filter(
+        func.lower(models.CommodityItem.nama) == func.lower(data.nama.strip())
+    ).first()
+    if existing:
+        raise ValueError(f"Komoditas dengan nama '{data.nama.strip()}' sudah ada di master data.")
     db_item = models.CommodityItem(**data.model_dump())
     db.add(db_item)
     db.commit()
@@ -550,6 +602,13 @@ def create_commodity_item(db: Session, data: schemas.CommodityItemCreate):
 def update_commodity_item(db: Session, item_id: int, data: schemas.CommodityItemCreate):
     db_item = db.query(models.CommodityItem).filter(models.CommodityItem.id == item_id).first()
     if db_item:
+        # Cek duplikat nama (case-insensitive), kecuali diri sendiri
+        conflict = db.query(models.CommodityItem).filter(
+            func.lower(models.CommodityItem.nama) == func.lower(data.nama.strip()),
+            models.CommodityItem.id != item_id
+        ).first()
+        if conflict:
+            raise ValueError(f"Komoditas dengan nama '{data.nama.strip()}' sudah ada di master data.")
         update_data = data.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_item, key, value)
@@ -602,7 +661,7 @@ def get_or_create_commodity_item(
         ).first()
 
 
-def submit_market_survey(db: Session, survey: schemas.MarketSurveyCreate):
+def submit_market_survey(db: Session, survey: schemas.MarketSurveyCreate, current_user: models.Profile):
     results = {"success": 0, "failed": 0, "errors": []}
     shop_name_clean = (survey.shop_name or "").strip()
     region_id_clean = (survey.region_id or "").strip()
@@ -663,6 +722,10 @@ def submit_market_survey(db: Session, survey: schemas.MarketSurveyCreate):
         existing_session = db.query(models.SurveySession).filter(
             models.SurveySession.survey_session_id == session_id_clean
         ).first()
+        # Ownership check: only owner or admin can modify
+        if existing_session:
+            if existing_session.owner_id and existing_session.owner_id != current_user.id and current_user.role != 'admin':
+                raise HTTPException(status_code=403, detail="Anda tidak memiliki hak untuk mengubah survei ini.")
 
         doc_photos = survey.documentation_photos or []
         official_doc = survey.official_doc_url or None
@@ -692,7 +755,8 @@ def submit_market_survey(db: Session, survey: schemas.MarketSurveyCreate):
                 head_of_market_name=head_name,
                 documentation_photos=doc_photos,
                 official_doc_url=official_doc,
-                notes=notes_clean
+                notes=notes_clean,
+                owner_id=current_user.id
             )
             db.add(new_session)
         db.commit()
@@ -1468,6 +1532,105 @@ def delete_survey_session(db: Session, session_id: str) -> bool:
     return True
 
 
+def update_survey_session(db: Session, session_id: str, survey: schemas.MarketSurveyCreate):
+    """
+    Update entire survey session metadata and replace its item list transactionally.
+    """
+    session_id_clean = (session_id or "").strip()
+    shop_name_clean = (survey.shop_name or "").strip()
+    region_id_clean = (survey.region_id or "").strip()
+    surveyor_clean = (survey.surveyor_name or "").strip() if survey.surveyor_name else None
+
+    # Delete existing items for this session
+    db.query(models.MarketPrice).filter(
+        models.MarketPrice.survey_session_id == session_id_clean
+    ).delete(synchronize_session=False)
+
+    # Insert updated items
+    results = {"success": 0, "failed": 0, "errors": []}
+    for i, item in enumerate(survey.items):
+        item_name_clean = (item.item_name or "").strip()
+        if not item_name_clean:
+            results["failed"] += 1
+            results["errors"].append(f"Baris {i+1}: Nama barang tidak boleh kosong.")
+            continue
+        
+        if item.reference_price is None or item.reference_price <= 0:
+            results["failed"] += 1
+            results["errors"].append(f"Baris {i+1} ({item_name_clean}): Harga harus lebih besar dari 0.")
+            continue
+
+        unit_clean = (item.unit or "kg").strip()
+        commodity_id = item.commodity_item_id
+
+        if not commodity_id:
+            comm_item = get_or_create_commodity_item(
+                db,
+                item_name_clean,
+                unit=unit_clean,
+                source_desc=f"Diperbarui dari survey pasar ({shop_name_clean})"
+            )
+            if comm_item:
+                commodity_id = comm_item.id
+                item_name_clean = comm_item.nama
+
+        db_price = models.MarketPrice(
+            item_name=item_name_clean,
+            region_id=region_id_clean,
+            reference_price=float(item.reference_price),
+            unit=unit_clean,
+            shop_name=shop_name_clean,
+            price_date=survey.survey_date,
+            supplier_name=(item.supplier_name or "").strip() if item.supplier_name else None,
+            survey_session_id=session_id_clean,
+            notes=(item.notes or "").strip() if item.notes else None,
+            commodity_item_id=commodity_id,
+            surveyor_name=surveyor_clean
+        )
+        db.add(db_price)
+        results["success"] += 1
+
+    # Update or create session metadata
+    existing_session = db.query(models.SurveySession).filter(
+        models.SurveySession.survey_session_id == session_id_clean
+    ).first()
+
+    doc_photos = survey.documentation_photos or []
+    official_doc = survey.official_doc_url or None
+    head_name = survey.head_of_market_name or None
+    notes_clean = survey.notes or None
+
+    if existing_session:
+        existing_session.shop_name = shop_name_clean
+        existing_session.region_id = region_id_clean
+        existing_session.survey_date = survey.survey_date
+        existing_session.surveyor_name = surveyor_clean
+        if head_name:
+            existing_session.head_of_market_name = head_name
+        if doc_photos:
+            existing_session.documentation_photos = doc_photos
+        if official_doc:
+            existing_session.official_doc_url = official_doc
+        if notes_clean:
+            existing_session.notes = notes_clean
+    else:
+        new_session = models.SurveySession(
+            survey_session_id=session_id_clean,
+            shop_name=shop_name_clean,
+            region_id=region_id_clean,
+            survey_date=survey.survey_date,
+            surveyor_name=surveyor_clean,
+            head_of_market_name=head_name,
+            documentation_photos=doc_photos,
+            official_doc_url=official_doc,
+            notes=notes_clean
+        )
+        db.add(new_session)
+
+    db.commit()
+    return results
+
+
 def update_market_price_entry(db: Session, price_id: int, data: schemas.MarketPriceUpdate):
     db_mp = db.query(models.MarketPrice).filter(models.MarketPrice.id == price_id).first()
     if not db_mp:
@@ -1912,7 +2075,10 @@ def import_market_survey_excel(
             survey_session_id=session_id,
             notes=row.notes or "Imported via Excel Survey",
             commodity_item_id=commodity_item_id,
-            surveyor_name=req.surveyor_name
+            surveyor_name=req.surveyor_name,
+            head_of_market_name=req.head_of_market_name,
+            official_doc_url=req.official_doc_url,
+            documentation_photos=req.documentation_photos or []
         )
         db.add(db_price)
         inserted_count += 1

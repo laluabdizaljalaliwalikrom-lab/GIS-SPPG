@@ -32,41 +32,41 @@ const FormModal = ({
         onClick={onClose}
       >
         <motion.div
-          initial={{ opacity: 0, scale: 0.92, y: 15 }}
+          initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.92, y: 15 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+          transition={{ duration: 0.2 }}
           onClick={(e) => e.stopPropagation()}
           className="relative w-full max-w-2xl flex flex-col my-auto"
         >
-          <div className="bg-blue-600 rounded-[2.5rem] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden border border-blue-600">
+          <div className="bg-white rounded-xl shadow-2xl flex flex-col max-h-[88vh] overflow-hidden border border-slate-200">
             {/* Header */}
-            <div className="p-6 lg:p-8 bg-blue-600 text-white flex items-center justify-between shrink-0">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/50">
               <div>
-                <h3 className="text-xl font-black tracking-tight">{title}</h3>
-                <p className="text-blue-100 text-[10px] font-black uppercase tracking-[0.2em] mt-1 opacity-80">Input Formulir Data</p>
+                <h3 className="text-base font-bold text-slate-900">{title}</h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">Input & kelola data formulir</p>
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className="p-3 bg-white/10 text-white hover:bg-white/20 rounded-2xl transition-all"
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
                 aria-label="Tutup modal"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
             {/* Form Content - Scrollable */}
-            <div className="flex-1 overflow-y-auto p-6 lg:p-8 custom-scrollbar bg-white">
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-white">
               {children}
             </div>
 
             {/* Footer */}
-            <div className="p-6 lg:p-8 border-t border-slate-50 bg-white flex justify-end gap-3 shrink-0 rounded-b-[2.5rem]">
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-6 py-4 rounded-2xl font-bold text-sm text-slate-500 hover:bg-slate-100 transition-all active:scale-95"
+                className="btn-secondary"
               >
                 Batal
               </button>
@@ -74,16 +74,16 @@ const FormModal = ({
                 type="button"
                 onClick={onSubmit}
                 disabled={isLoading}
-                className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all flex items-center gap-3 active:scale-95 disabled:opacity-50"
+                className="btn-primary"
               >
                 {isLoading ? (
                   <>
-                    <Loader2 size={18} className="animate-spin" />
+                    <Loader2 size={16} className="animate-spin" />
                     Memproses...
                   </>
                 ) : (
                   <>
-                    <Save size={18} />
+                    <Save size={16} />
                     {submitLabel}
                   </>
                 )}

@@ -14,7 +14,7 @@ import {
   Radio, ArrowUpRight, ArrowDownRight, Minus,
   CandlestickChart, TrendingDown, LayoutGrid, List, X,
   Camera, FileCheck, CheckCircle2, Image as ImageIcon, Eye,
-  Bookmark, RotateCcw
+  Bookmark, RotateCcw, Search
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
@@ -52,7 +52,6 @@ const KomoditasHarga = () => {
     items = [], loadingItems,
     createItem, updateItem, deleteItem,
     isCreating, isUpdating,
-    latestPrices = [], loadingPrices,
     allPrices = [],
     submitSurvey, isSubmitting,
   } = useKomoditas();
@@ -61,7 +60,6 @@ const KomoditasHarga = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const [selectedChartItem, setSelectedChartItem] = useState('');
-  const [selectedInspectorItem, setSelectedInspectorItem] = useState('');
   const [priceHistory, setPriceHistory] = useState([]);
 
   // Disperindag NTB Live Prices State
@@ -162,7 +160,7 @@ const KomoditasHarga = () => {
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   const [previewMediaModal, setPreviewMediaModal] = useState(null); // { type: 'photo' | 'doc', url: string, title: string }
   const [surveyItems, setSurveyItems] = useState([]);
-  
+
   // Initialize draft safely with lazy initializer (no cascading renders)
   const [draftInfo, setDraftInfo] = useState(() => {
     try {
@@ -183,6 +181,14 @@ const KomoditasHarga = () => {
     }
     return null;
   });
+  const [showDraftPromptModal, setShowDraftPromptModal] = useState(false);
+
+  const handleOpenSurveyTab = () => {
+    setActiveTab('survey');
+    if (draftInfo && surveyItems.length === 0 && !surveyForm.shop_name) {
+      setShowDraftPromptModal(true);
+    }
+  };
 
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -192,6 +198,9 @@ const KomoditasHarga = () => {
   const [sessionItems, setSessionItems] = useState({});
   const [editingPriceId, setEditingPriceId] = useState(null);
   const [editPriceForm, setEditPriceForm] = useState({ item_name: '', reference_price: '', unit: 'kg', supplier_name: '' });
+
+  // State for Dedicated History Details Modal
+  const [historyModalData, setHistoryModalData] = useState(null); // { item_name, meta, history: [], loading: boolean }
 
   const isAuthorized = ['admin', 'kecamatan_coordinator', 'finance_inspector', 'sppg_head'].includes(profile?.role);
   const isAdmin = profile?.role === 'admin';
@@ -218,6 +227,34 @@ const KomoditasHarga = () => {
       .catch(() => { if (!cancelled) toast.error('Gagal memuat riwayat harga.'); });
     return () => { cancelled = true; };
   }, [selectedChartItem, dateFrom, dateTo]);
+
+  const handleOpenHistoryModal = async (itemName) => {
+    const matchedMeta = items.find(i => i.nama.toLowerCase().trim() === itemName.toLowerCase().trim());
+
+    // Filter local prices first as initial state
+    const initialHist = allPrices
+      .filter(p => p.item_name.toLowerCase().trim() === itemName.toLowerCase().trim() || (matchedMeta && p.commodity_item_id === matchedMeta.id))
+      .sort((a, b) => new Date(b.price_date || b.created_at) - new Date(a.price_date || a.created_at));
+
+    setHistoryModalData({
+      item_name: itemName,
+      meta: matchedMeta,
+      history: initialHist,
+      loading: true,
+    });
+
+    try {
+      const res = await api.get('/audit/market-prices/history', { params: { item_name: itemName } });
+      const apiHist = Array.isArray(res.data) ? res.data : [];
+      setHistoryModalData(prev => prev ? {
+        ...prev,
+        history: apiHist.length > 0 ? apiHist : initialHist,
+        loading: false,
+      } : null);
+    } catch {
+      setHistoryModalData(prev => prev ? { ...prev, loading: false } : null);
+    }
+  };
 
   const getFilteredItems = () => {
     if (!searchQuery) return items;
@@ -281,6 +318,15 @@ const KomoditasHarga = () => {
       toast.error('Harap isi nama dan satuan default.');
       return;
     }
+    // Cek duplikat di sisi klien sebelum request
+    const isDuplicate = items.some(i =>
+      i.nama.toLowerCase().trim() === itemForm.nama.toLowerCase().trim() &&
+      i.id !== editItemId
+    );
+    if (isDuplicate) {
+      toast.error(`Komoditas "${itemForm.nama.trim()}" sudah ada di master data.`);
+      return;
+    }
     try {
       if (editItemId) {
         await updateItem({ id: editItemId, data: itemForm });
@@ -288,8 +334,12 @@ const KomoditasHarga = () => {
         await createItem(itemForm);
       }
       closeModal();
-    } catch {
-      // error handled by mutation onError
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      if (err?.response?.status === 409 || (detail && detail.includes('sudah ada'))) {
+        toast.error(detail || `Komoditas "${itemForm.nama}" sudah ada di master data.`);
+      }
+      // other errors handled by mutation onError
     }
   };
 
@@ -704,46 +754,44 @@ const KomoditasHarga = () => {
   };
 
   return (
-    <div className="space-y-6 pt-2 sm:pt-4">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+    <div className="space-y-5 pb-16">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-            <span className="bg-gradient-to-r from-blue-600 to-sky-500 bg-clip-text text-transparent">Harga Bahan Baku</span>
-          </h1>
-          <p className="text-slate-500 font-medium text-sm lg:text-base mt-1">Pantau dan kelola data harga komoditas bahan baku SPPG dari waktu ke waktu.</p>
+          <h1 className="page-header">Harga Bahan Baku & Komoditas</h1>
+          <p className="page-subtitle">Pantau fluktuasi harga pasar, data survei lapangan, dan acuan resmi NTB.</p>
         </div>
 
-        <div className="w-full lg:w-auto bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/70 shadow-inner">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:flex-wrap lg:flex-nowrap gap-1.5">
+        <div className="bg-slate-100 p-1 rounded-lg border border-slate-200/80 overflow-x-auto no-scrollbar w-fit">
+          <div className="flex items-center gap-1 min-w-max">
             <button onClick={() => setActiveTab('dashboard')}
-              className={`px-3 lg:px-4 py-2.5 rounded-xl text-[11px] lg:text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === 'dashboard' ? 'bg-white text-blue-600 shadow-md shadow-blue-500/10 ring-1 ring-slate-900/5 font-black' : 'text-slate-500 hover:text-slate-800 hover:bg-white/60'}`}>
+              className={`px-3.5 py-2 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shrink-0 ${activeTab === 'dashboard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}>
               <BarChart3 size={14} className={activeTab === 'dashboard' ? 'text-blue-600' : 'text-slate-400'} />
               <span>Dashboard</span>
             </button>
             <button onClick={() => { setActiveTab('ntb-live'); fetchNtbLivePrices(); }}
-              className={`px-3 lg:px-4 py-2.5 rounded-xl text-[11px] lg:text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === 'ntb-live' ? 'bg-white text-emerald-600 shadow-md shadow-emerald-500/10 ring-1 ring-slate-900/5 font-black' : 'text-slate-500 hover:text-slate-800 hover:bg-white/60'}`}>
+              className={`px-3.5 py-2 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shrink-0 ${activeTab === 'ntb-live' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}>
               <Globe size={14} className={activeTab === 'ntb-live' ? 'text-emerald-600' : 'text-slate-400'} />
               <span>Harga NTB</span>
             </button>
-            <button onClick={() => setActiveTab('survey')}
-              className={`px-3 lg:px-4 py-2.5 rounded-xl text-[11px] lg:text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === 'survey' ? 'bg-white text-blue-600 shadow-md shadow-blue-500/10 ring-1 ring-slate-900/5 font-black' : 'text-slate-500 hover:text-slate-800 hover:bg-white/60'}`}>
+            <button onClick={handleOpenSurveyTab}
+              className={`px-3.5 py-2 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shrink-0 ${activeTab === 'survey' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}>
               <ShoppingCart size={14} className={activeTab === 'survey' ? 'text-blue-600' : 'text-slate-400'} />
               <span>Input Survey</span>
             </button>
             <button onClick={() => { setActiveTab('data-survey'); fetchSurveySessions(); }}
-              className={`px-3 lg:px-4 py-2.5 rounded-xl text-[11px] lg:text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === 'data-survey' ? 'bg-white text-blue-600 shadow-md shadow-blue-500/10 ring-1 ring-slate-900/5 font-black' : 'text-slate-500 hover:text-slate-800 hover:bg-white/60'}`}>
+              className={`px-3.5 py-2 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shrink-0 ${activeTab === 'data-survey' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}>
               <Database size={14} className={activeTab === 'data-survey' ? 'text-blue-600' : 'text-slate-400'} />
               <span>Data Survey</span>
             </button>
             <button onClick={() => setActiveTab('history')}
-              className={`px-3 lg:px-4 py-2.5 rounded-xl text-[11px] lg:text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === 'history' ? 'bg-white text-blue-600 shadow-md shadow-blue-500/10 ring-1 ring-slate-900/5 font-black' : 'text-slate-500 hover:text-slate-800 hover:bg-white/60'}`}>
+              className={`px-3.5 py-2 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shrink-0 ${activeTab === 'history' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}>
               <History size={14} className={activeTab === 'history' ? 'text-blue-600' : 'text-slate-400'} />
               <span>Riwayat</span>
             </button>
             <button onClick={() => setActiveTab('master')}
-              className={`col-span-2 sm:col-span-1 px-3 lg:px-4 py-2.5 rounded-xl text-[11px] lg:text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === 'master' ? 'bg-white text-blue-600 shadow-md shadow-blue-500/10 ring-1 ring-slate-900/5 font-black' : 'text-slate-500 hover:text-slate-800 hover:bg-white/60'}`}>
+              className={`px-3.5 py-2 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shrink-0 ${activeTab === 'master' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}>
               <Package size={14} className={activeTab === 'master' ? 'text-blue-600' : 'text-slate-400'} />
-              <span>Master</span>
+              <span>Komoditas</span>
             </button>
           </div>
         </div>
@@ -751,462 +799,391 @@ const KomoditasHarga = () => {
 
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
-          {/* Stat Cards */}
-          {(() => {
-            const totalSurvey = new Set(allPrices.filter(p => p.survey_session_id).map(p => p.survey_session_id)).size;
-            const totalWilayah = new Set(allPrices.map(p => p.region_id).filter(Boolean)).size;
-            const stats = [
-              { label: 'Komoditas Dipantau', value: items.length, icon: Package, bg: 'bg-blue-50', text: 'text-blue-600' },
-              { label: 'Data Harga Tercatat', value: allPrices.length, icon: BarChart3, bg: 'bg-emerald-50', text: 'text-emerald-600' },
-              { label: 'Total Survey', value: totalSurvey, icon: ShoppingCart, bg: 'bg-amber-50', text: 'text-amber-600' },
-              { label: 'Wilayah', value: totalWilayah, icon: TrendingUp, bg: 'bg-purple-50', text: 'text-purple-600' },
-            ];
-            return (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-                {stats.map(({ label, value, icon: Icon, bg, text }, idx) => (
-                  <div key={idx} className="bg-white p-5 lg:p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="text-[9px] lg:text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
-                        <h3 className={`text-2xl lg:text-3xl font-black mt-1 lg:mt-2 ${text}`}>{value}</h3>
-                      </div>
-                      <div className={`w-10 h-10 lg:w-11 lg:h-11 ${bg} rounded-xl lg:rounded-2xl flex items-center justify-center ${text}`}>
-                        <Icon size={20} />
-                      </div>
-                    </div>
-                  </div>
+          {/* Simple & Clean Search Hero */}
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-center space-y-4">
+            <div className="max-w-2xl mx-auto space-y-1">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-blue-50 text-blue-700 text-xs font-semibold rounded border border-blue-100">
+                Pencarian Cepat Bahan Baku
+              </span>
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                Cari Harga Komoditas & Survei Pasar
+              </h2>
+              <p className="text-slate-500 text-xs font-medium">
+                Ketik nama bahan pangan untuk melihat data harga & riwayat survei lapangan.
+              </p>
+            </div>
+
+            {/* Clean Search Bar */}
+            <div className="max-w-xl mx-auto relative">
+              <div className="relative flex items-center bg-slate-50 rounded-xl border border-slate-200 focus-within:border-blue-500 focus-within:bg-white transition-all px-4 py-2.5">
+                <Search size={16} className="text-slate-400 shrink-0" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Ketik nama bahan makanan... (misal: Ayam, Beras, Telur)"
+                  className="w-full pl-3 pr-6 bg-transparent text-xs font-medium text-slate-800 placeholder:text-slate-400 outline-none"
+                  autoFocus
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="p-1 rounded text-slate-400 hover:text-slate-600 transition-all shrink-0"
+                    title="Hapus pencarian"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Quick Keyword Chips */}
+              <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3 text-xs font-medium text-slate-500">
+                <span className="text-slate-400 text-[11px]">Paling dicari:</span>
+                {['Ayam', 'Beras', 'Telur', 'Minyak', 'Daging Sapi', 'Bawang', 'Cabai', 'Ikan'].map((kw) => (
+                  <button
+                    key={kw}
+                    type="button"
+                    onClick={() => setSearchQuery(kw)}
+                    className={`px-2.5 py-1 rounded-md text-xs border transition-all ${searchQuery.toLowerCase() === kw.toLowerCase()
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                  >
+                    {kw}
+                  </button>
                 ))}
               </div>
-            );
-          })()}
+            </div>
+          </div>
 
-          {/* 🔍 Cek Harga Terupdate & 3 Survey Terakhir Bahan Baku */}
-          <div id="survey-inspector" className="bg-white p-6 lg:p-8 rounded-[2rem] border border-blue-100 shadow-sm space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shrink-0">
-                  <TrendingUp size={20} />
-                </div>
-                <div>
-                  <h2 className="text-base font-black text-slate-800 tracking-tight flex items-center gap-2">
-                    Cek Harga Terupdate & 3 Survey Terakhir
-                  </h2>
-                  <p className="text-xs text-slate-400 font-medium mt-0.5">
-                    Pilih atau cari bahan baku untuk mengecek harga terbaru, 3 survey terakhir, pasar/toko lokasi, dan petugas survey.
-                  </p>
-                </div>
+
+
+          {/* Quick Metrics Bar (Clean SaaS) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <Package size={18} />
               </div>
-              
-              {/* Searchable Commodity Selector */}
-              <div className="w-full md:w-72 shrink-0">
-                <SearchableCommoditySelect
-                  items={items}
-                  selectedId={items.find(i => i.nama.toLowerCase().trim() === (selectedInspectorItem || '').toLowerCase().trim())?.id || null}
-                  onSelect={(comm) => {
-                    if (comm) setSelectedInspectorItem(comm.nama);
-                  }}
-                  placeholder="🔍 Cari Bahan Baku..."
-                />
+              <div>
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Komoditas</p>
+                <p className="text-base font-bold text-slate-900">{items.length} Item</p>
               </div>
             </div>
 
-            {/* Content for Selected Commodity */}
-            {(() => {
-              const itemName = selectedInspectorItem || items[0]?.nama || latestPrices[0]?.item_name || '';
-              if (!itemName) {
-                return (
-                  <div className="py-8 text-center text-slate-400 text-xs font-bold">
-                    Silakan pilih komoditas di atas untuk mengecek data survey terakhir.
-                  </div>
-                );
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <BarChart3 size={18} />
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Tercatat</p>
+                <p className="text-base font-bold text-slate-900">{allPrices.length} Harga</p>
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <ShoppingCart size={18} />
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Sesi Survei</p>
+                <p className="text-base font-bold text-slate-900">
+                  {new Set(allPrices.filter(p => p.survey_session_id).map(p => p.survey_session_id)).size} Sesi
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <TrendingUp size={18} />
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Wilayah</p>
+                <p className="text-base font-bold text-slate-900">
+                  {new Set(allPrices.map(p => p.region_id).filter(Boolean)).size || 1} Pasar
+                </p>
+              </div>
+            </div>
+          </div>
+
+
+          {/* Search Results / Recently Surveyed Commodities List */}
+          {(() => {
+            const query = searchQuery.toLowerCase().trim();
+
+            // Extract items that have survey prices and group them by most recently surveyed
+            const surveyedMap = new Map();
+            allPrices.forEach((price) => {
+              const nameKey = (price.item_name || '').toLowerCase().trim();
+              if (!nameKey) return;
+              if (!surveyedMap.has(nameKey)) {
+                surveyedMap.set(nameKey, {
+                  item_name: price.item_name,
+                  commodity_item_id: price.commodity_item_id,
+                  latest_price: price.reference_price,
+                  unit: price.unit || 'kg',
+                  shop_name: price.shop_name,
+                  region_id: price.region_id,
+                  price_date: price.price_date,
+                  surveyor_name: price.surveyor_name,
+                  created_at: price.created_at,
+                  all_history: [price]
+                });
+              } else {
+                const existing = surveyedMap.get(nameKey);
+                existing.all_history.push(price);
+                const existingTime = new Date(existing.price_date || existing.created_at).getTime();
+                const newTime = new Date(price.price_date || price.created_at).getTime();
+                if (newTime > existingTime) {
+                  existing.latest_price = price.reference_price;
+                  existing.unit = price.unit || existing.unit;
+                  existing.shop_name = price.shop_name;
+                  existing.region_id = price.region_id;
+                  existing.price_date = price.price_date;
+                  existing.surveyor_name = price.surveyor_name;
+                  existing.created_at = price.created_at;
+                }
               }
+            });
 
-              // Filter allPrices for this item_name
-              const historyForItem = allPrices
-                .filter(p => p.item_name.toLowerCase().trim() === itemName.toLowerCase().trim() || (items.find(i => i.nama.toLowerCase() === itemName.toLowerCase()) && p.commodity_item_id === items.find(i => i.nama.toLowerCase() === itemName.toLowerCase())?.id))
-                .sort((a, b) => new Date(b.price_date || b.created_at) - new Date(a.price_date || a.created_at));
+            // If some items in master are surveyed or not yet surveyed, combine gracefully
+            const surveyedList = Array.from(surveyedMap.values()).sort(
+              (a, b) => new Date(b.price_date || b.created_at) - new Date(a.price_date || a.created_at)
+            );
 
-              const latest3 = historyForItem.slice(0, 3);
-              const latestEntry = historyForItem[0];
-              const commodityMeta = items.find(i => i.nama.toLowerCase() === itemName.toLowerCase());
+            // Filter based on search query
+            const matchingSurveyed = surveyedList.filter(item => {
+              if (!query) return true;
+              const nameMatch = (item.item_name || '').toLowerCase().includes(query);
+              const shopMatch = (item.shop_name || '').toLowerCase().includes(query);
+              const regionMatch = (item.region_id || '').toLowerCase().includes(query);
+              return nameMatch || shopMatch || regionMatch;
+            });
 
-              return (
-                <div className="space-y-6">
-                  {/* Header Banner */}
-                  <div className="p-5 lg:p-6 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg shadow-blue-900/10">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-0.5 bg-blue-500/30 text-blue-200 text-[10px] font-black uppercase rounded-lg">
-                          {commodityMeta?.kategori || 'Bahan Baku'}
-                        </span>
-                        <span className="text-xs text-blue-200 font-bold">Satuan Default: {commodityMeta?.satuan_default || latestEntry?.unit || 'kg'}</span>
-                      </div>
-                      <h3 className="text-xl lg:text-2xl font-black mt-1 flex items-center gap-2">
-                        <Package size={22} className="text-blue-400 shrink-0" />
-                        {itemName}
-                      </h3>
-                    </div>
-                    {latestEntry ? (
-                      <div className="flex items-center gap-4 bg-white/10 px-5 py-3 rounded-xl backdrop-blur-sm self-start md:self-auto border border-white/10">
-                        <div>
-                          <p className="text-[10px] font-black uppercase tracking-wider text-blue-200">Harga Terupdate</p>
-                          <p className="text-2xl font-black text-white">{formatRupiah(latestEntry.reference_price)} <span className="text-xs font-bold text-blue-200">/ {latestEntry.unit}</span></p>
-                        </div>
-                        <div className="border-l border-white/20 pl-4 text-xs font-medium text-blue-100">
-                          <p className="font-bold flex items-center gap-1.5 truncate max-w-[180px]">📍 {latestEntry.shop_name || 'Pasar Sikur'}</p>
-                          <p className="flex items-center gap-1.5 mt-0.5 font-bold text-sky-200 truncate max-w-[180px]"><User size={12} /> {latestEntry.surveyor_name || 'Petugas Survey'}</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-blue-200 font-bold">Belum ada riwayat survey untuk komoditas ini.</p>
-                    )}
+            return (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">
+                      {query ? `Hasil Pencarian untuk "${searchQuery}"` : 'Daftar Harga Bahan Baku yang Baru Disurvei'}
+                    </h3>
+                    <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-bold text-xs rounded-full">
+                      {matchingSurveyed.length} Item Terdata
+                    </span>
                   </div>
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    {query && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        <RotateCcw size={12} /> Reset Pencarian
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleExportPrices}
+                      className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-sm transition-all"
+                    >
+                      <Download size={13} /> Export Excel
+                    </button>
+                  </div>
+                </div>
 
-                  {/* 3 Last Surveys Cards */}
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                        <History size={14} className="text-blue-600" /> Data Lengkap 3 Survey Terakhir ({latest3.length} Survey)
-                      </h4>
-                      <span className="text-[10px] font-bold text-slate-400">Total Record Survey: {historyForItem.length}</span>
+                {matchingSurveyed.length === 0 ? (
+                  <div className="p-12 text-center bg-white rounded-3xl border border-slate-200/80 space-y-3">
+                    <div className="w-14 h-14 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mx-auto">
+                      <Search size={24} />
                     </div>
-                    
-                    {latest3.length === 0 ? (
-                      <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 text-center text-slate-400 text-xs font-bold">
-                        Belum ada data survey pasar tercatat untuk {itemName}. Silakan input survey pasar di tab "Input Survey".
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {latest3.map((survey, index) => {
-                          const prevSurvey = historyForItem[index + 1];
-                          let priceDiff = 0;
-                          let priceDiffPct = 0;
-                          if (prevSurvey && prevSurvey.reference_price > 0) {
-                            priceDiff = survey.reference_price - prevSurvey.reference_price;
-                            priceDiffPct = (priceDiff / prevSurvey.reference_price) * 100;
-                          }
+                    <h4 className="text-sm font-bold text-slate-700">
+                      {query ? `Tidak ada hasil survey dengan kata "${searchQuery}"` : 'Belum ada data harga survei tercatat'}
+                    </h4>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                      {query ? 'Coba gunakan kata kunci bahan baku lain.' : 'Lakukan survei harga baru melalui tab "Input Survey" atau "Import Excel".'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {matchingSurveyed.map((surveyItem, idx) => {
+                      const matchedMeta = items.find(i => i.nama.toLowerCase().trim() === surveyItem.item_name.toLowerCase().trim());
 
-                          const rankBadges = [
-                            { label: 'Survei #1 (Terbaru)', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
-                            { label: 'Survei #2 (Sebelumnya)', color: 'bg-blue-100 text-blue-800 border-blue-300' },
-                            { label: 'Survei #3 (Lama)', color: 'bg-slate-100 text-slate-700 border-slate-300' },
-                          ];
+                      // Sort history to calculate price diff
+                      const sortedHist = (surveyItem.all_history || []).sort((a, b) => new Date(b.price_date || b.created_at) - new Date(a.price_date || a.created_at));
+                      const latest = sortedHist[0];
+                      const prev = sortedHist[1];
 
-                          return (
-                            <div key={survey.id || index} className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200/90 hover:border-blue-300 hover:shadow-md transition-all flex flex-col justify-between space-y-4">
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <span className={`px-2.5 py-1 text-[9px] font-black uppercase rounded-lg border ${rankBadges[index]?.color}`}>
-                                    {rankBadges[index]?.label}
+                      let diff = 0;
+                      let diffPct = 0;
+                      if (latest && prev && prev.reference_price > 0) {
+                        diff = latest.reference_price - prev.reference_price;
+                        diffPct = (diff / prev.reference_price) * 100;
+                      }
+
+                      return (
+                        <div
+                          key={idx}
+                          className="bg-white p-5 rounded-2xl border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                        >
+                          <div className="space-y-2.5">
+                            {/* Header Item */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] font-black uppercase rounded-md">
+                                  {matchedMeta?.kategori || 'Bahan Pangan'}
+                                </span>
+                                <h4 className="text-base font-black text-slate-800 mt-1 flex items-center gap-1.5">
+                                  <Package size={16} className="text-blue-500 shrink-0" />
+                                  {surveyItem.item_name}
+                                </h4>
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg">
+                                /{surveyItem.unit || 'kg'}
+                              </span>
+                            </div>
+
+                            {/* Price Section */}
+                            <div className="p-3.5 bg-slate-50 rounded-xl space-y-1.5 border border-slate-100">
+                              <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Harga Hasil Survei Terbaru</p>
+                              <div>
+                                <div className="flex items-baseline justify-between">
+                                  <span className="text-xl lg:text-2xl font-black text-blue-600">
+                                    {formatRupiah(surveyItem.latest_price)}
                                   </span>
-                                  <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-100">
-                                    📅 {survey.price_date ? new Date(survey.price_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
-                                  </span>
-                                </div>
-
-                                <div className="pt-2">
-                                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Harga Acuan Hasil Survey</p>
-                                  <p className="text-xl font-black text-slate-800 mt-0.5">
-                                    {formatRupiah(survey.reference_price)} <span className="text-xs font-bold text-slate-500">/ {survey.unit}</span>
-                                  </p>
-                                  
-                                  {/* Price Change vs Previous */}
-                                  {prevSurvey ? (
-                                    <div className={`inline-flex items-center gap-1 text-[10px] font-bold mt-1.5 px-2 py-0.5 rounded-md ${
-                                      priceDiff > 0 ? 'bg-rose-100 text-rose-800' : priceDiff < 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
-                                    }`}>
-                                      {priceDiff > 0 ? `📈 Naik ${formatRupiah(priceDiff)} (+${priceDiffPct.toFixed(1)}%)` : priceDiff < 0 ? `📉 Turun ${formatRupiah(Math.abs(priceDiff))} (${priceDiffPct.toFixed(1)}%)` : '⚖️ Stabil (0%)'}
-                                    </div>
-                                  ) : (
-                                    <div className="text-[10px] text-slate-400 font-medium mt-1">Titik dasar pencatatan</div>
+                                  {diff !== 0 && (
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${diff > 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
+                                      }`}>
+                                      {diff > 0 ? `▲ +${diffPct.toFixed(1)}%` : `▼ ${diffPct.toFixed(1)}%`}
+                                    </span>
                                   )}
                                 </div>
-                              </div>
-
-                              <div className="pt-3 border-t border-slate-200/60 space-y-2 text-xs">
-                                <div className="flex items-center justify-between text-slate-600">
-                                  <span className="text-slate-400 font-bold text-[10px] uppercase">Toko / Pasar:</span>
-                                  <span className="font-bold text-slate-800 truncate max-w-[150px]">📍 {survey.shop_name || '-'}</span>
-                                </div>
-                                <div className="flex items-center justify-between text-slate-600">
-                                  <span className="text-slate-400 font-bold text-[10px] uppercase">Petugas Survey:</span>
-                                  <span className="font-bold text-blue-700 flex items-center gap-1 truncate max-w-[150px]">
-                                    <User size={12} /> {survey.surveyor_name || 'Petugas Survey'}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between text-slate-600">
-                                  <span className="text-slate-400 font-bold text-[10px] uppercase">Wilayah:</span>
-                                  <span className="font-bold text-slate-700">{survey.region_id || 'Sikur'}</span>
+                                <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium pt-2 mt-1.5 border-t border-slate-200/60">
+                                  <span className="truncate max-w-[150px] font-bold text-slate-700">📍 {surveyItem.shop_name || 'Pasar'}</span>
+                                  <span className="font-bold text-slate-500">📅 {surveyItem.price_date ? new Date(surveyItem.price_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</span>
                                 </div>
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
+                          </div>
 
-          {/* Category Summary */}
-          {items.length > 0 && (
-            <div className="bg-white p-6 lg:p-8 rounded-[2rem] border border-blue-100 shadow-sm">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-9 h-9 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
-                  <Package size={18} />
-                </div>
-                <div>
-                  <h2 className="text-sm font-black text-slate-800">Kategori Komoditas</h2>
-                  <p className="text-slate-400 font-medium text-xs">Distribusi komoditas berdasarkan kategori.</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(() => {
-                  const catCount = {};
-                  items.forEach(i => { const k = i.kategori || 'Umum'; catCount[k] = (catCount[k] || 0) + 1; });
-                  const colors = ['bg-blue-50 text-blue-700 border-blue-200', 'bg-emerald-50 text-emerald-700 border-emerald-200', 'bg-amber-50 text-amber-700 border-amber-200', 'bg-rose-50 text-rose-700 border-rose-200', 'bg-purple-50 text-purple-700 border-purple-200', 'bg-cyan-50 text-cyan-700 border-cyan-200', 'bg-orange-50 text-orange-700 border-orange-200', 'bg-teal-50 text-teal-700 border-teal-200', 'bg-slate-50 text-slate-700 border-slate-200'];
-                  return Object.entries(catCount).sort((a, b) => b[1] - a[1]).map(([cat, count], idx) => (
-                    <span key={cat} className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border font-bold text-[10px] uppercase tracking-wider ${colors[idx % colors.length]}`}>
-                      {cat}
-                      <span className="px-1.5 py-0.5 rounded-md bg-white/60 text-inherit">{count}</span>
-                    </span>
-                  ));
-                })()}
-              </div>
-            </div>
-          )}
-
-          {/* Latest Survey Info */}
-          {(() => {
-            if (allPrices.length === 0) return null;
-            const sorted = [...allPrices].sort((a, b) => new Date(b.created_at || b.price_date) - new Date(a.created_at || a.price_date));
-            const latest = sorted[0];
-            if (!latest) return null;
-            const sessionItems = allPrices.filter(p => p.survey_session_id === latest.survey_session_id);
-            return (
-              <div className="bg-white p-5 lg:p-8 rounded-2xl lg:rounded-[2rem] border border-blue-100 shadow-sm">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-9 h-9 bg-sky-50 rounded-xl flex items-center justify-center text-sky-600">
-                    <ShoppingCart size={18} />
+                          {/* Footer Actions */}
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <span className="text-[10px] font-bold text-slate-400">
+                              {sortedHist.length} Catatan Survei
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenHistoryModal(surveyItem.item_name)}
+                              className="text-blue-600 hover:text-blue-800 font-bold text-xs flex items-center gap-1 hover:underline active:scale-95 transition-all"
+                            >
+                              Lihat Riwayat <ArrowUpRight size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div>
-                    <h2 className="text-sm font-black text-slate-800">Survey Terakhir</h2>
-                    <p className="text-slate-400 font-medium text-xs">Informasi survey pasar terbaru.</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-4">
-                  <div className="p-3 lg:p-4 bg-sky-50/50 rounded-xl lg:rounded-2xl border border-sky-100">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Toko / Pasar</p>
-                    <p className="text-sm font-bold text-slate-800 mt-0.5 lg:mt-1 truncate">{latest.shop_name || '-'}</p>
-                  </div>
-                  <div className="p-3 lg:p-4 bg-sky-50/50 rounded-xl lg:rounded-2xl border border-sky-100">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Tanggal</p>
-                    <p className="text-sm font-bold text-slate-800 mt-0.5 lg:mt-1">
-                      {latest.price_date ? new Date(latest.price_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}
-                    </p>
-                  </div>
-                  <div className="p-3 lg:p-4 bg-sky-50/50 rounded-xl lg:rounded-2xl border border-sky-100">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Item Tercatat</p>
-                    <p className="text-sm font-bold text-slate-800 mt-0.5 lg:mt-1">{sessionItems.length} item</p>
-                  </div>
-                  <div className="p-3 lg:p-4 bg-sky-50/50 rounded-xl lg:rounded-2xl border border-sky-100">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Wilayah</p>
-                    <p className="text-sm font-bold text-slate-800 mt-0.5 lg:mt-1">{latest.region_id || '-'}</p>
-                  </div>
-                </div>
+                )}
               </div>
             );
           })()}
-
-          {/* Harga Terkini */}
-          <div className="bg-white rounded-2xl lg:rounded-[2rem] border border-blue-100 shadow-sm overflow-hidden">
-            <div className="px-5 lg:px-8 py-4 lg:py-5 border-b border-blue-50 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 shrink-0">
-                  <BarChart3 size={18} />
-                </div>
-                <div className="min-w-0">
-                  <h2 className="text-sm font-black text-slate-800 truncate">Harga Terkini</h2>
-                  <p className="text-slate-400 font-medium text-xs truncate">Harga terbaru per komoditas.</p>
-                </div>
-              </div>
-              <button onClick={handleExportPrices}
-                className="shrink-0 flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-2 lg:py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-[10px] lg:text-xs uppercase tracking-wider shadow-lg shadow-emerald-100 transition-all">
-                <Download size={13} /> Export
-              </button>
-            </div>
-            {loadingPrices ? (
-              <div className="py-12"><Loader2 className="animate-spin mx-auto text-blue-600" size={24} /></div>
-            ) : latestPrices.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 font-bold text-sm">Belum ada data harga.</div>
-            ) : (
-              <>
-                {/* Desktop table */}
-                <div className="hidden lg:block overflow-x-auto max-h-[500px]">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-blue-50 sticky top-0">
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Komoditas</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Harga Terkini</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Satuan</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Tanggal</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Toko / Pasar</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Wilayah</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {latestPrices.map((p) => (
-                        <tr key={p.item_name} 
-                          onClick={() => {
-                            setSelectedInspectorItem(p.item_name);
-                            document.getElementById('survey-inspector')?.scrollIntoView({ behavior: 'smooth' });
-                          }}
-                          className={`hover:bg-blue-50/40 cursor-pointer transition-colors ${selectedInspectorItem.toLowerCase() === p.item_name.toLowerCase() ? 'bg-blue-50/60 font-bold' : ''}`}>
-                          <td className="px-6 py-4"><p className="font-bold text-slate-800 text-sm flex items-center gap-1.5"><Package size={14} className="text-blue-600 shrink-0" />{p.item_name}</p></td>
-                          <td className="px-6 py-4"><span className="font-black text-blue-600 text-base bg-blue-50/50 px-3 py-1.5 rounded-xl inline-block">{formatRupiah(p.reference_price)}</span></td>
-                          <td className="px-6 py-4 text-center"><span className="px-2.5 py-1 bg-slate-100 text-slate-600 text-[10px] font-black rounded-lg uppercase tracking-wider">{p.unit}</span></td>
-                          <td className="px-6 py-4 text-center font-bold text-slate-500 text-xs">{p.price_date ? new Date(p.price_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</td>
-                          <td className="px-6 py-4 font-medium text-slate-600 text-sm">{p.shop_name || '-'}</td>
-                          <td className="px-6 py-4 font-bold text-slate-500 text-xs">{p.region_id || '-'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {/* Mobile cards */}
-                <div className="lg:hidden divide-y divide-slate-100">
-                  {latestPrices.map((p) => (
-                    <div key={p.item_name} className="p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="font-bold text-slate-800 text-sm">{p.item_name}</p>
-                        <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[9px] font-black rounded-lg uppercase">{p.unit}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="font-black text-blue-600">{formatRupiah(p.reference_price)}</span>
-                        <span className="text-[10px] text-slate-500 font-medium">{p.price_date ? new Date(p.price_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-'}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-[10px] text-slate-400 font-medium">
-                        <span className="flex items-center gap-1">📍 {p.shop_name || '-'}</span>
-                        <span>•</span>
-                        <span>{p.region_id || '-'}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
         </div>
       )}
 
       {activeTab === 'ntb-live' && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* Header Banner */}
-          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-emerald-700 via-teal-700 to-slate-900 text-white p-6 lg:p-8 shadow-xl shadow-emerald-900/10 border border-emerald-600/30">
-            <div className="pointer-events-none absolute -top-32 -right-32 w-96 h-96 rounded-full bg-emerald-400/20 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-40 -left-24 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl" />
-
-            <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-              <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center shadow-inner shrink-0 border border-white/20">
-                  <Globe size={28} className="text-emerald-300" />
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <Globe size={20} />
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest bg-emerald-500/30 text-emerald-200 px-3 py-1 rounded-full border border-emerald-400/30">
-                      <Radio size={10} className="animate-pulse text-emerald-300" /> Live Synchronized
+                    <span className="flex items-center gap-1 text-[10px] font-semibold uppercase bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200">
+                      <Radio size={10} className="animate-pulse text-emerald-600" /> Live Sinkronisasi
                     </span>
-                    <span className="text-[9px] font-black uppercase tracking-widest bg-white/15 text-white px-3 py-1 rounded-full border border-white/20">
-                      {ntbLivePrices.length} Komoditas Responded
+                    <span className="text-[10px] font-semibold uppercase bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                      {ntbLivePrices.length} Komoditas
                     </span>
                   </div>
-                  <h2 className="text-xl lg:text-2xl font-black tracking-tight mt-2">
-                    Harga Pangan Acuan <span className="text-emerald-300">Disperindag NTB & SP2KP</span>
+                  <h2 className="text-base font-bold text-slate-900 mt-1">
+                    Harga Pangan Acuan Disperindag NTB & SP2KP
                   </h2>
-                  <p className="text-xs text-emerald-100/80 font-medium mt-1 max-w-xl">
-                    Pantauan harga rata-rata bahan pokok resmi dari pasar acuan se-NTB sebagai acuan utama standar perencanaan anggaran katering dan audit alokasi SPPG.
+                  <p className="text-xs text-slate-500 font-medium mt-0.5 max-w-xl">
+                    Pantauan harga rata-rata bahan pokok resmi se-NTB sebagai standar acuan audit & RAB SPPG.
                   </p>
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={fetchNtbLivePrices}
                   disabled={loadingLiveNtb}
-                  className="px-4 py-3 rounded-2xl bg-emerald-400 hover:bg-emerald-300 active:scale-95 disabled:opacity-60 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-400/20 cursor-pointer"
+                  className="btn-secondary text-xs"
                 >
-                  <RefreshCw size={14} className={loadingLiveNtb ? 'animate-spin' : ''} />
-                  <span>{loadingLiveNtb ? 'Memuat...' : 'Refresh Live'}</span>
+                  <RefreshCw size={13} className={loadingLiveNtb ? 'animate-spin' : ''} />
+                  <span>Segarkan</span>
                 </button>
-                <a
-                  href="https://disperindag.ntbprov.go.id/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all border border-white/15 backdrop-blur-sm"
-                >
-                  <span>Portal Disperindag</span>
-                  <ExternalLink size={13} />
-                </a>
               </div>
             </div>
+          </div>
 
-            {/* Stat Strip */}
-            <div className="relative mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/15 text-emerald-300 flex items-center justify-center shrink-0"><Package size={18} /></div>
-                <div>
-                  <p className="text-[9px] uppercase tracking-widest text-emerald-200/80 font-bold">Total Komoditas</p>
-                  <p className="text-xl font-black text-white">{ntbLivePrices.length}</p>
-                </div>
+          {/* Stat Strip */}
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><Package size={18} /></div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Total Komoditas</p>
+                <p className="text-base font-bold text-slate-900">{ntbLivePrices.length}</p>
               </div>
-              <div className="rounded-2xl bg-rose-500/20 backdrop-blur-md border border-rose-400/30 p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-rose-500/30 text-rose-200 flex items-center justify-center shrink-0"><TrendingUp size={18} /></div>
-                <div>
-                  <p className="text-[9px] uppercase tracking-widest text-rose-200/80 font-bold">Kenaikan Harga</p>
-                  <p className="text-xl font-black text-rose-200">{ntbLivePrices.filter(i => i.status_tren === 'NAIK').length}</p>
-                </div>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0"><TrendingUp size={18} /></div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Kenaikan Harga</p>
+                <p className="text-base font-bold text-rose-600">{ntbLivePrices.filter(i => i.status_tren === 'NAIK').length}</p>
               </div>
-              <div className="rounded-2xl bg-emerald-500/20 backdrop-blur-md border border-emerald-400/30 p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/30 text-emerald-200 flex items-center justify-center shrink-0"><TrendingDown size={18} /></div>
-                <div>
-                  <p className="text-[9px] uppercase tracking-widest text-emerald-200/80 font-bold">Penurunan Harga</p>
-                  <p className="text-xl font-black text-emerald-200">{ntbLivePrices.filter(i => i.status_tren === 'TURUN').length}</p>
-                </div>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><TrendingDown size={18} /></div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Penurunan Harga</p>
+                <p className="text-base font-bold text-emerald-600">{ntbLivePrices.filter(i => i.status_tren === 'TURUN').length}</p>
               </div>
-              <div className="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/15 text-slate-200 flex items-center justify-center shrink-0"><Minus size={18} /></div>
-                <div>
-                  <p className="text-[9px] uppercase tracking-widest text-slate-200/80 font-bold">Harga Stabil</p>
-                  <p className="text-xl font-black text-white">{ntbLivePrices.filter(i => i.status_tren === 'STABIL' || !i.status_tren).length}</p>
-                </div>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0"><Minus size={18} /></div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Harga Stabil</p>
+                <p className="text-base font-bold text-slate-900">{ntbLivePrices.filter(i => i.status_tren === 'STABIL' || !i.status_tren).length}</p>
               </div>
             </div>
           </div>
 
           {/* Clean Light Filter & View Toolbar */}
-          <div className="bg-white rounded-[2rem] border border-blue-100 p-4 lg:p-5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 shadow-sm sticky top-20 z-20">
-            <div className="flex items-center gap-3 flex-1 lg:max-w-md">
+          <div className="bg-white rounded-xl border border-slate-200 p-3.5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-2 flex-1 max-w-md">
               <div className="relative flex-1">
                 <input
                   type="text"
-                  placeholder="🔍 Cari komoditas acuan NTB..."
+                  placeholder="Cari komoditas acuan NTB..."
                   value={ntbSearchQuery}
                   onChange={(e) => setNtbSearchQuery(e.target.value)}
-                  className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:bg-white transition-all"
+                  className="input text-xs"
                 />
                 {ntbSearchQuery && (
                   <button
                     type="button"
                     onClick={() => setNtbSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold text-xs p-1"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
                   >
                     ✕
                   </button>
                 )}
               </div>
+
 
               <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
                 <button
@@ -1235,11 +1212,10 @@ const KomoditasHarga = () => {
                   key={cat}
                   type="button"
                   onClick={() => setSelectedNtbCategory(cat)}
-                  className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer ${
-                    selectedNtbCategory === cat
+                  className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer ${selectedNtbCategory === cat
                       ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
                       : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/80'
-                  }`}
+                    }`}
                 >
                   {cat}
                 </button>
@@ -1289,11 +1265,10 @@ const KomoditasHarga = () => {
                         key={idx}
                         type="button"
                         onClick={() => selectNtbItem(item)}
-                        className={`text-left p-4 lg:p-5 rounded-2xl border transition-all cursor-pointer space-y-3 relative group ${
-                          isSelected
+                        className={`text-left p-4 lg:p-5 rounded-2xl border transition-all cursor-pointer space-y-3 relative group ${isSelected
                             ? 'bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-500/20 shadow-md'
                             : 'bg-white border-slate-200/80 hover:border-emerald-400 hover:shadow-md hover:-translate-y-0.5'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
@@ -1305,11 +1280,10 @@ const KomoditasHarga = () => {
                             </h4>
                           </div>
 
-                          <div className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase flex items-center gap-1 shrink-0 ${
-                            isNaik ? 'bg-rose-50 text-rose-600 border border-rose-200' :
-                            isTurun ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
-                            'bg-slate-100 text-slate-500 border border-slate-200'
-                          }`}>
+                          <div className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase flex items-center gap-1 shrink-0 ${isNaik ? 'bg-rose-50 text-rose-600 border border-rose-200' :
+                              isTurun ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
+                                'bg-slate-100 text-slate-500 border border-slate-200'
+                            }`}>
                             {isNaik ? <ArrowUpRight size={12} /> : isTurun ? <ArrowDownRight size={12} /> : <Minus size={12} />}
                             <span>{item.perubahan !== 0 ? `${item.perubahan > 0 ? '+' : ''}${item.perubahan}%` : 'STABIL'}</span>
                           </div>
@@ -1364,9 +1338,8 @@ const KomoditasHarga = () => {
                           <tr
                             key={idx}
                             onClick={() => selectNtbItem(item)}
-                            className={`cursor-pointer transition-colors ${
-                              isSelected ? 'bg-emerald-50/70 font-bold' : 'hover:bg-slate-50/80'
-                            }`}
+                            className={`cursor-pointer transition-colors ${isSelected ? 'bg-emerald-50/70 font-bold' : 'hover:bg-slate-50/80'
+                              }`}
                           >
                             <td className="px-5 py-4">
                               <p className="font-bold text-slate-800 text-sm">{item.komoditas}</p>
@@ -1383,18 +1356,16 @@ const KomoditasHarga = () => {
                               {item.satuan}
                             </td>
                             <td className="px-5 py-4 text-center">
-                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-black rounded-lg uppercase ${
-                                isNaik ? 'bg-rose-50 text-rose-600 border border-rose-200' :
-                                isTurun ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
-                                'bg-slate-100 text-slate-500 border border-slate-200'
-                              }`}>
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-black rounded-lg uppercase ${isNaik ? 'bg-rose-50 text-rose-600 border border-rose-200' :
+                                  isTurun ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
+                                    'bg-slate-100 text-slate-500 border border-slate-200'
+                                }`}>
                                 {isNaik ? <ArrowUpRight size={12} /> : isTurun ? <ArrowDownRight size={12} /> : <Minus size={12} />}
                                 {item.perubahan !== 0 ? `${item.perubahan > 0 ? '+' : ''}${item.perubahan}%` : 'STABIL'}
                               </span>
                             </td>
-                            <td className={`px-5 py-4 text-right font-black text-xs ${
-                              isNaik ? 'text-rose-600' : isTurun ? 'text-emerald-600' : 'text-slate-400'
-                            }`}>
+                            <td className={`px-5 py-4 text-right font-black text-xs ${isNaik ? 'text-rose-600' : isTurun ? 'text-emerald-600' : 'text-slate-400'
+                              }`}>
                               {isNaik ? '+' : ''}Rp {Math.abs(Math.round(changeRp)).toLocaleString('id-ID')}
                             </td>
                             <td className="px-5 py-4 text-xs font-bold text-slate-500">
@@ -1436,28 +1407,30 @@ const KomoditasHarga = () => {
                 onClick={(e) => e.stopPropagation()}
                 className="relative w-full max-w-3xl flex flex-col my-auto"
               >
-                <div className="bg-white rounded-[2.5rem] shadow-2xl flex flex-col max-h-[88vh] overflow-hidden border border-emerald-200">
+                <div className="bg-white rounded-xl shadow-2xl flex flex-col max-h-[88vh] overflow-hidden border border-slate-200">
                   {/* Header */}
-                  <div className="p-6 lg:p-7 bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-start justify-between gap-4 shrink-0">
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
-                        <CandlestickChart size={24} />
+                  <div className="px-6 py-4 bg-slate-50/80 border-b border-slate-200 text-slate-900 flex items-center justify-between gap-4 shrink-0">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center shrink-0 border border-emerald-100">
+                        <CandlestickChart size={18} />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-[9px] font-black uppercase tracking-widest bg-white/20 text-white px-2.5 py-1 rounded-full">{selectedNtbItem.kategori}</span>
-                        <h3 className="text-xl lg:text-2xl font-black tracking-tight mt-1.5 truncate">{selectedNtbItem.komoditas}</h3>
-                        <p className="text-emerald-100 text-[11px] font-semibold mt-0.5">Pasar acuan: {selectedNtbItem.pasar_acuan} · Disperindag NTB & SP2KP</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-semibold uppercase bg-slate-200 text-slate-700 px-2 py-0.5 rounded">{selectedNtbItem.kategori}</span>
+                        </div>
+                        <h3 className="text-base font-bold text-slate-900 truncate mt-0.5">{selectedNtbItem.komoditas}</h3>
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => setSelectedNtbItem(null)}
-                      className="p-3 bg-white/10 text-white hover:bg-white/25 rounded-2xl transition-all shrink-0"
+                      className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all shrink-0"
                       aria-label="Tutup modal"
                     >
-                      <X size={20} />
+                      <X size={18} />
                     </button>
                   </div>
+
 
                   {/* Content */}
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-7 space-y-6">
@@ -1552,288 +1525,251 @@ const KomoditasHarga = () => {
         </div>
       )}
       {activeTab === 'survey' && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* Header Card — Data Survey */}
-          <div className="bg-white p-6 lg:p-8 rounded-[2rem] border border-blue-100 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="bg-white rounded-2xl border border-blue-100 shadow-sm overflow-hidden">
+            {/* Card Header */}
+            <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
-                  <ShoppingCart size={20} />
+                <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 shrink-0">
+                  <ShoppingCart size={18} />
                 </div>
                 <div>
-                  <h2 className="text-base font-black text-slate-800">Data Survey</h2>
-                  <p className="text-slate-400 text-xs font-medium">Input informasi lokasi survey pasar manual atau via Excel.</p>
+                  <h2 className="text-sm font-black text-slate-800">Input Survey Pasar</h2>
+                  <p className="text-slate-400 text-[11px] font-medium hidden sm:block">Catat harga bahan baku secara manual atau via Excel.</p>
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={handleSaveDraft}
-                  className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-wider transition-all border border-slate-200"
-                  title="Simpan sementara di browser untuk dilanjutkan nanti"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-all border border-slate-200"
+                  title="Simpan sementara di browser"
                 >
-                  <Bookmark size={15} className="text-amber-500" />
+                  <Bookmark size={14} className="text-amber-500" />
                   Simpan Draft
                 </button>
-
                 <button
                   type="button"
                   onClick={() => setShowExcelModal(true)}
-                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all shrink-0"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-md shadow-emerald-500/20 transition-all"
                 >
-                  <FileSpreadsheet size={16} />
-                  Import Excel (.xlsx)
+                  <FileSpreadsheet size={14} />
+                  Import Excel
                 </button>
               </div>
             </div>
 
-            {/* Draft Available Alert Banner */}
-            {draftInfo && (
-              <div className="mb-6 p-4 bg-amber-50/90 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                    <Bookmark size={18} />
+            <div className="p-4 sm:p-6 space-y-5">
+              {/* Draft Available Alert Banner */}
+              {draftInfo && (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
+                      <Bookmark size={16} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-amber-900">
+                        Draft: {draftInfo.shopName} · {draftInfo.itemCount} item · pukul {draftInfo.savedAt}
+                      </h4>
+                      <p className="text-[11px] text-amber-700 font-medium mt-0.5">
+                        Ada draf yang belum dikirim ke server. Ingin melanjutkan?
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-amber-900">
-                      Draft Tersimpan Ditemukan ({draftInfo.shopName} · {draftInfo.itemCount} item · pukul {draftInfo.savedAt})
-                    </h4>
-                    <p className="text-[11px] text-amber-700 font-medium mt-0.5">
-                      Anda memiliki draf survey yang belum disimpan ke server. Ingin melanjutkan pengisian?
-                    </p>
+                  <div className="flex items-center gap-2 ml-11 sm:ml-0">
+                    <button
+                      type="button"
+                      onClick={handleRestoreDraft}
+                      className="flex-1 sm:flex-none px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
+                    >
+                      <RotateCcw size={12} />
+                      Pulihkan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearDraft}
+                      className="p-2 text-amber-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                      title="Buang Draft"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleRestoreDraft}
-                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
-                  >
-                    <RotateCcw size={13} />
-                    Pulihkan Draft
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleClearDraft}
-                    className="p-2 text-amber-600 hover:text-red-600 hover:bg-amber-100 rounded-xl transition-all"
-                    title="Hapus Draft"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              </div>
-            )}
+              )}
 
-            <form id="survey-form" onSubmit={handleSubmitSurvey} className="space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Nama Toko / Pasar <span className="text-red-400">*</span></label>
-                  <input type="text" required placeholder="Contoh: Toko Barokah / Pasar Sikur"
-                    value={surveyForm.shop_name}
-                    onChange={(e) => setSurveyForm(prev => ({ ...prev, shop_name: e.target.value }))}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Wilayah</label>
-                  <select value={surveyForm.region_id}
-                    onChange={(e) => setSurveyForm(prev => ({ ...prev, region_id: e.target.value }))}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm appearance-none">
-                    {regionList.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Tanggal <span className="text-red-400">*</span></label>
-                  <input type="date" required value={surveyForm.survey_date}
-                    onChange={(e) => setSurveyForm(prev => ({ ...prev, survey_date: e.target.value }))}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Surveyor</label>
-                  <input type="text" placeholder="Nama petugas"
-                    value={surveyForm.surveyor_name}
-                    onChange={(e) => setSurveyForm(prev => ({ ...prev, surveyor_name: e.target.value }))}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm" />
-                </div>
-              </div>
-
-              {/* Optional Section: Pengesahan Kepala Pasar & Dokumentasi Foto */}
-              <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Camera size={16} className="text-indigo-600" />
-                    <span className="text-xs font-black text-slate-700 uppercase tracking-wider">
-                      Dokumentasi Foto & Pengesahan Pasar <span className="text-slate-400 font-normal lowercase">(opsional)</span>
-                    </span>
+              <form id="survey-form" onSubmit={handleSubmitSurvey} className="space-y-5">
+                {/* Informasi Dasar */}
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <User size={11} /> Informasi Dasar
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Nama Toko / Pasar <span className="text-red-400">*</span></label>
+                      <input type="text" required placeholder="Contoh: Toko Barokah / Pasar Sikur"
+                        value={surveyForm.shop_name}
+                        onChange={(e) => setSurveyForm(prev => ({ ...prev, shop_name: e.target.value }))}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Wilayah</label>
+                      <select value={surveyForm.region_id}
+                        onChange={(e) => setSurveyForm(prev => ({ ...prev, region_id: e.target.value }))}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm appearance-none">
+                        {regionList.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Tanggal <span className="text-red-400">*</span></label>
+                      <input type="date" required value={surveyForm.survey_date}
+                        onChange={(e) => setSurveyForm(prev => ({ ...prev, survey_date: e.target.value }))}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm" />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Surveyor</label>
+                      <input type="text" placeholder="Nama petugas"
+                        value={surveyForm.surveyor_name}
+                        onChange={(e) => setSurveyForm(prev => ({ ...prev, surveyor_name: e.target.value }))}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm" />
+                    </div>
                   </div>
-                  {surveyForm.official_doc_url && (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-100/80 text-emerald-800 rounded-lg text-[10px] font-black">
-                      <CheckCircle2 size={12} /> Dokumen Disahkan Terlampir
-                    </span>
-                  )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {/* Kepala Pasar */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                      Nama Pengesah / Kepala Pasar
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Contoh: H. Ahmad Fauzi (Kepala Pasar)"
-                      value={surveyForm.head_of_market_name}
-                      onChange={(e) => setSurveyForm(prev => ({ ...prev, head_of_market_name: e.target.value }))}
-                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-indigo-500 transition-all"
-                    />
-                  </div>
-
-                  {/* Dokumen Pengesahan URL / Status */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                      Dokumen Pengesahan Scan
-                    </label>
-                    {surveyForm.official_doc_url ? (
-                      <div className="flex items-center justify-between px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs">
-                        <span className="font-bold text-emerald-800 truncate flex items-center gap-1.5">
-                          <FileCheck size={14} className="text-emerald-600" />
-                          Berkas Tersimpan
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setPreviewMediaModal({
-                              type: 'doc',
-                              url: surveyForm.official_doc_url,
-                              title: `Dokumen Pengesahan: ${surveyForm.shop_name || 'Survey'}`
-                            })}
-                            className="p-1 text-emerald-700 hover:text-emerald-900"
-                            title="Pratinjau"
-                          >
-                            <ExternalLink size={13} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSurveyForm(prev => ({ ...prev, official_doc_url: null }))}
-                            className="p-1 text-slate-400 hover:text-red-500"
-                            title="Hapus"
-                          >
-                            <X size={13} />
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <label
-                          htmlFor="upload-official-doc-direct"
-                          className="cursor-pointer w-full px-3 py-2 bg-white hover:bg-slate-50 border border-dashed border-indigo-300 rounded-xl text-xs font-bold text-indigo-600 flex items-center justify-center gap-1.5 transition-all shadow-sm"
-                        >
-                          <FileCheck size={14} /> Upload Dokumen Pengesahan
-                        </label>
-                        <input
-                          id="upload-official-doc-direct"
-                          type="file"
-                          accept="image/*,application/pdf"
-                          onChange={handleUploadOfficialDocDirect}
-                          className="hidden"
-                        />
-                      </div>
+                {/* Optional: Dokumentasi */}
+                <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Camera size={14} className="text-indigo-500" />
+                      <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">Dokumentasi & Pengesahan</span>
+                      <span className="text-[10px] text-slate-400 font-medium">(opsional)</span>
+                    </div>
+                    {surveyForm.official_doc_url && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black">
+                        <CheckCircle2 size={11} /> Tersimpan
+                      </span>
                     )}
                   </div>
 
-                  {/* Catatan Sesi */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                      Catatan Survey
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Catatan kondisi pasar, stok, dll."
-                      value={surveyForm.notes}
-                      onChange={(e) => setSurveyForm(prev => ({ ...prev, notes: e.target.value }))}
-                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-indigo-500 transition-all"
-                    />
-                  </div>
-                </div>
+                  <div className="p-4 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Nama Kepala Pasar / Pengesah</label>
+                        <input
+                          type="text"
+                          placeholder="Contoh: H. Ahmad Fauzi"
+                          value={surveyForm.head_of_market_name}
+                          onChange={(e) => setSurveyForm(prev => ({ ...prev, head_of_market_name: e.target.value }))}
+                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Catatan Survey</label>
+                        <input
+                          type="text"
+                          placeholder="Kondisi pasar, stok, dll."
+                          value={surveyForm.notes}
+                          onChange={(e) => setSurveyForm(prev => ({ ...prev, notes: e.target.value }))}
+                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
+                        />
+                      </div>
+                    </div>
 
-                {/* Upload Foto Kegiatan Lapangan */}
-                <div className="space-y-2 pt-2 border-t border-slate-200/60">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                      <ImageIcon size={13} className="text-slate-400" />
-                      Foto Dokumentasi Kegiatan ({uploadedPhotos.length + (surveyForm.documentation_photos?.length || 0)} foto)
-                    </label>
-
-                    <label
-                      htmlFor="survey-photo-upload"
-                      className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all border border-indigo-200"
-                    >
-                      <Plus size={13} /> Tambah Foto (Otomatis Kompres)
-                    </label>
-                    <input
-                      id="survey-photo-upload"
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={handleAddDocumentationPhotos}
-                      className="hidden"
-                    />
-                  </div>
-
-                  {/* Photos Grid */}
-                  {uploadedPhotos.length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                      {uploadedPhotos.map((p, idx) => (
-                        <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 bg-white aspect-square flex flex-col shadow-sm">
-                          <img
-                            src={p.previewUrl}
-                            alt="Dokumentasi"
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
-                            <button
-                              type="button"
-                              onClick={() => removeUploadedPhoto(idx)}
-                              className="self-end p-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all"
-                            >
-                              <Trash2 size={12} />
+                    {/* Upload Dokumen */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Dokumen Pengesahan Scan</label>
+                      {surveyForm.official_doc_url ? (
+                        <div className="flex items-center justify-between px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                          <span className="font-bold text-emerald-800 text-sm flex items-center gap-2 truncate">
+                            <FileCheck size={15} className="text-emerald-600 shrink-0" />
+                            Berkas Tersimpan
+                          </span>
+                          <div className="flex items-center gap-1 ml-2 shrink-0">
+                            <button type="button"
+                              onClick={() => setPreviewMediaModal({ type: 'doc', url: surveyForm.official_doc_url, title: `Pengesahan: ${surveyForm.shop_name || 'Survey'}` })}
+                              className="p-2 text-emerald-700 hover:bg-emerald-100 rounded-lg transition-all" title="Pratinjau">
+                              <ExternalLink size={14} />
                             </button>
-                            <span className="text-[9px] text-white font-bold truncate">
-                              {formatFileSize(p.compressedSize)} (-{p.savedPercent}%)
-                            </span>
+                            <button type="button"
+                              onClick={() => setSurveyForm(prev => ({ ...prev, official_doc_url: null }))}
+                              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all" title="Hapus">
+                              <X size={14} />
+                            </button>
                           </div>
                         </div>
-                      ))}
+                      ) : (
+                        <>
+                          <label htmlFor="upload-official-doc-direct"
+                            className="cursor-pointer w-full px-4 py-3 bg-white hover:bg-indigo-50 border border-dashed border-indigo-300 rounded-xl text-sm font-bold text-indigo-600 flex items-center justify-center gap-2 transition-all">
+                            <FileCheck size={15} /> Upload Dokumen Pengesahan
+                          </label>
+                          <input id="upload-official-doc-direct" type="file" accept="image/*,application/pdf"
+                            onChange={handleUploadOfficialDocDirect} className="hidden" />
+                        </>
+                      )}
                     </div>
-                  )}
+
+                    {/* Upload Foto */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                          <ImageIcon size={12} className="text-slate-400" />
+                          Foto Kegiatan ({uploadedPhotos.length + (surveyForm.documentation_photos?.length || 0)} foto)
+                        </label>
+                        <label htmlFor="survey-photo-upload"
+                          className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-xl text-xs font-bold transition-all">
+                          <Plus size={12} /> Tambah Foto
+                        </label>
+                        <input id="survey-photo-upload" type="file" multiple accept="image/*"
+                          onChange={handleAddDocumentationPhotos} className="hidden" />
+                      </div>
+                      {uploadedPhotos.length > 0 && (
+                        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                          {uploadedPhotos.map((p, idx) => (
+                            <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 bg-white aspect-square shadow-sm">
+                              <img src={p.previewUrl} alt="Dokumentasi" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-1.5">
+                                <button type="button" onClick={() => removeUploadedPhoto(idx)}
+                                  className="self-end p-1 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                                  <Trash2 size={11} />
+                                </button>
+                                <span className="text-[9px] text-white font-bold truncate">{formatFileSize(p.compressedSize)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
 
           {/* Items Section */}
-          <div className="bg-white rounded-[2rem] border border-blue-100 shadow-sm overflow-hidden">
-            <div className="p-6 lg:p-8 border-b border-blue-50 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-black text-slate-800 tracking-tight">Daftar Harga</h2>
-                <span className="px-2.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-black rounded-lg">
+          <div className="bg-white rounded-2xl border border-blue-100 shadow-sm overflow-hidden">
+            <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-slate-100 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <h2 className="text-sm font-black text-slate-800 whitespace-nowrap">Daftar Harga</h2>
+                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-black rounded-lg shrink-0">
                   {surveyItems.length} item
                 </span>
               </div>
               <button onClick={addSurveyItemRow}
-                className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-blue-100 transition-all">
-                <Plus size={14} /> Tambah Item
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-200 transition-all shrink-0">
+                <Plus size={13} /> Tambah Item
               </button>
             </div>
 
-            <div className="p-5 lg:p-8 space-y-3">
+            <div className="p-4 sm:p-5 space-y-3">
               {surveyItems.length === 0 ? (
-                <div className="text-center py-12 lg:py-16">
-                  <div className="w-14 h-14 lg:w-16 lg:h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <ShoppingCart size={28} className="text-slate-300" />
+                <div className="text-center py-10">
+                  <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                    <ShoppingCart size={24} className="text-slate-300" />
                   </div>
                   <p className="text-slate-400 font-bold text-sm">Belum ada item.</p>
-                  <p className="text-slate-300 text-xs mt-1">Klik "Tambah Item" untuk mulai mencatat harga bahan baku.</p>
+                  <p className="text-slate-300 text-xs mt-1">Tap "Tambah Item" untuk mulai mencatat harga.</p>
                 </div>
               ) : (
                 surveyItems.map((item, idx) => {
@@ -1842,78 +1778,78 @@ const KomoditasHarga = () => {
                   const subtotal = harga * qty;
                   const isCustom = !item.commodity_item_id;
                   return (
-                    <div key={item.tempId}
-                      className="border border-slate-200 rounded-xl lg:rounded-2xl p-4 lg:p-5 hover:border-blue-200 transition-all">
-                      {/* Row 1: Commodity + Supplier */}
-                      <div className="flex items-start gap-2 lg:gap-3 mb-3">
-                        <span className="w-5 h-5 lg:w-6 lg:h-6 bg-blue-600 text-white text-[9px] lg:text-[10px] font-black rounded-lg flex items-center justify-center shrink-0 mt-1">
+                    <div key={item.tempId} className="border border-slate-200 rounded-2xl p-3 sm:p-4 bg-slate-50/40 hover:border-blue-200 transition-all">
+                      {/* Item header: nomor + delete */}
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="w-6 h-6 bg-blue-600 text-white text-[10px] font-black rounded-lg flex items-center justify-center">
                           {idx + 1}
                         </span>
-                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2 lg:gap-3">
-                          <SearchableCommoditySelect
-                            items={items}
-                            selectedId={item.commodity_item_id}
-                            onSelect={(commodity) => selectCommodityForSurvey(item.tempId, commodity)}
-                          />
-                          {isCustom ? (
-                            <input type="text" required placeholder="Nama barang (custom)"
-                              value={item.item_name}
-                              onChange={(e) => updateSurveyItem(item.tempId, 'item_name', e.target.value)}
-                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none" />
-                          ) : (
-                            <div className="flex items-center px-3 py-2 bg-blue-50 border border-blue-100 rounded-xl text-xs font-bold text-blue-700 truncate">
-                              {item.item_name || '-'}
-                            </div>
-                          )}
-                          <input type="text" placeholder="Supplier (opsional)"
-                            value={item.supplier_name}
-                            onChange={(e) => updateSurveyItem(item.tempId, 'supplier_name', e.target.value)}
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none" />
-                        </div>
                         <button type="button" onClick={() => removeSurveyItem(item.tempId)}
-                          className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all mt-1">
+                          className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
                           <Trash2 size={14} />
                         </button>
                       </div>
-                      {/* Row 2: Price, Unit, Qty, Subtotal */}
-                      <div className="grid grid-cols-4 gap-2 lg:gap-3">
+
+                      {/* Commodity Selector + Name + Supplier */}
+                      <div className="space-y-2 mb-3">
+                        <SearchableCommoditySelect
+                          items={items}
+                          selectedId={item.commodity_item_id}
+                          onSelect={(commodity) => selectCommodityForSurvey(item.tempId, commodity)}
+                        />
+                        {isCustom ? (
+                          <input type="text" required placeholder="Nama barang (custom)"
+                            value={item.item_name}
+                            onChange={(e) => updateSurveyItem(item.tempId, 'item_name', e.target.value)}
+                            className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-blue-400 transition-all" />
+                        ) : (
+                          <div className="flex items-center px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-xl text-sm font-bold text-blue-700 truncate">
+                            {item.item_name || '-'}
+                          </div>
+                        )}
+                        <input type="text" placeholder="Supplier / Pedagang (opsional)"
+                          value={item.supplier_name}
+                          onChange={(e) => updateSurveyItem(item.tempId, 'supplier_name', e.target.value)}
+                          className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-blue-400 transition-all" />
+                      </div>
+
+                      {/* Harga, Satuan, Qty, Subtotal — 2 col on mobile, 4 on md */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                         <div>
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Harga (Rp)</label>
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Harga (Rp)</label>
                           <input type="number" required placeholder="14000"
                             value={item.reference_price}
                             onChange={(e) => updateSurveyItem(item.tempId, 'reference_price', e.target.value)}
-                            className="w-full px-2.5 lg:px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none" />
+                            className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-blue-400 transition-all" />
                         </div>
                         <div>
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Satuan</label>
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Satuan</label>
                           <select value={item.unit}
                             onChange={(e) => updateSurveyItem(item.tempId, 'unit', e.target.value)}
-                            className="w-full px-2.5 lg:px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none appearance-none">
+                            className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium outline-none appearance-none focus:border-blue-400 transition-all">
                             {UNIT_CATEGORIES.map(cat => (
                               <optgroup key={cat.label} label={cat.label}>
-                                {cat.units.map(u => (
-                                  <option key={u} value={u}>{u}</option>
-                                ))}
+                                {cat.units.map(u => <option key={u} value={u}>{u}</option>)}
                               </optgroup>
                             ))}
-                            <option value="custom">➕ Lainnya (Ketik Custom)...</option>
+                            <option value="custom">➕ Lainnya...</option>
                           </select>
                           {item.unit === 'custom' && (
                             <input type="text" required placeholder="Ketik satuan..."
                               value={item.custom_unit || ''}
                               onChange={(e) => updateSurveyItem(item.tempId, 'custom_unit', e.target.value)}
-                              className="w-full mt-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg text-xs font-medium outline-none" />
+                              className="w-full mt-1.5 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm font-medium outline-none" />
                           )}
                         </div>
                         <div>
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Qty</label>
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Qty</label>
                           <input type="number" step="0.01" min="0.01" value={item.qty}
                             onChange={(e) => updateSurveyItem(item.tempId, 'qty', e.target.value)}
-                            className="w-full px-2.5 lg:px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none" />
+                            className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-blue-400 transition-all" />
                         </div>
                         <div>
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Subtotal</label>
-                          <div className="h-[38px] flex items-center px-2.5 lg:px-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs font-black text-emerald-700">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Subtotal</label>
+                          <div className="h-[42px] flex items-center px-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs font-black text-emerald-700">
                             {subtotal > 0 ? formatRupiah(subtotal) : '-'}
                           </div>
                         </div>
@@ -1924,33 +1860,55 @@ const KomoditasHarga = () => {
               )}
             </div>
 
-            {/* Footer: Summary + Save */}
-            {surveyItems.length > 0 && (
-              <div className="p-4 lg:p-8 border-t border-blue-50 bg-slate-50/50 flex items-center justify-between gap-3">
-                <div className="text-[11px] lg:text-xs text-slate-500 font-medium">
-                  <span className="font-black text-slate-800">{surveyItems.length} item</span>
-                  <span className="mx-1.5">·</span>
-                  Nilai <span className="font-black text-emerald-700">{formatRupiah(surveyItems.reduce((sum, i) => sum + ((parseFloat(i.reference_price) || 0) * (parseFloat(i.qty) || 0)), 0))}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleSaveDraft}
-                    className="shrink-0 px-4 lg:px-5 py-2.5 lg:py-3 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl border border-slate-200 shadow-sm transition-all flex items-center gap-1.5 uppercase tracking-widest text-[10px] lg:text-xs"
-                    title="Simpan sementara di memori lokal"
-                  >
-                    <Bookmark size={14} className="text-amber-500" />
-                    Simpan Draft
-                  </button>
+            {/* Inline bottom "Tambah Item" — visible after scrolling past all items */}
+            <div className="px-4 pb-3 sm:px-5">
+              <button
+                onClick={addSurveyItemRow}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border-2 border-dashed border-blue-200 text-blue-500 hover:border-blue-400 hover:text-blue-700 hover:bg-blue-50/60 font-bold text-sm transition-all"
+              >
+                <Plus size={16} />
+                Tambah Item Harga
+              </button>
+            </div>
 
-                  <button type="submit" form="survey-form" disabled={isSubmitting || isUploadingPhotos}
-                    className="shrink-0 px-5 lg:px-6 py-2.5 lg:py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 transition-all flex items-center gap-2 uppercase tracking-widest text-[10px] lg:text-xs disabled:opacity-50">
-                    {isSubmitting || isUploadingPhotos ? <Loader2 className="animate-spin" size={14} /> : <Save size={13} />}
-                    {isUploadingPhotos ? 'Mengunggah Foto...' : `Simpan (${surveyItems.filter(i => i.item_name && i.reference_price).length})`}
-                  </button>
+            {/* Footer: Summary + Save buttons */}
+            {surveyItems.length > 0 && (
+              <div className="px-4 py-4 sm:px-6 border-t border-slate-100 bg-slate-50/60">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="text-xs text-slate-500">
+                    <span className="font-black text-slate-800">{surveyItems.length} item</span>
+                    <span className="mx-1.5 text-slate-300">·</span>
+                    Total <span className="font-black text-emerald-700">{formatRupiah(surveyItems.reduce((sum, i) => sum + ((parseFloat(i.reference_price) || 0) * (parseFloat(i.qty) || 0)), 0))}</span>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button type="button" onClick={handleSaveDraft}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-3 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl border border-slate-200 text-xs transition-all">
+                      <Bookmark size={13} className="text-amber-500" /> Draft
+                    </button>
+                    <button type="submit" form="survey-form" disabled={isSubmitting || isUploadingPhotos}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-200 text-xs transition-all disabled:opacity-50">
+                      {isSubmitting || isUploadingPhotos ? <Loader2 className="animate-spin" size={13} /> : <Save size={13} />}
+                      {isUploadingPhotos ? 'Mengunggah...' : `Simpan Survey (${surveyItems.filter(i => i.item_name && i.reference_price).length})`}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Floating Action Button — always visible on survey tab */}
+          <div className="fixed bottom-6 right-4 z-40 flex flex-col items-end gap-2">
+            {/* Quick-add FAB */}
+            <button
+              onClick={addSurveyItemRow}
+              title="Tambah item harga baru"
+              className="group flex items-center gap-0 overflow-hidden max-w-[3rem] hover:max-w-[200px] transition-all duration-300 ease-in-out h-12 px-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-xl shadow-blue-500/30 font-bold text-sm"
+            >
+              <Plus size={20} className="shrink-0" />
+              <span className="whitespace-nowrap overflow-hidden opacity-0 group-hover:opacity-100 group-hover:ml-2 transition-all duration-200 text-xs font-black uppercase tracking-wide">
+                Tambah Item
+              </span>
+            </button>
           </div>
         </div>
       )}
@@ -2246,11 +2204,11 @@ const KomoditasHarga = () => {
                 {selectedChartItem && priceHistory.length > 0 && (
                   <button onClick={() => {
                     const csv = [
-                      ['Tanggal','Toko','Wilayah','Satuan','Harga','Supplier'],
-                      ...priceHistory.map(h => [h.price_date||'',h.shop_name||'',h.region_id||'',h.unit||'',h.reference_price,h.supplier_name||''])
+                      ['Tanggal', 'Toko', 'Wilayah', 'Satuan', 'Harga', 'Supplier'],
+                      ...priceHistory.map(h => [h.price_date || '', h.shop_name || '', h.region_id || '', h.unit || '', h.reference_price, h.supplier_name || ''])
                     ].map(r => r.join(',')).join('\n');
-                    const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
-                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${selectedChartItem.replace(/\s+/g,'_')}_riwayat.csv`; a.click();
+                    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${selectedChartItem.replace(/\s+/g, '_')}_riwayat.csv`; a.click();
                     URL.revokeObjectURL(a.href);
                     toast.success('CSV berhasil diunduh!');
                   }}
@@ -2502,7 +2460,7 @@ const KomoditasHarga = () => {
                 />
 
                 {isAuthorized && (
-                  <button 
+                  <button
                     type="button"
                     onClick={openAddItem}
                     className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer"
@@ -2552,27 +2510,26 @@ const KomoditasHarga = () => {
                             {commodity.satuan_default || 'kg'}
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <span className={`px-2.5 py-1 text-[10px] font-black rounded-lg uppercase tracking-wider ${
-                              commodity.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-400'
-                            }`}>
+                            <span className={`px-2.5 py-1 text-[10px] font-black rounded-lg uppercase tracking-wider ${commodity.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-400'
+                              }`}>
                               {commodity.is_active ? 'Aktif' : 'Nonaktif'}
                             </span>
                           </td>
                           {isAuthorized && (
                             <td className="px-6 py-4 text-center space-x-1 whitespace-nowrap">
-                              <button 
+                              <button
                                 type="button"
-                                onClick={() => openEditItem(commodity)} 
-                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all" 
+                                onClick={() => openEditItem(commodity)}
+                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
                                 title="Edit Komoditas"
                               >
                                 <Edit2 size={14} />
                               </button>
                               {isAdmin && (
-                                <button 
+                                <button
                                   type="button"
-                                  onClick={() => handleDeleteItem(commodity.id)} 
-                                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all" 
+                                  onClick={() => handleDeleteItem(commodity.id)}
+                                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
                                   title="Hapus Komoditas"
                                 >
                                   <Trash2 size={14} />
@@ -2598,19 +2555,19 @@ const KomoditasHarga = () => {
                         <div className="flex items-center gap-1 shrink-0">
                           {isAuthorized && (
                             <>
-                              <button 
+                              <button
                                 type="button"
-                                onClick={() => openEditItem(commodity)} 
-                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" 
+                                onClick={() => openEditItem(commodity)}
+                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                                 title="Edit Komoditas"
                               >
                                 <Edit2 size={13} />
                               </button>
                               {isAdmin && (
-                                <button 
+                                <button
                                   type="button"
-                                  onClick={() => handleDeleteItem(commodity.id)} 
-                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" 
+                                  onClick={() => handleDeleteItem(commodity.id)}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                                   title="Hapus Komoditas"
                                 >
                                   <Trash2 size={13} />
@@ -2625,9 +2582,8 @@ const KomoditasHarga = () => {
                           {commodity.kategori || 'Umum'}
                         </span>
                         <span className="text-[10px] font-bold text-slate-500">{commodity.satuan_default || 'kg'}</span>
-                        <span className={`px-2 py-0.5 text-[9px] font-black rounded-lg uppercase ${
-                          commodity.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-400'
-                        }`}>
+                        <span className={`px-2 py-0.5 text-[9px] font-black rounded-lg uppercase ${commodity.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-400'
+                          }`}>
                           {commodity.is_active ? 'Aktif' : 'Nonaktif'}
                         </span>
                       </div>
@@ -2655,7 +2611,39 @@ const KomoditasHarga = () => {
             <input type="text" required placeholder="Contoh: Beras Premium"
               value={itemForm.nama}
               onChange={(e) => setItemForm(prev => ({ ...prev, nama: e.target.value }))}
-              className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm" />
+              className={`w-full px-4 py-3.5 bg-slate-50 border rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-medium text-sm ${
+                itemForm.nama.trim() &&
+                items.some(i => i.nama.toLowerCase().trim() === itemForm.nama.toLowerCase().trim() && i.id !== editItemId)
+                  ? 'border-red-400 focus:border-red-500 focus:ring-red-500/10'
+                  : 'border-slate-200 focus:border-blue-600'
+              }`} />
+            {/* Inline duplicate warning */}
+            {itemForm.nama.trim() &&
+              items.some(i => i.nama.toLowerCase().trim() === itemForm.nama.toLowerCase().trim() && i.id !== editItemId) && (
+              <p className="flex items-center gap-1.5 text-xs text-red-600 font-medium mt-1">
+                <span className="w-4 h-4 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0 text-[10px] font-black">!</span>
+                Nama ini sudah ada di master data. Gunakan nama lain atau edit komoditas yang sudah ada.
+              </p>
+            )}
+            {/* Suggestion: show matching existing items */}
+            {itemForm.nama.trim().length >= 2 && !items.some(i => i.nama.toLowerCase().trim() === itemForm.nama.toLowerCase().trim() && i.id !== editItemId) && (() => {
+              const similar = items.filter(i =>
+                i.id !== editItemId &&
+                i.nama.toLowerCase().includes(itemForm.nama.toLowerCase().trim())
+              ).slice(0, 3);
+              return similar.length > 0 ? (
+                <div className="mt-1.5 p-2.5 bg-amber-50 border border-amber-200 rounded-xl">
+                  <p className="text-[10px] font-black text-amber-800 uppercase tracking-wide mb-1.5">⚠ Komoditas Serupa:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {similar.map(s => (
+                      <span key={s.id} className="px-2.5 py-1 bg-white border border-amber-200 text-amber-900 rounded-lg text-xs font-bold">
+                        {s.nama}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null;
+            })()}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -2715,6 +2703,284 @@ const KomoditasHarga = () => {
           fetchSurveySessions();
         }}
       />
+
+      {/* 🌟 Modal Riwayat Lengkap Komoditas (Clean & Beautiful) */}
+      {historyModalData && createPortal(
+        <div className="fixed inset-0 z-[999998] flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-md animate-fadeIn">
+          <div className="relative w-full max-w-3xl max-h-[90vh] bg-white rounded-[2rem] shadow-2xl border border-slate-100 flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-5 lg:p-6 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-blue-300 backdrop-blur-sm border border-white/10 shrink-0">
+                  <History size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 bg-blue-500/30 text-blue-200 text-[10px] font-black uppercase rounded-lg">
+                      {historyModalData.meta?.kategori || 'Bahan Baku'}
+                    </span>
+                    <span className="text-xs text-blue-200 font-bold">
+                      Satuan: {historyModalData.meta?.satuan_default || historyModalData.history[0]?.unit || 'kg'}
+                    </span>
+                  </div>
+                  <h3 className="text-xl lg:text-2xl font-black mt-0.5 tracking-tight flex items-center gap-2">
+                    {historyModalData.item_name}
+                  </h3>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setHistoryModalData(null)}
+                className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all"
+                title="Tutup"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 lg:p-6 overflow-y-auto space-y-6 flex-1 bg-slate-50/50">
+              {historyModalData.loading ? (
+                <div className="py-16 text-center space-y-3">
+                  <Loader2 className="animate-spin mx-auto text-blue-600" size={32} />
+                  <p className="text-xs font-bold text-slate-500">Memuat seluruh data riwayat survei...</p>
+                </div>
+              ) : historyModalData.history.length === 0 ? (
+                <div className="py-16 text-center bg-white rounded-2xl border border-slate-200 p-6 space-y-2">
+                  <History className="mx-auto text-slate-300" size={36} />
+                  <p className="text-sm font-bold text-slate-700">Belum ada riwayat survei</p>
+                  <p className="text-xs text-slate-400">Komoditas ini belum pernah dicatat dalam survei harga lapang.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Summary Highlights */}
+                  {(() => {
+                    const sorted = [...historyModalData.history].sort(
+                      (a, b) => new Date(b.price_date || b.created_at) - new Date(a.price_date || a.created_at)
+                    );
+                    const prices = sorted.map(s => s.reference_price).filter(Boolean);
+                    const latest = sorted[0];
+                    const minPrice = Math.min(...prices);
+                    const maxPrice = Math.max(...prices);
+                    const avgPrice = Math.round(prices.reduce((a, b) => a + b, 0) / (prices.length || 1));
+
+                    return (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="p-4 bg-white rounded-2xl border border-blue-100 shadow-sm">
+                          <p className="text-[9px] font-black uppercase text-slate-400">Harga Terbaru</p>
+                          <p className="text-lg lg:text-xl font-black text-blue-600 mt-0.5">
+                            {formatRupiah(latest?.reference_price || 0)}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                          <p className="text-[9px] font-black uppercase text-slate-400">Rata-rata</p>
+                          <p className="text-lg lg:text-xl font-black text-slate-800 mt-0.5">
+                            {formatRupiah(avgPrice)}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-white rounded-2xl border border-emerald-100 shadow-sm">
+                          <p className="text-[9px] font-black uppercase text-emerald-600">Terendah</p>
+                          <p className="text-lg lg:text-xl font-black text-emerald-700 mt-0.5">
+                            {formatRupiah(minPrice)}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-white rounded-2xl border border-rose-100 shadow-sm">
+                          <p className="text-[9px] font-black uppercase text-rose-600">Tertinggi</p>
+                          <p className="text-lg lg:text-xl font-black text-rose-700 mt-0.5">
+                            {formatRupiah(maxPrice)}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Riwayat Timeline List */}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="p-4 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                        <BarChart3 size={15} className="text-blue-600" />
+                        Log Seluruh Survei ({historyModalData.history.length} Catatan)
+                      </h4>
+                      <span className="text-[10px] font-bold text-slate-400">Terurut dari yang terbaru</span>
+                    </div>
+
+                    <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+                      {[...historyModalData.history]
+                        .sort((a, b) => new Date(b.price_date || b.created_at) - new Date(a.price_date || a.created_at))
+                        .map((entry, idx, arr) => {
+                          const prevEntry = arr[idx + 1];
+                          let diff = 0;
+                          let diffPct = 0;
+                          if (prevEntry && prevEntry.reference_price > 0) {
+                            diff = entry.reference_price - prevEntry.reference_price;
+                            diffPct = (diff / prevEntry.reference_price) * 100;
+                          }
+
+                          return (
+                            <div key={entry.id || idx} className="p-4 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded-md border ${idx === 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'
+                                    }`}>
+                                    {idx === 0 ? 'Survei Terbaru' : `#${idx + 1}`}
+                                  </span>
+                                  <span className="text-xs font-bold text-slate-700">
+                                    📍 {entry.shop_name || 'Pasar / Toko Umum'}
+                                  </span>
+                                  {entry.region_id && (
+                                    <span className="text-[10px] font-medium text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">
+                                      {entry.region_id}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3 text-[11px] text-slate-500 font-medium">
+                                  <span>📅 {entry.price_date ? new Date(entry.price_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}</span>
+                                  {entry.surveyor_name && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="flex items-center gap-1 text-blue-600"><User size={12} /> {entry.surveyor_name}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="text-left sm:text-right self-start sm:self-center shrink-0">
+                                <p className="text-base font-black text-blue-600">
+                                  {formatRupiah(entry.reference_price)} <span className="text-[10px] text-slate-400 font-bold">/{entry.unit || 'kg'}</span>
+                                </p>
+                                {prevEntry && diff !== 0 && (
+                                  <span className={`inline-block text-[10px] font-bold mt-0.5 px-1.5 py-0.5 rounded ${diff > 0 ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'
+                                    }`}>
+                                    {diff > 0 ? `▲ +${formatRupiah(diff)} (+${diffPct.toFixed(1)}%)` : `▼ ${formatRupiah(Math.abs(diff))} (${diffPct.toFixed(1)}%)`}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-white border-t border-slate-100 flex items-center justify-between shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const item = historyModalData.item_name;
+                  setHistoryModalData(null);
+                  setSelectedChartItem(item);
+                  setActiveTab('history');
+                }}
+                className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1.5 hover:underline"
+              >
+                Buka di Tab Grafik Analisis Lengkap <ArrowUpRight size={14} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setHistoryModalData(null)}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-md"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ⚠️ Modal Peringatan Lanjutkan / Hapus Draft Survey */}
+      {showDraftPromptModal && draftInfo && createPortal(
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md animate-fadeIn">
+          <div className="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl border border-amber-200 overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-6 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-white flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white shrink-0 border border-white/20 shadow-inner">
+                <Bookmark size={24} />
+              </div>
+              <div>
+                <span className="px-2 py-0.5 bg-black/20 text-white text-[10px] font-black uppercase rounded-md tracking-wider">
+                  Draf Tersimpan
+                </span>
+                <h3 className="text-lg font-black mt-0.5 tracking-tight text-white">
+                  Lanjutkan Input Survei?
+                </h3>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 bg-slate-50/50">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Ditemukan draf survei sebelumnya di perangkat Anda yang belum dikirim ke server:
+              </p>
+
+              {/* Draft Info Card */}
+              <div className="p-4 bg-white rounded-2xl border border-amber-200 shadow-sm space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 font-bold uppercase text-[10px]">Toko / Pasar:</span>
+                  <span className="font-black text-slate-800 text-sm">📍 {draftInfo.shopName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 font-bold uppercase text-[10px]">Jumlah Komoditas:</span>
+                  <span className="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
+                    {draftInfo.itemCount} Item Bahan Baku
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 font-bold uppercase text-[10px]">Waktu Disimpan:</span>
+                  <span className="font-medium text-slate-500">Pukul {draftInfo.savedAt}</span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-slate-400 font-medium">
+                Pilih <strong>Lanjutkan Pengisian</strong> untuk memulihkan seluruh data, atau <strong>Hapus Draf</strong> jika ingin memulai formulir baru dari awal.
+              </p>
+            </div>
+
+            {/* Modal Action Buttons */}
+            <div className="p-4 bg-white border-t border-slate-100 flex flex-col sm:flex-row items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  handleClearDraft();
+                  setShowDraftPromptModal(false);
+                }}
+                className="w-full sm:w-auto px-4 py-2.5 text-rose-600 hover:bg-rose-50 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all order-2 sm:order-1"
+              >
+                <Trash2 size={15} />
+                Hapus Draf
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDraftPromptModal(false);
+                }}
+                className="w-full sm:w-auto px-4 py-2.5 text-slate-500 hover:bg-slate-100 rounded-xl font-bold text-xs transition-all order-3 sm:order-2"
+              >
+                Tutup
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleRestoreDraft();
+                  setShowDraftPromptModal(false);
+                }}
+                className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all order-1 sm:order-3"
+              >
+                <RotateCcw size={15} />
+                Lanjutkan Pengisian
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Media Lightbox / Modal Preview */}
       {previewMediaModal && createPortal(

@@ -122,68 +122,59 @@ const ExcelImportButton = ({ endpoint, onSuccess, title = "Import Data Excel", t
         <span className="hidden md:inline">Import Data</span>
       </button>
 
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        accept=".xlsx, .xls, .csv"
-        className="hidden"
-      />
-
       {isModalOpen && createPortal(
         <AnimatePresence>
           <div 
-            className="fixed inset-0 w-screen h-screen z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-sm overflow-hidden"
+            className="fixed inset-0 w-screen h-screen z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-hidden"
             onClick={closeAll}
           >
-            {/* Modal Content */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 15 }}
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 15 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative bg-blue-600 rounded-[2.5rem] overflow-hidden max-w-xl w-full shadow-2xl border border-blue-600 my-auto flex flex-col max-h-[85vh]"
+              className="relative bg-white rounded-xl overflow-hidden max-w-lg w-full shadow-2xl border border-slate-200 my-auto flex flex-col"
             >
               {/* Header */}
-              <div className="p-8 bg-blue-600 text-white flex items-center justify-between -mt-px">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md">
-                    <FileSpreadsheet size={24} />
+              <div className="px-6 py-4 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
+                    <FileSpreadsheet size={16} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-black tracking-tight">{title}</h3>
-                    <p className="text-blue-100 text-xs font-bold opacity-80 uppercase tracking-widest">Bulk Import Tool</p>
+                    <h3 className="text-base font-bold text-slate-900">{title}</h3>
+                    <p className="text-xs text-slate-500 font-medium">Unggah data batch via spreadsheet</p>
                   </div>
                 </div>
-                <button onClick={closeAll} className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all">
-                  <X size={20} />
+                <button onClick={closeAll} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all">
+                  <X size={18} />
                 </button>
               </div>
 
-              <div className="p-8 bg-white">
+              <div className="p-6 bg-white">
                 {results ? (
                   /* Results View */
-                  <div className="animate-in fade-in zoom-in-95 duration-300">
-                    <div className="grid grid-cols-2 gap-4 mb-8">
-                      <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 text-center">
-                        <CheckCircle2 className="text-emerald-600 mx-auto mb-3" size={32} />
-                        <p className="text-3xl font-black text-emerald-600 leading-none">{results.success}</p>
-                        <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mt-2">Data Berhasil</p>
+                  <div className="animate-in fade-in duration-200">
+                    <div className="grid grid-cols-2 gap-3 mb-5">
+                      <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-center">
+                        <CheckCircle2 className="text-emerald-600 mx-auto mb-2" size={24} />
+                        <p className="text-2xl font-bold text-emerald-700 leading-none">{results.success}</p>
+                        <p className="text-xs text-emerald-600 font-medium mt-1">Data Berhasil</p>
                       </div>
-                      <div className="p-6 bg-red-50 rounded-3xl border border-red-100 text-center">
-                        <AlertCircle className="text-red-600 mx-auto mb-3" size={32} />
-                        <p className="text-3xl font-black text-red-600 leading-none">{results.failed}</p>
-                        <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mt-2">Data Gagal</p>
+                      <div className="p-4 bg-rose-50 rounded-xl border border-rose-200 text-center">
+                        <AlertCircle className="text-rose-600 mx-auto mb-2" size={24} />
+                        <p className="text-2xl font-bold text-rose-700 leading-none">{results.failed}</p>
+                        <p className="text-xs text-rose-600 font-medium mt-1">Data Gagal</p>
                       </div>
                     </div>
 
                     {results.errors?.length > 0 && (
-                      <div className="mb-8">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 ml-1">Detail Kesalahan</p>
-                        <div className="max-h-40 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                      <div className="mb-5">
+                        <p className="text-xs font-semibold text-slate-500 mb-2">Detail Kesalahan</p>
+                        <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
                           {results.errors.map((err, i) => (
-                            <div key={i} className="p-3 bg-slate-50 rounded-xl text-[11px] font-bold text-red-500 border border-red-50/50">
+                            <div key={i} className="p-2.5 bg-rose-50/50 rounded-lg text-xs font-medium text-rose-600 border border-rose-100">
                               {err}
                             </div>
                           ))}
@@ -193,42 +184,42 @@ const ExcelImportButton = ({ endpoint, onSuccess, title = "Import Data Excel", t
 
                     <button
                       onClick={closeAll}
-                      className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg"
+                      className="btn-primary w-full"
                     >
                       Selesai & Tutup
                     </button>
                   </div>
                 ) : (
                   /* Selection View */
-                  <div className="space-y-6">
-                    <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 mb-2">
-                      <p className="text-xs font-bold text-slate-500 leading-relaxed">
-                        Gunakan fitur ini untuk mengunggah data dalam jumlah banyak secara sekaligus. Pastikan format file sesuai dengan template yang disediakan.
+                  <div className="space-y-4">
+                    <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                      <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                        Fitur ini mengimpor data sekaligus. Pastikan format kolom sesuai dengan template Excel yang disediakan.
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <button
                         onClick={handleDownloadTemplate}
-                        className="flex flex-col items-center justify-center p-8 bg-white border-2 border-slate-100 rounded-[2rem] hover:border-blue-200 hover:bg-blue-50/50 transition-all group"
+                        className="flex flex-col items-center justify-center p-6 bg-white border border-slate-200 rounded-xl hover:border-slate-300 hover:bg-slate-50 transition-all text-center group"
                       >
-                        <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                          <Download size={24} />
+                        <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                          <Download size={18} />
                         </div>
-                        <p className="font-black text-slate-800 text-sm">Download Template</p>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Excel (.xlsx)</p>
+                        <p className="font-semibold text-slate-900 text-sm">Download Template</p>
+                        <p className="text-xs text-slate-400 font-medium mt-0.5">Format .xlsx</p>
                       </button>
 
                       <button
                         onClick={() => fileInputRef.current?.click()}
                         disabled={loading}
-                        className="flex flex-col items-center justify-center p-8 bg-blue-600 text-white rounded-[2rem] hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 disabled:opacity-50 group"
+                        className="flex flex-col items-center justify-center p-6 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-sm disabled:opacity-50 text-center group"
                       >
-                        <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                          {loading ? <Loader2 className="animate-spin" size={24} /> : <FileUp size={24} />}
+                        <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                          {loading ? <Loader2 className="animate-spin" size={18} /> : <FileUp size={18} />}
                         </div>
-                        <p className="font-black text-sm">{loading ? 'Memproses...' : 'Upload File Data'}</p>
-                        <p className="text-[10px] text-blue-200 font-bold uppercase mt-1">CSV / Excel / XLS</p>
+                        <p className="font-semibold text-sm">{loading ? 'Memproses...' : 'Upload File Data'}</p>
+                        <p className="text-xs text-blue-100 font-medium mt-0.5">CSV / Excel (.xlsx)</p>
                       </button>
                     </div>
                   </div>

@@ -63,58 +63,58 @@ const LandingPageEditor = () => {
   const sections = [...new Set(configs.map(c => c.section_name))];
 
   return (
-    <div className="max-w-4xl animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-10 gap-6">
+    <div className="max-w-4xl space-y-6 pb-20">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-800 tracking-tight">Landing Page Editor</h1>
-          <p className="text-slate-500 font-medium mt-1">Kelola konten official Badan Gizi Nasional.</p>
+          <h1 className="page-header">Landing Page Editor</h1>
+          <p className="page-subtitle">Kelola konten dan informasi publik Badan Gizi Nasional.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <button
             onClick={() => setShowPreview(true)}
-            className="flex-1 lg:flex-none px-6 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95"
+            className="btn-secondary"
           >
-            <Eye size={18} /> Preview
+            <Eye size={16} /> Pratinjau
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 lg:flex-none px-6 py-3 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-200 active:scale-95 disabled:opacity-50"
+            className="btn-primary"
           >
-            {saving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={18} />}
-            Simpan
+            {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={16} />}
+            Simpan Perubahan
           </button>
         </div>
       </div>
 
-      <div className="space-y-8">
+      <div className="space-y-6">
         {sections.map(section => (
-          <div key={section} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/50 overflow-hidden">
-            <div className="px-8 py-6 bg-slate-50 border-b border-slate-100 flex items-center gap-4">
-              <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm text-blue-600">
-                <Layout size={20} />
+          <div key={section} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 bg-slate-50/70 border-b border-slate-100 flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
+                <Layout size={16} />
               </div>
-              <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest">{section} Section</h3>
+              <h3 className="font-semibold text-slate-800 text-sm">{section} Section</h3>
             </div>
-            <div className="p-8 space-y-6">
+            <div className="p-5 space-y-4">
               {configs.filter(c => c.section_name === section).map(config => (
-                <div key={config.key}>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">
-                    {config.key.replace('_', ' ').replace(section.toLowerCase(), '')}
+                <div key={config.key} className="space-y-1.5">
+                  <label className="block text-xs font-medium text-slate-600 capitalize">
+                    {config.key.replace(/_/g, ' ').replace(section.toLowerCase(), '')}
                   </label>
                   {config.value.length > 50 ? (
                     <textarea
                       value={formData[config.key] || ''}
                       onChange={(e) => handleInputChange(config.key, e.target.value)}
-                      rows={4}
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all text-slate-700 font-medium text-sm"
+                      rows={3}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none transition-all text-slate-800 font-medium text-sm"
                     />
                   ) : (
                     <input
                       type="text"
                       value={formData[config.key] || ''}
                       onChange={(e) => handleInputChange(config.key, e.target.value)}
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all text-slate-700 font-medium text-sm"
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none transition-all text-slate-800 font-medium text-sm"
                     />
                   )}
                 </div>
@@ -128,25 +128,25 @@ const LandingPageEditor = () => {
       {showPreview && createPortal(
         <AnimatePresence>
           <div 
-            className="fixed inset-0 w-screen h-screen z-[9999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-3 lg:p-8 overflow-hidden"
+            className="fixed inset-0 w-screen h-screen z-[9999] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-2 sm:p-6 overflow-hidden"
             onClick={() => setShowPreview(false)}
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.92 }}
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.92 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full h-full max-w-7xl max-h-[92vh] my-auto bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200 flex flex-col"
+              className="relative w-full h-full max-w-7xl max-h-[92vh] my-auto bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col"
             >
-              <div className="absolute top-4 right-4 z-[70]">
+              <div className="absolute top-3 right-3 z-[70]">
                 <button
                   type="button"
                   onClick={() => setShowPreview(false)}
-                  className="p-3 bg-slate-900 text-white hover:bg-slate-800 rounded-2xl shadow-xl hover:scale-105 transition-all active:scale-95 cursor-pointer"
+                  className="p-2 bg-slate-900/90 hover:bg-slate-900 text-white rounded-lg shadow-md transition-all active:scale-95 cursor-pointer"
                   aria-label="Tutup pratinjau"
                 >
-                  <X size={22} />
+                  <X size={18} />
                 </button>
               </div>
               <div className="w-full h-full overflow-y-auto custom-scrollbar">
@@ -162,3 +162,4 @@ const LandingPageEditor = () => {
 };
 
 export default LandingPageEditor;
+
