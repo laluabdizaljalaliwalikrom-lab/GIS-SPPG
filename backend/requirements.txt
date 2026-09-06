@@ -8,7 +8,7 @@ alembic==1.13.1
 # pydantic-settings==2.2.1 # disabled sementara
 supabase==2.4.3
 python-jose[cryptography]
-# pandas==2.2.1
+pandas==3.0.3
 openpyxl==3.1.2
 python-multipart==0.0.9
 google-generativeai
