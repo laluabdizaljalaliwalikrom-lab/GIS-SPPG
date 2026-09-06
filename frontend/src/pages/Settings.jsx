@@ -15,7 +15,9 @@ import {
   EyeOff,
   KeyRound,
   FileText,
-  Upload
+  Upload,
+  Scale,
+  RotateCcw
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
@@ -370,6 +372,167 @@ const LaporanAuditSettings = () => {
   );
 };
 
+const CANONICAL_BASES = ['kg', 'liter', 'pcs'];
+
+const UnitKonversiSettings = () => {
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [conversions, setConversions] = useState({});
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/system-settings/unit-conversions');
+      const data = (res.data && typeof res.data === 'object') ? res.data : {};
+      setConversions(data);
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal memuat tabel konversi satuan.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const updateFactor = (unit, factor) => {
+    setConversions(prev => {
+      const base = prev[unit]?.base || 'kg';
+      return { ...prev, [unit]: { base, factor: factor === '' ? '' : parseFloat(factor) } };
+    });
+  };
+
+  const updateBase = (unit, base) => {
+    setConversions(prev => {
+      const factor = prev[unit]?.factor ?? 1;
+      return { ...prev, [unit]: { base, factor } };
+    });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const toastId = toast.loading('Menyimpan tabel konversi satuan...');
+    try {
+      const payload = {};
+      Object.entries(conversions).forEach(([unit, v]) => {
+        const factor = parseFloat(v.factor);
+        if (unit && v.base && Number.isFinite(factor) && factor > 0) {
+          payload[unit] = { base: v.base, factor };
+        }
+      });
+      const res = await api.put('/system-settings/unit-conversions', { conversions: payload });
+      const data = (res.data && typeof res.data === 'object') ? res.data : {};
+      setConversions(data);
+      toast.success('Tabel konversi satuan berhasil disimpan.', { id: toastId });
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal menyimpan tabel konversi.', { id: toastId });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (!window.confirm('Kembalikan semua konversi satuan ke nilai default? Override admin akan dihapus.')) return;
+    setSaving(true);
+    try {
+      const res = await api.put('/system-settings/unit-conversions', { conversions: {} });
+      const data = (res.data && typeof res.data === 'object') ? res.data : {};
+      setConversions(data);
+      toast.success('Konversi satuan dikembalikan ke nilai default.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal mereset konversi satuan.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const units = Object.entries(conversions).sort(([a], [b]) => a.localeCompare(b));
+
+  return (
+    <div className="animate-in fade-in duration-200">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-9 h-9 bg-violet-50 rounded-lg flex items-center justify-center text-violet-600">
+          <Scale size={17} />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-slate-800">Satuan &amp; Konversi (Smart Matching)</h3>
+          <p className="text-xs text-slate-400">Faktor konversi satuan untuk menyetarakan harga acuan pasar ke satuan pada nota/RAB</p>
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-slate-400">Memuat tabel konversi...</p>
+      ) : (
+        <div className="space-y-5">
+          <div className="rounded-xl border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100">
+                    <th className="px-4 py-3 text-xs font-black text-slate-400 uppercase tracking-wider">Satuan</th>
+                    <th className="px-4 py-3 text-xs font-black text-slate-400 uppercase tracking-wider">Basis</th>
+                    <th className="px-4 py-3 text-xs font-black text-slate-400 uppercase tracking-wider">Nilai per 1 unit (basis)</th>
+                    <th className="px-4 py-3 text-xs font-black text-slate-400 uppercase tracking-wider text-right">Keterangan</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {units.map(([unit, v]) => (
+                    <tr key={unit}>
+                      <td className="px-4 py-2.5 font-bold text-slate-700 text-sm">{unit}</td>
+                      <td className="px-4 py-2.5">
+                        <select
+                          value={v.base || 'kg'}
+                          onChange={(e) => updateBase(unit, e.target.value)}
+                          className="input"
+                          style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}
+                        >
+                          {CANONICAL_BASES.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={v.factor ?? ''}
+                          onChange={(e) => updateFactor(unit, e.target.value)}
+                          className="input"
+                          style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', width: '120px' }}
+                        />
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-[10px] text-slate-400 font-medium">
+                        {v.base === 'kg' ? (unit === 'kg' ? 'bobot dasar' : unit === 'g' || unit === 'gr' || unit === 'gram' ? '1 kg = 1000 gr' : '') : ''}
+                        {v.base === 'liter' && (unit === 'liter' ? 'volume dasar' : '')}
+                        {v.base === 'pcs' && (unit === 'pcs' ? 'jumlah dasar' : '')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-slate-400">
+            Konversi lintas kelompok (mis. karung → kg, galon → liter) hanya dilakukan bila satuan pada nota setara
+            dengan satuan acuan pasar (basis sama). Nilai &gt; 0 wajib untuk tiap baris yang digunakan.
+          </p>
+
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={handleReset} disabled={saving} className="btn-secondary">
+              <RotateCcw size={15} /> Reset ke Default
+            </button>
+            <button type="button" onClick={handleSave} disabled={saving} className="btn-primary">
+              <Save size={15} /> {saving ? 'Menyimpan...' : 'Simpan Konversi'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Settings = () => {
   const { profile } = useOutletContext();
   const [activeTab, setActiveTab] = useState('profile');
@@ -403,6 +566,7 @@ const Settings = () => {
     { id: 'map', name: 'Map Config', icon: MapIcon, adminOnly: false },
     { id: 'system', name: 'System', icon: Database, adminOnly: true },
     { id: 'smart-audit', name: 'Smart Audit', icon: Sparkles, adminOnly: true },
+    { id: 'satuan-konversi', name: 'Satuan & Konversi', icon: Scale, adminOnly: true },
     { id: 'laporan-audit', name: 'Laporan Audit', icon: FileText, adminOnly: true },
     { id: 'audit', name: 'Security Audit', icon: History, adminOnly: true },
   ];
@@ -503,6 +667,8 @@ const Settings = () => {
             {activeTab === 'raport' && <RaportPointManager />}
 
             {activeTab === 'smart-audit' && <SmartAuditSettings />}
+
+            {activeTab === 'satuan-konversi' && <UnitKonversiSettings />}
 
             {activeTab === 'laporan-audit' && <LaporanAuditSettings />}
 

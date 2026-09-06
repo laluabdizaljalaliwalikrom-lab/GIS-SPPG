@@ -4,6 +4,7 @@ import json
 import tempfile
 import subprocess
 import logging
+from datetime import date
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 
@@ -150,7 +151,139 @@ def _extract_json_array(text: str) -> Optional[list]:
         return None
 
 
-def _gemini_extract(file_bytes: bytes, filename: str, mime_type: str, api_key: str) -> List[Dict[str, Any]]:
+def _extract_json_object(text: str) -> Optional[Dict[str, Any]]:
+    """Extract the first top-level JSON object from a text that may contain
+    markdown fences or surrounding prose."""
+    if not text:
+        return None
+    t = text.strip()
+    if t.startswith("```"):
+        lines = t.split("\n")
+        lines = lines[1:] if lines and lines[0].startswith("```") else lines
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        t = "\n".join(lines).strip()
+    start = t.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    in_str = False
+    esc = False
+    end = None
+    for j in range(start, len(t)):
+        c = t[j]
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+        else:
+            if c == '"':
+                in_str = True
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    end = j
+                    break
+    if end is None:
+        return None
+    try:
+        data = json.loads(t[start:end + 1])
+        return data if isinstance(data, dict) else None
+    except (ValueError, json.JSONDecodeError):
+        return None
+
+
+_MONTHS_ID = {
+    "januari": 1, "februari": 2, "maret": 3, "april": 4, "mei": 5, "juni": 6,
+    "juli": 7, "agustus": 8, "september": 9, "oktober": 10, "november": 11, "desember": 12,
+}
+
+
+def _parse_date_iso(value: Any) -> Optional[date]:
+    """Parse a date the Gemini model may return (ISO, dd/mm/yyyy style, or an
+    Indonesian written date)."""
+    if isinstance(value, (date,)):
+        return value
+    if isinstance(value, (int, float)):
+        return None
+    if not isinstance(value, str):
+        return None
+    s = value.strip()
+    if not s:
+        return None
+
+    m = re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})", s)
+    if m:
+        try:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            return None
+
+    m = re.match(r"^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})", s)
+    if m:
+        d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        for cdd, cmo in ((d, mo), (mo, d)):
+            try:
+                return date(y, cmo, cdd)
+            except ValueError:
+                continue
+        return None
+
+    m = re.match(r"^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$", s)
+    if m:
+        mo = _MONTHS_ID.get(m.group(2).lower())
+        if mo:
+            try:
+                return date(int(m.group(3)), mo, int(m.group(1)))
+            except ValueError:
+                return None
+    return None
+
+
+def _parse_tanggal(text: str) -> Optional[date]:
+    """Detect an Indonesian nota/RAB date inside a free-text document."""
+    if not text:
+        return None
+    m = re.search(r"\b(\d{1,2})[/\-](\d{1,2})[/\-](20\d{2})\b", text)
+    if m:
+        d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        for cdd, cmo in ((d, mo), (mo, d)):
+            try:
+                return date(y, cmo, cdd)
+            except ValueError:
+                continue
+    month_alt = "|".join(_MONTHS_ID.keys())
+    m = re.search(
+        r"(?:tanggal|tgl|on)\s*[.:\-]?\s*(\d{1,2})\s+(%s)\s+(20\d{2})\b" % month_alt,
+        text,
+        re.IGNORECASE,
+    )
+    if m:
+        mo = _MONTHS_ID.get(m.group(2).lower())
+        try:
+            return date(int(m.group(3)), mo, int(m.group(1)))
+        except ValueError:
+            return None
+    m = re.search(r"\b(\d{1,2})\s+(%s)\s+(20\d{2})\b" % month_alt, text, re.IGNORECASE)
+    if m:
+        mo = _MONTHS_ID.get(m.group(2).lower())
+        try:
+            return date(int(m.group(3)), mo, int(m.group(1)))
+        except ValueError:
+            return None
+    return None
+
+
+def _gemini_extract_with_meta(file_bytes: bytes, filename: str, mime_type: str, api_key: str) -> tuple:
+    """Gemini Vision OCR that also extracts the document date (tanggal nota/RAB).
+
+    Returns (items, tanggal) where tanggal is a datetime.date or None.
+    """
     import google.generativeai as genai
     logger.info(f"Running Gemini Vision OCR on {filename}...")
 
@@ -171,17 +304,21 @@ def _gemini_extract(file_bytes: bytes, filename: str, mime_type: str, api_key: s
 
     prompt = (
         "Extract the individual expense/purchase items from this document (RAB or invoice/receipt). "
-        "For each item, extract the name, quantity, and unit price. "
+        "For each item, extract the name, quantity, unit, and unit price. "
         "Do NOT include the unit, brand, or packaging size inside the item_name "
         "(e.g. use 'Minyak Goreng' instead of 'Minyak Goreng Bimoli 1 Liter'). "
-        "You MUST respond ONLY with a valid JSON array of objects. "
+        "Also determine the document date (tanggal nota/RAB). "
+        "You MUST respond ONLY with a valid JSON object. "
         "Do not wrap it in markdown code blocks or add explanations. "
-        "Each object must have exactly these keys:\n"
-        "- 'item_name': string (the name of the item, e.g. 'Beras', 'Telur Ayam')\n"
-        "- 'qty': number (the quantity of the item, default to 1.0 if not specified)\n"
-        "- 'price_per_unit': number (the unit price or rate per item in Rupiah)\n"
+        "The object must have exactly these keys:\n"
+        "- 'tanggal': string (the document date in YYYY-MM-DD format, or null if not found)\n"
+        "- 'items': an array where each object has exactly these keys:\n"
+        "    - 'item_name': string (e.g. 'Beras', 'Telur Ayam')\n"
+        "    - 'qty': number (the quantity, default to 1.0 if not specified)\n"
+        "    - 'unit': string (e.g. 'kg', 'liter', 'karung', 'pcs', 'dus', 'pack')\n"
+        "    - 'price_per_unit': number (the unit price or rate per item in Rupiah)\n"
         "Example response structure:\n"
-        '[{"item_name": "Beras", "qty": 100, "price_per_unit": 16500}]'
+        '{"tanggal": "2026-09-01", "items": [{"item_name": "Beras", "qty": 100, "unit": "kg", "price_per_unit": 16500}]}'
     )
 
     contents = [
@@ -195,11 +332,19 @@ def _gemini_extract(file_bytes: bytes, filename: str, mime_type: str, api_key: s
             model = genai.GenerativeModel(model_name)
             response = model.generate_content(contents)
             text_response = response.text.strip()
-            parsed = _extract_json_array(text_response)
-            if isinstance(parsed, list) and len(parsed) > 0:
-                normalized = _normalize_items(parsed)
+            obj = _extract_json_object(text_response)
+            raw_items = obj.get("items") if isinstance(obj, dict) else None
+            if not isinstance(raw_items, list):
+                parsed = _extract_json_array(text_response)
+                if isinstance(parsed, list) and len(parsed) > 0:
+                    raw_items, obj = parsed, None  # legacy array-only response
+            if isinstance(raw_items, list) and len(raw_items) > 0:
+                normalized = _normalize_items(raw_items)
+                tanggal = None
+                if isinstance(obj, dict) and obj.get("tanggal"):
+                    tanggal = _parse_date_iso(obj.get("tanggal"))
                 logger.info(f"Gemini ({model_name}) extracted {len(normalized)} items from {filename}.")
-                return normalized
+                return normalized, tanggal
             logger.warning(f"Gemini ({model_name}) returned no parseable items.")
         except Exception as e:
             last_error = e
@@ -207,7 +352,12 @@ def _gemini_extract(file_bytes: bytes, filename: str, mime_type: str, api_key: s
 
     if last_error:
         logger.error(f"All Gemini models failed for {filename}; last error: {last_error}")
-    return []
+    return [], None
+
+
+def _gemini_extract(file_bytes: bytes, filename: str, mime_type: str, api_key: str) -> List[Dict[str, Any]]:
+    items, _ = _gemini_extract_with_meta(file_bytes, filename, mime_type, api_key)
+    return items
 
 
 def _find_pdftotext() -> Optional[str]:
@@ -234,12 +384,12 @@ def _find_pdftotext() -> Optional[str]:
     return None
 
 
-def _extract_pdf_text(file_bytes: bytes, filename: str) -> List[Dict[str, Any]]:
-    """Extract items from a text-based PDF using pdftotext (poppler) + RAB/nota table parser."""
+def _pdf_to_text(file_bytes: bytes) -> Optional[str]:
+    """Run pdftotext (poppler) and return the raw extracted text, or None."""
     pdftotext_bin = _find_pdftotext()
     if not pdftotext_bin:
         logger.warning("pdftotext (poppler) not found; cannot extract text from PDF locally.")
-        return []
+        return None
 
     tmp_in = None
     try:
@@ -254,17 +404,25 @@ def _extract_pdf_text(file_bytes: bytes, filename: str) -> List[Dict[str, Any]]:
         )
         if proc.returncode != 0:
             logger.warning(f"pdftotext failed: {proc.stderr}")
-            return []
-        return _parse_rab_text(proc.stdout or "")
+            return None
+        return proc.stdout or ""
     except Exception as e:
         logger.error(f"Error extracting PDF text: {e}")
-        return []
+        return None
     finally:
         if tmp_in and os.path.exists(tmp_in):
             try:
                 os.unlink(tmp_in)
             except OSError:
                 pass
+
+
+def _extract_pdf_text(file_bytes: bytes, filename: str) -> List[Dict[str, Any]]:
+    """Extract items from a text-based PDF using pdftotext (poppler) + RAB/nota table parser."""
+    text = _pdf_to_text(file_bytes)
+    if text is None:
+        return []
+    return _parse_rab_text(text)
 
 
 def _parse_rab_text(text: str) -> List[Dict[str, Any]]:
@@ -355,6 +513,34 @@ def perform_ocr(file_bytes: bytes, filename: str, mime_type: str = None, api_key
 
     logger.info("No GEMINI_API_KEY configured and/or no local OCR path available. Returning no items.")
     return []
+
+
+def perform_ocr_with_meta(file_bytes: bytes, filename: str, mime_type: str = None, api_key: str = None) -> tuple:
+    """OCR that also detects the document date (tanggal nota/RAB).
+
+    Returns (items, tanggal) where tanggal is a datetime.date or None.
+    Falls back to the local PDF RAB parser (which may detect a written date).
+    """
+    resolved_key = api_key or os.getenv("GEMINI_API_KEY")
+
+    if resolved_key:
+        try:
+            items, tanggal = _gemini_extract_with_meta(file_bytes, filename, mime_type, resolved_key)
+            if items:
+                return items, tanggal
+        except Exception as e:
+            logger.error(f"Error during Gemini OCR processing: {str(e)}")
+
+    ext = (filename.split(".")[-1] or "").lower()
+    if ext == "pdf":
+        text = _pdf_to_text(file_bytes)
+        if text:
+            items = _parse_rab_text(text)
+            if items:
+                return items, _parse_tanggal(text)
+
+    logger.info("No OCR path available. Returning no items.")
+    return [], None
 
 
 def perform_survey_doc_ocr(file_bytes: bytes, filename: str, mime_type: str = None, api_key: str = None) -> Dict[str, Any]:

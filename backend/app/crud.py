@@ -5,6 +5,7 @@ from fastapi import HTTPException
 import os
 import re
 import time
+import json
 import logging
 from datetime import date, datetime
 from difflib import SequenceMatcher
@@ -1790,121 +1791,252 @@ def _normalize_tokens(name: str):
     s = re.sub(r'\s+', ' ', s).strip()
     return [t for t in s.split(' ') if t and t not in _UNIT_WORDS and not t.isdigit()]
 
-def find_market_price(db: Session, item_name: str) -> models.MarketPrice:
-    """Find the best reference market price for a (possibly noisy) OCR item name.
+def get_unit_conversions(db: Session) -> dict:
+    """Load admin-editable unit conversion table from system_settings (JSON).
 
-    Strategy:
-      1. Exact normalized-name match.
-      2. Token-overlap + SequenceMatcher fuzzy match with a threshold.
-      3. No match -> None (caller decides how to treat items without a reference).
-
-    The market price list is ordered by price_date desc / created_at desc, so
-    on ties the most recently recorded reference price wins.
+    Returns a dict {unit: {"base": ..., "factor": ...}} merged over defaults.
     """
+    from . import unitmatch
+    setting = get_system_setting(db, "unit_conversions")
+    config = {}
+    if setting and setting.value:
+        try:
+            config = json.loads(setting.value)
+        except (ValueError, TypeError):
+            config = {}
+            if setting.value:
+                logging.getLogger("sppg").warning("unit_conversions setting is not valid JSON; using defaults.")
+    return unitmatch.format_conversions_for_storage(config)
+
+
+def save_unit_conversions(db: Session, config: dict) -> dict:
+    from . import unitmatch
+    # validate: only known/base unit keys with factor > 0 survive
+    cleaned = unitmatch.format_conversions_for_storage(config)
+    upsert_system_setting(db, "unit_conversions", json.dumps(cleaned, ensure_ascii=False), is_secret=False)
+    return get_unit_conversions(db)
+
+
+def _match_choices_for_date(cands, as_of_date):
+    """Prefer the most recent reference with price_date <= as_of_date,
+    otherwise fall back to the earliest recorded reference."""
+    if not as_of_date:
+        return cands[0]
+    before = [c for c in cands if c.price_date and c.price_date <= as_of_date]
+    if before:
+        # cands are sorted price_date desc, created_at desc
+        return before[0]
+    return min(cands, key=lambda c: (c.price_date or date.max))
+
+
+def find_market_price(
+    db: Session,
+    item_name: str,
+    unit: str = None,
+    as_of_date: date = None,
+) -> dict:
+    """Find the best reference market price for an OCR item.
+
+    Now unit-aware and date-aware:
+      1. Name match (exact normalized, then fuzzy >= 0.70).
+      2. Among matches: prefer identical unit, then convertible unit
+         (reference price converted back into the item's unit).
+      3. Date: prefer the most recent price_date <= as_of_date (the nota date);
+         fall back to the earliest recorded reference.
+      4. Name matched but unit incompatible & no conversion -> reason
+         'unit_different_no_conversion' (honest "no reference").
+
+    Returns a dict (or None when no name match at all):
+      market_price: float - reference price expressed per item unit (0 if not used)
+      reference_price: float - original reference price
+      matched_id: int|None
+      reference_date, reference_unit, reference_item
+      unit_converted: bool
+      reason: 'no_reference' | 'unit_different_no_conversion' | None
+    """
+    from . import unitmatch
+
     ocr_tokens = _normalize_tokens(item_name)
     if not ocr_tokens:
         return None
 
     ocr_norm = ' '.join(ocr_tokens)
-    market_prices = db.query(models.MarketPrice).order_by(
+    prices = db.query(models.MarketPrice).order_by(
         models.MarketPrice.price_date.desc(),
         models.MarketPrice.created_at.desc()
     ).all()
-
-    if not market_prices:
+    if not prices:
         return None
 
-    # 1. Exact normalized match
-    for mp in market_prices:
-        db_tokens = _normalize_tokens(mp.item_name)
-        if db_tokens and ' '.join(db_tokens) == ocr_norm:
-            return mp
+    # 1. Candidate pool by name
+    exact = [mp for mp in prices if (' '.join(_normalize_tokens(mp.item_name)) == ocr_norm)]
+    if exact:
+        pool = exact
+    else:
+        best_score = 0.0
+        pool = []
+        for mp in prices:
+            db_tokens = _normalize_tokens(mp.item_name)
+            if not db_tokens:
+                continue
+            db_norm = ' '.join(db_tokens)
+            ocr_set, db_set = set(ocr_tokens), set(db_tokens)
+            min_len = min(len(ocr_set), len(db_set))
+            token_score = len(ocr_set & db_set) / min_len if min_len else 0.0
+            ratio = SequenceMatcher(None, ocr_norm, db_norm).ratio()
+            score = max(token_score, ratio)
+            if score >= 0.70:
+                if score > best_score:
+                    best_score, pool = score, [mp]
+                elif score == best_score:
+                    pool.append(mp)
+        if not pool:
+            return None
 
-    # 2. Fuzzy token-overlap / ratio match
-    best_match = None
-    best_score = 0.0
-    for mp in market_prices:
-        db_tokens = _normalize_tokens(mp.item_name)
-        if not db_tokens:
-            continue
-        ocr_set = set(ocr_tokens)
-        db_set = set(db_tokens)
-        overlap = len(ocr_set & db_set)
-        min_len = min(len(ocr_set), len(db_set))
-        token_score = overlap / min_len if min_len > 0 else 0.0
-        ratio = SequenceMatcher(None, ocr_norm, ' '.join(db_tokens)).ratio()
-        score = max(token_score, ratio)
-        if score >= 0.70 and score > best_score:
-            best_score = score
-            best_match = mp
+    conversions = get_unit_conversions(db)
+    item_unit = (unit or "").strip().lower()
+    item_canon = unitmatch.canonicalize_unit(item_unit) if item_unit else ""
 
-    return best_match
+    # 2. Unit preference over the name-matched pool
+    identical = [mp for mp in pool if unitmatch.same_unit(mp.unit or 'kg', item_unit or 'kg')]
+    convertible = [
+        mp for mp in pool
+        if mp not in identical and unitmatch.units_equivalent(mp.unit or 'kg', item_unit or 'kg', conversions)
+    ] if item_canon else []
 
-def create_audit_report(db: Session, doc_url: str, extracted_items: list, user_id: str = None, sppg_id: int = None) -> models.AuditReport:
+    chosen = converted = False
+    ref_unit = None
+    if item_canon:
+        if identical:
+            chosen, ref_unit = _match_choices_for_date(identical, as_of_date), False
+        elif convertible:
+            cand = _match_choices_for_date(convertible, as_of_date)
+            new_price, base = unitmatch.convert_reference_price(
+                cand.reference_price, cand.unit or 'kg', item_unit, conversions,
+            )
+            if new_price is not None:
+                chosen, converted, ref_unit = cand, True, (cand.unit or 'kg')
+    else:
+        chosen, ref_unit = _match_choices_for_date(pool, as_of_date), False
+
+    if chosen is None or chosen is False:
+        if item_canon and pool:
+            reason = "unit_different_no_conversion"
+            return {
+                "market_price": 0.0,
+                "reference_price": 0.0,
+                "matched_id": None,
+                "reference_date": None,
+                "reference_unit": None,
+                "reference_item": None,
+                "unit_converted": False,
+                "reason": reason,
+            }
+        return None
+
+    reference_unit = ref_unit or (chosen.unit or 'kg')
+    if converted:
+        per_item, _ = unitmatch.convert_reference_price(
+            chosen.reference_price, chosen.unit or 'kg', item_unit, conversions,
+        )
+        market_price = round(per_item, 2) if per_item is not None else 0.0
+    else:
+        market_price = round(float(chosen.reference_price), 2)
+
+    return {
+        "market_price": market_price,
+        "reference_price": round(float(chosen.reference_price), 2),
+        "matched_id": chosen.id,
+        "reference_date": chosen.price_date,
+        "reference_unit": reference_unit,
+        "reference_item": chosen.item_name,
+        "unit_converted": bool(converted),
+        "reason": None,
+    }
+
+def _compute_audit_item(db: Session, item: dict, nota_date: date) -> dict:
+    """Resolve one extracted OCR item against market references.
+
+    Returns a plain dict with all AuditItem fields + market_price & potential_loss.
+    """
+    item_name = (item.get("item_name") or "").strip()
+    try:
+        qty = float(item.get("qty", 1.0))
+    except (ValueError, TypeError):
+        qty = 1.0
+    try:
+        price_per_unit = float(item.get("price_per_unit", 0.0))
+    except (ValueError, TypeError):
+        price_per_unit = 0.0
+
+    unit = (item.get("unit") or "kg").strip()
+    match = find_market_price(db, item_name, unit=unit, as_of_date=nota_date)
+
+    if match:
+        market_price = match.get("market_price") or 0.0
+    else:
+        market_price = 0.0
+
+    potential_loss = 0.0
+    markup_pct = 0.0
+    if price_per_unit > market_price > 0:
+        markup_pct = ((price_per_unit - market_price) / market_price) * 100
+        potential_loss = (price_per_unit - market_price) * qty
+
+    return {
+        "item_name": item_name,
+        "qty": qty,
+        "price_per_unit": price_per_unit,
+        "market_price": market_price,
+        "unit": unit,
+        "matched_market_price_id": match.get("matched_id") if match else None,
+        "reference_date": match.get("reference_date") if match else None,
+        "unit_converted": bool(match.get("unit_converted")) if match else False,
+        "match_skipped_reason": (match.get("reason") or (None if match else "no_reference")),
+        "potential_loss": potential_loss,
+        "markup_pct": markup_pct,
+    }
+
+
+def create_audit_report(
+    db: Session, doc_url: str, extracted_items: list,
+    user_id: str = None, sppg_id: int = None, nota_date: date = None,
+) -> models.AuditReport:
     total_potential_loss = 0.0
     total_items = 0
     db_items = []
-    
+
     max_markup = 0.0
-    
+
     for item in extracted_items:
-        item_name = (item.get("item_name") or "").strip()
-        try:
-            qty = float(item.get("qty", 1.0))
-        except (ValueError, TypeError):
-            qty = 1.0
-
-        try:
-            price_per_unit = float(item.get("price_per_unit", 0.0))
-        except (ValueError, TypeError):
-            price_per_unit = 0.0
-
-        unit = (item.get("unit") or "kg").strip()
-        
-        # Match with reference market survey price
-        matched_mp = find_market_price(db, item_name)
-        if matched_mp:
-            market_price = matched_mp.reference_price
-        else:
-            # No reference found: mark marketplace price as 0 so the item is
-            # clearly shown as "without reference" instead of hiding a markup
-            # by silently defaulting to the bill price.
-            market_price = 0.0
-
-        # Calculation: potential loss and markup
-        potential_loss_item = 0.0
-        markup_pct = 0.0
-        if price_per_unit > market_price and market_price > 0:
-            markup_pct = ((price_per_unit - market_price) / market_price) * 100
-            potential_loss_item = (price_per_unit - market_price) * qty
-            
-        total_potential_loss += potential_loss_item
+        resolved = _compute_audit_item(db, item, nota_date)
+        total_potential_loss += resolved["potential_loss"]
         total_items += 1
-        
-        if markup_pct > max_markup:
-            max_markup = markup_pct
-            
-        db_items.append(
-            models.AuditItem(
-                item_name=item_name,
-                qty=qty,
-                price_per_unit=price_per_unit,
-                market_price=market_price,
-                potential_loss=potential_loss_item
-            )
-        )
-        
+        if resolved["markup_pct"] > max_markup:
+            max_markup = resolved["markup_pct"]
+
+        db_items.append(models.AuditItem(
+            item_name=resolved["item_name"],
+            qty=resolved["qty"],
+            price_per_unit=resolved["price_per_unit"],
+            market_price=resolved["market_price"],
+            unit=resolved["unit"],
+            matched_market_price_id=resolved["matched_market_price_id"],
+            reference_date=resolved["reference_date"],
+            unit_converted=resolved["unit_converted"],
+            match_skipped_reason=resolved["match_skipped_reason"],
+            potential_loss=resolved["potential_loss"],
+        ))
+
     # Classify overall risk status based on max item markup:
-    # Safe (<5% markup) -> NORMAL
-    # Warning (5-15% markup) -> WARNING
-    # Danger (>15% markup) -> DANGER
+    # Safe (<5% markup) -> NORMAL, Warning (5-15%) -> WARNING, Danger (>15%) -> DANGER
     if max_markup > 15.0:
         report_status = "DANGER"
     elif max_markup >= 5.0:
         report_status = "WARNING"
     else:
         report_status = "NORMAL"
-        
+
     # Create the report with sppg_id and created_by_user_id
     db_report = models.AuditReport(
         doc_url=doc_url,
@@ -1912,21 +2044,22 @@ def create_audit_report(db: Session, doc_url: str, extracted_items: list, user_i
         total_potential_loss=total_potential_loss,
         status=report_status,
         sppg_id=sppg_id,
-        created_by_user_id=user_id
+        created_by_user_id=user_id,
+        nota_date=nota_date,
     )
-    
+
     db.add(db_report)
     db.commit()
     db.refresh(db_report)
-    
+
     # Add detail items
     for db_item in db_items:
         db_item.audit_report_id = db_report.id
         db.add(db_item)
-        
+
     db.commit()
     db.refresh(db_report)
-    
+
     # Record scan in the system's Audit Log
     try:
         db.execute(
@@ -1954,6 +2087,79 @@ def create_audit_report(db: Session, doc_url: str, extracted_items: list, user_i
         db_report.sppg_name = None
 
     return db_report
+
+
+def rematch_audit_report(db: Session, report_id: int, nota_date: date = None):
+    """Re-run the unit+date-aware price matching for every item of an existing
+    report (used after the user corrects the nota date / edits conversions)."""
+    report = db.query(models.AuditReport).filter(models.AuditReport.id == report_id).first()
+    if not report:
+        return None
+
+    if nota_date is not None:
+        report.nota_date = nota_date
+
+    items = db.query(models.AuditItem).filter(models.AuditItem.audit_report_id == report.id).all()
+    if not items:
+        db.commit()
+        db.refresh(report)
+        report.sppg_name = report.sppg.nama if report.sppg else getattr(report, "sppg_name", None)
+        return report
+
+    total_potential_loss = 0.0
+    max_markup = 0.0
+
+    for it in items:
+        resolved = _compute_audit_item(db, {
+            "item_name": it.item_name,
+            "qty": it.qty,
+            "price_per_unit": it.price_per_unit,
+            "unit": it.unit or "kg",
+        }, report.nota_date)
+        it.market_price = resolved["market_price"]
+        it.matched_market_price_id = resolved["matched_market_price_id"]
+        it.reference_date = resolved["reference_date"]
+        it.unit_converted = resolved["unit_converted"]
+        it.match_skipped_reason = resolved["match_skipped_reason"]
+        it.potential_loss = resolved["potential_loss"]
+        total_potential_loss += resolved["potential_loss"]
+        if resolved["markup_pct"] > max_markup:
+            max_markup = resolved["markup_pct"]
+
+    if max_markup > 15.0:
+        report.status = "DANGER"
+    elif max_markup >= 5.0:
+        report.status = "WARNING"
+    else:
+        report.status = "NORMAL"
+    report.total_items = len(items)
+    report.total_potential_loss = total_potential_loss
+
+    db.commit()
+    db.refresh(report)
+
+    try:
+        db.execute(
+            text("INSERT INTO audit_logs (action, target_table, target_id, details) VALUES (:action, :table, :id, :details)"),
+            {
+                "action": "AUDIT_REMATCH",
+                "table": "audit_reports",
+                "id": report.id,
+                "details": f"Re-matched {len(items)} items with nota date {report.nota_date or '-'}, new total loss Rp {total_potential_loss:,.2f}"
+            }
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    if report.sppg:
+        report.sppg_name = report.sppg.nama
+    elif report.sppg_id:
+        unit = db.query(models.SPPGUnit).filter(models.SPPGUnit.id == report.sppg_id).first()
+        report.sppg_name = unit.nama if unit else None
+    else:
+        report.sppg_name = None
+    return report
 
 def get_audit_reports(db: Session, user: models.Profile = None):
     query = db.query(models.AuditReport)

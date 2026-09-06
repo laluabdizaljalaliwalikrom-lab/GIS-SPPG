@@ -21,7 +21,8 @@ import {
   Edit2,
   AlertCircle,
   FileText,
-  Stamp
+  Stamp,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -51,6 +52,11 @@ const AuditCenter = () => {
   // State for official LHA report actions
   const [generating, setGenerating] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
+  const [rematching, setRematching] = useState(false);
+  const [rematchDate, setRematchDate] = useState('');
+
+  // Tanggal nota / RAB for smart (date-aware) price matching
+  const [notaDate, setNotaDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Form states for new price
   const [newPrice, setNewPrice] = useState({
@@ -227,6 +233,7 @@ const AuditCenter = () => {
       const res = await api.get(`/audit/reports/${reportId}`);
       setSelectedReport(res.data);
       setReportItems(res.data.items || []);
+      if (res.data.nota_date) setRematchDate(res.data.nota_date.split('T')[0]);
     } catch (error) {
       console.error("Error loading report details:", error);
       if (error.response?.status === 404) {
@@ -277,6 +284,9 @@ const AuditCenter = () => {
     
     const formData = new FormData();
     formData.append('file', file);
+    if (notaDate) {
+      formData.append('nota_date', notaDate);
+    }
 
     const toastId = toast.loading('Mengunggah dokumen & menjalankan OCR...', {
       style: {
@@ -311,6 +321,7 @@ const AuditCenter = () => {
       setReports((prev) => [res.data, ...prev]);
       setSelectedReport(res.data);
       setReportItems(res.data.items || []);
+      if (res.data.nota_date) setRematchDate(res.data.nota_date.split('T')[0]);
       
       // Re-fetch database reference items to ensure logs are correct
       const pricesRes = await api.get('/audit/market-prices');
@@ -391,6 +402,30 @@ const AuditCenter = () => {
       toast.error(error.response?.data?.detail || 'Gagal finalisasi laporan.');
     } finally {
       setFinalizing(false);
+    }
+  };
+
+  const handleRematch = async () => {
+    if (!selectedReport || rematching) return;
+    if (!window.confirm('Hitung ulang pencocokan harga acuan? Semua item akan dicocokkan ulang ke data survai pasar berdasarkan satuan & tanggal yang dipilih.')) return;
+    setRematching(true);
+    const toastId = toast.loading('Mencocokkan ulang harga acuan...');
+    try {
+      const payload = {};
+      if (rematchDate) payload.nota_date = rematchDate;
+      const res = await api.post(`/audit/reports/${selectedReport.id}/rematch`, payload);
+      if (res.data) {
+        setSelectedReport(res.data);
+        setReportItems(res.data.items || []);
+        setReports((prev) => prev.map((r) => (r.id === res.data.id ? res.data : r)));
+        if (res.data.nota_date) setRematchDate(res.data.nota_date.split('T')[0]);
+        toast.success('Pencocokan ulang selesai.', { id: toastId, icon: '⚙️' });
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error(error.response?.data?.detail || 'Gagal mencocokkan ulang.', { id: toastId });
+    } finally {
+      setRematching(false);
     }
   };
 
@@ -649,6 +684,19 @@ const AuditCenter = () => {
                 <UploadCloud size={16} className="text-blue-600" /> Unggah Nota / RAB
               </h2>
               
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                  <span>Tanggal Nota / RAB *</span>
+                  <span className="text-[10px] font-medium text-slate-400">dipakai untuk memilih harga acuan yang berlaku</span>
+                </label>
+                <input
+                  type="date"
+                  value={notaDate}
+                  onChange={(e) => setNotaDate(e.target.value)}
+                  className="input"
+                />
+              </div>
+              
               <div 
                 onDragEnter={handleDrag}
                 onDragOver={handleDrag}
@@ -898,7 +946,7 @@ const AuditCenter = () => {
                   </div>
 
                   <div className="p-5 flex flex-col gap-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
                       <div className="rounded-lg bg-slate-50/60 border border-slate-100 p-3">
                         <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Nomor Laporan</p>
                         <p className="text-sm font-bold text-slate-800 mt-0.5 truncate" title={selectedReport.report_number || '-'}>
@@ -912,6 +960,12 @@ const AuditCenter = () => {
                         </p>
                       </div>
                       <div className="rounded-lg bg-slate-50/60 border border-slate-100 p-3">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Tanggal Nota / RAB</p>
+                        <p className="text-sm font-bold text-slate-800 mt-0.5">
+                          {selectedReport.nota_date ? new Date(selectedReport.nota_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-slate-50/60 border border-slate-100 p-3">
                         <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Status Pemeriksa</p>
                         <p className="text-sm font-bold text-slate-800 mt-0.5 inline-flex items-center gap-1.5">
                           <Stamp size={14} className="text-blue-600" /> {selectedReport.approved_at ? 'Disahkan' : 'Menunggu pengesahan'}
@@ -919,44 +973,65 @@ const AuditCenter = () => {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      {!selectedReport.report_url || selectedReport.report_status === 'draft' ? (
-                        <button
-                          onClick={handleGenerateReport}
-                          disabled={generating || selectedReport.report_status === 'final'}
-                          className="btn-primary flex items-center gap-2 text-xs"
-                        >
-                          {generating ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
-                          {generating ? 'Menyusun laporan...' : selectedReport.report_url ? 'Perbarui Laporan (PDF)' : 'Buat Laporan Resmi (PDF)'}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleDownloadPdf}
-                          className="btn-primary flex items-center gap-2 text-xs"
-                        >
-                          <Download size={14} /> Unduh PDF
-                        </button>
-                      )}
+                    <div className="flex items-end justify-between gap-3 flex-wrap">
+                      <div className="flex flex-wrap gap-2">
+                        {!selectedReport.report_url || selectedReport.report_status === 'draft' ? (
+                          <button
+                            onClick={handleGenerateReport}
+                            disabled={generating || selectedReport.report_status === 'final'}
+                            className="btn-primary flex items-center gap-2 text-xs"
+                          >
+                            {generating ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+                            {generating ? 'Menyusun laporan...' : selectedReport.report_url ? 'Perbarui Laporan (PDF)' : 'Buat Laporan Resmi (PDF)'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handleDownloadPdf}
+                            className="btn-primary flex items-center gap-2 text-xs"
+                          >
+                            <Download size={14} /> Unduh PDF
+                          </button>
+                        )}
 
-                      {selectedReport.report_status === 'draft' && isAdmin && (
-                        <button
-                          onClick={handleApproveReport}
-                          disabled={finalizing}
-                          className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all"
-                        >
-                          {finalizing ? <Loader2 size={14} className="animate-spin" /> : <Stamp size={14} />}
-                          {finalizing ? 'Memfinalkan...' : 'Finalkan & Sahkan'}
-                        </button>
-                      )}
+                        {selectedReport.report_status === 'draft' && isAdmin && (
+                          <button
+                            onClick={handleApproveReport}
+                            disabled={finalizing}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all"
+                          >
+                            {finalizing ? <Loader2 size={14} className="animate-spin" /> : <Stamp size={14} />}
+                            {finalizing ? 'Memfinalkan...' : 'Finalkan & Sahkan'}
+                          </button>
+                        )}
 
-                      {selectedReport.report_url && (
+                        {selectedReport.report_url && (
+                          <button
+                            onClick={handleDownloadPdf}
+                            className="btn-secondary flex items-center gap-2 text-xs"
+                          >
+                            <Download size={14} /> Unduh PDF
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <input
+                          type="date"
+                          value={rematchDate || (selectedReport.nota_date ? selectedReport.nota_date.split('T')[0] : '')}
+                          onChange={(e) => setRematchDate(e.target.value)}
+                          className="input"
+                          style={{ padding: '0.55rem 0.75rem', fontSize: '0.75rem' }}
+                        />
                         <button
-                          onClick={handleDownloadPdf}
+                          onClick={handleRematch}
+                          disabled={rematching}
                           className="btn-secondary flex items-center gap-2 text-xs"
+                          title="Cocokkan ulang harga acuan berdasarkan tanggal & satuan"
                         >
-                          <Download size={14} /> Unduh PDF
+                          {rematching ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                          Hitung Ulang Pencocokan
                         </button>
-                      )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -997,6 +1072,7 @@ const AuditCenter = () => {
                       <thead>
                         <tr className="bg-slate-50 border-b border-blue-50">
                           <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider">Nama Barang</th>
+                          <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Satuan</th>
                           <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Qty</th>
                           <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-right">Harga Nota</th>
                           <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-wider text-right">Harga Acuan</th>
@@ -1007,7 +1083,7 @@ const AuditCenter = () => {
                       <tbody className="divide-y divide-slate-100">
                         {reportItems.length === 0 ? (
                           <tr>
-                            <td colSpan="6" className="text-center py-12 text-slate-400 font-bold text-sm">
+                            <td colSpan="7" className="text-center py-12 text-slate-400 font-bold text-sm">
                               Tidak ada barang yang diekstrak
                             </td>
                           </tr>
@@ -1015,6 +1091,7 @@ const AuditCenter = () => {
                           reportItems.map((item) => {
                             const isMarkup = item.potential_loss > 0;
                             const noReference = item.market_price <= 0;
+                            const unitDifferent = item.match_skipped_reason === 'unit_different_no_conversion';
                             const markupPct = noReference ? 0 : (((item.price_per_unit - item.market_price) / item.market_price) * 100);
 
                             // Highlight if potential loss > 0 AND markup is significant (e.g. >15%)
@@ -1028,6 +1105,16 @@ const AuditCenter = () => {
                               <tr key={item.id} className={`transition-colors ${highlightClass}`}>
                                 <td className="px-6 py-4.5 font-bold text-slate-800 text-sm">
                                   {item.item_name}
+                                  <span className="block">
+                                    {item.unit_converted && (
+                                      <span title="Harga acuan telah disetarakan dari satuan survai pasar ke satuan nota" className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-violet-50 text-violet-600 border border-violet-100 text-[10px] font-semibold">
+                                        <RefreshCw size={10} /> Acuan disetarakan
+                                      </span>
+                                    )}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4.5 text-center font-bold text-slate-600 text-sm">
+                                  {item.unit || 'kg'}
                                 </td>
                                 <td className="px-6 py-4.5 text-center font-bold text-slate-600 text-sm">
                                   {item.qty}
@@ -1037,11 +1124,21 @@ const AuditCenter = () => {
                                 </td>
                                 <td className="px-6 py-4.5 text-right font-medium text-sm">
                                   {noReference ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[11px] font-semibold">
-                                      <AlertCircle size={12} /> Tanpa Acuan Pasar
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold ${
+                                      unitDifferent ? 'bg-amber-50 text-amber-600 border border-amber-100' : 'bg-slate-100 text-slate-500'
+                                    }`} title={unitDifferent ? 'Nama barang cocok, tetapi satuan berbeda dan tidak tersedia faktor konversi' : 'Tidak ada data survai pasar yang cocok'}>
+                                      <AlertCircle size={12} />
+                                      {unitDifferent ? 'Satuan Beda · Tanpa Acuan' : 'Tanpa Acuan Pasar'}
                                     </span>
                                   ) : (
-                                    <span className="text-slate-400 font-medium">{formatRupiah(item.market_price)}</span>
+                                    <span className="text-slate-400 font-medium">
+                                      {formatRupiah(item.market_price)}
+                                      {item.reference_date && (
+                                        <span className="block text-[10px] text-slate-400 font-medium">
+                                          acuan {new Date(item.reference_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                        </span>
+                                      )}
+                                    </span>
                                   )}
                                 </td>
                                 <td className="px-6 py-4.5 text-center font-black text-sm">

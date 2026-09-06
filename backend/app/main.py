@@ -1,8 +1,8 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Query
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from typing import List, Optional
-from datetime import date
+from datetime import date, datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from . import crud, models, schemas
@@ -23,6 +23,17 @@ from dotenv import load_dotenv
 
 # Load .env from root
 load_dotenv(os.path.join(os.path.dirname(__file__), "../../.env"))
+
+def _parse_flex_date(raw: str) -> Optional[date]:
+    """Parse 'YYYY-MM-DD' or 'dd/mm/yyyy' or 'dd-mm-yyyy' into a date."""
+    if not raw:
+        return None
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y"):
+        try:
+            return datetime.strptime(raw, fmt).date()
+        except ValueError:
+            continue
+    return None
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -184,11 +195,19 @@ def update_sppg_checklist(sppg_id: int, checklist: schemas.SPPGChecklistUpdate, 
 @app.post("/api/audit/upload", response_model=schemas.AuditReportDetailResponse)
 async def upload_audit_file(
     file: UploadFile = File(...),
+    nota_date: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     current_user: models.Profile = Depends(finance_only)
 ):
     try:
         contents = await file.read()
+
+        # 0. Resolve the nota date: explicit user input > OCR detected > today
+        parsed_nota_date = None
+        if nota_date and nota_date.strip():
+            parsed_nota_date = _parse_flex_date(nota_date.strip())
+        if parsed_nota_date is None:
+            parsed_nota_date = datetime.now(timezone.utc).date()
         
         # 1. Try uploading to Supabase Storage
         doc_url = None
@@ -231,16 +250,25 @@ async def upload_audit_file(
                 
             doc_url = f"/static/uploads/{unique_filename}"
             
-        # 3. OCR scanning (Gemini + Local Fallback)
-        from .ocr import perform_ocr
+        # 3. OCR scanning (Gemini + Local Fallback) with tanggal detection
+        from .ocr import perform_ocr_with_meta
         api_key = crud.get_gemini_api_key(db)
-        extracted_items = perform_ocr(contents, file.filename, file.content_type, api_key=api_key)
+        extracted_items, ocr_tanggal = perform_ocr_with_meta(
+            contents, file.filename, file.content_type, api_key=api_key
+        )
         
         if not extracted_items:
             raise HTTPException(status_code=400, detail="Gagal mengekstrak item dari dokumen. Silakan periksa format dokumen.")
+
+        # Use OCR-detected date only when the user did not explicitly pass one
+        if not (nota_date and nota_date.strip()) and ocr_tanggal:
+            parsed_nota_date = ocr_tanggal
             
         # 4. Save to database & record in audit trail logs
-        db_report = crud.create_audit_report(db, doc_url, extracted_items, current_user.id, current_user.sppg_id)
+        db_report = crud.create_audit_report(
+            db, doc_url, extracted_items, current_user.id, current_user.sppg_id,
+            nota_date=parsed_nota_date,
+        )
         return db_report
         
     except HTTPException:
@@ -409,6 +437,21 @@ def approve_audit_report_pdf(
     return report
 
 
+@app.post("/api/audit/reports/{id}/rematch", response_model=schemas.AuditReportDetailResponse)
+def rematch_audit_report_pdf(
+    id: int,
+    body: Optional[schemas.AuditReportRematchRequest] = None,
+    db: Session = Depends(get_db),
+    current_user: models.Profile = Depends(finance_only),
+):
+    """Re-run unit+date-aware price matching on an existing report (corrects
+    the nota date and/or applies updated unit conversions)."""
+    report = crud.rematch_audit_report(db, id, nota_date=body.nota_date if body else None)
+    if not report:
+        raise HTTPException(status_code=404, detail="Laporan audit tidak ditemukan.")
+    return report
+
+
 @app.get("/api/audit/reports/{id}/pdf")
 def download_audit_report_pdf(id: int, db: Session = Depends(get_db), current_user: models.Profile = Depends(finance_only)):
     report = crud.get_audit_report(db, id, user=current_user)
@@ -516,6 +559,22 @@ async def upload_ttd_image(
 
     crud.upsert_system_setting(db, "laporan_ttd_url", url, is_secret=False)
     return {"url": url}
+
+
+@app.get("/api/system-settings/unit-conversions")
+def read_unit_conversions(db: Session = Depends(get_db), _ = Depends(admin_only)):
+    """Return the unit conversion table (base + factor) used by smart matching."""
+    return crud.get_unit_conversions(db)
+
+
+@app.put("/api/system-settings/unit-conversions")
+def update_unit_conversions(
+    body: schemas.UnitConversionsIn,
+    db: Session = Depends(get_db),
+    _ = Depends(admin_only),
+):
+    """Validate and persist admin-editable unit conversions."""
+    return crud.save_unit_conversions(db, body.conversions)
 
 
 # Dashboard Stats

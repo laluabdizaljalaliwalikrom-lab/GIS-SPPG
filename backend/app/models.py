@@ -174,6 +174,7 @@ class AuditReport(Base):
     approved_by_user_id = Column(postgresql.UUID(as_uuid=True), ForeignKey("profiles.id"), nullable=True)
     approved_at = Column(DateTime(timezone=True), nullable=True)
     summary = Column(Text, nullable=True)
+    nota_date = Column(Date, nullable=True)
 
     items = relationship("AuditItem", back_populates="report", cascade="all, delete-orphan")
     sppg = relationship("SPPGUnit", foreign_keys=[sppg_id])
@@ -189,9 +190,15 @@ class AuditItem(Base):
     price_per_unit = Column(Float, nullable=False)
     market_price = Column(Float, nullable=False)
     potential_loss = Column(Float, default=0.0)
+    unit = Column(String(50), default="kg")
+    matched_market_price_id = Column(Integer, ForeignKey("market_prices.id"), nullable=True)
+    reference_date = Column(Date, nullable=True)
+    unit_converted = Column(Boolean, default=False)
+    match_skipped_reason = Column(String(50), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
     report = relationship("AuditReport", back_populates="items")
+    matched_market_price = relationship("MarketPrice", foreign_keys=[matched_market_price_id])
 
 
 class SystemSetting(Base):

@@ -136,26 +136,36 @@ def _temuan_narasi(report, items, sppg_name, config):
     signif = [it for it in items if (it.potential_loss or 0) > 0]
     signif = sorted(signif, key=lambda x: x.potential_loss, reverse=True)
     no = 0
+    nota_ref = ""
+    if getattr(report, "nota_date", None):
+        nota_ref = f" sesuai tanggal nota/RAB {tanggal_indonesia(report.nota_date)}"
     for it in signif:
         no += 1
         diff = (it.price_per_unit or 0) - (it.market_price or 0)
         pct = 0.0
         if it.market_price and it.market_price > 0:
             pct = (diff / it.market_price) * 100
+        unit_txt = (it.unit or "kg").strip() or "satuan"
+        ref_date_txt = f" pada {tanggal_indonesia(it.reference_date)}" if getattr(it, "reference_date", None) else ""
+        conv_txt = ""
+        if getattr(it, "unit_converted", False):
+            conv_txt = (" dengan harga acuan yang telah disetarakan dari satuan asal "
+                        f"<b>{(it.matched_market_price_id and 'survai pasar') or 'survai pasar'}</b> (asumsi konversi)")
         txt = [
             (
-                f"a.{no} Hasil pemeriksaan atas item <b>{it.item_name}</b> menunjukkan adanya "
-                f"selisih harga menurut nota sebesar <b>{rupiah(it.price_per_unit)}</b> atas satuan "
-                f"{it.qty:,.0f} satuan, sedangkan harga acuan pasar sebesar <b>{rupiah(it.market_price)}</b>. "
+                f"a.{no} Hasil pemeriksaan atas item <b>{it.item_name}</b> pada transaksi belanja{nota_ref} "
+                f"menunjukkan adanya selisih harga menurut nota sebesar <b>{rupiah(it.price_per_unit)}</b> atas "
+                f"satu satuan {unit_txt}, sedangkan harga acuan pasar sebesar <b>{rupiah(it.market_price)}</b> per "
+                f"{unit_txt}{conv_txt}. "
                 f"Apabila nilai nota dibandingkan dengan harga acuan pasar, terdapat kenaikan sebesar "
-                f"<b>{rupiah(diff)} ({pct:.2f}%)</b> per satuan, sehingga menimbulkan potensi kerugian "
+                f"<b>{rupiah(diff)} ({pct:.2f}%)</b> per {unit_txt}, sehingga menimbulkan potensi kerugian "
                 f"senilai <b>{rupiah(it.potential_loss)}</b>."
             ),
             (
                 f"<b>Kriteria:</b> Sebagai pembanding ditetapkan harga acuan pasar atas komoditas "
-                f"<b>{it.item_name}</b> yang bersumber dari survai harga pasar dan data rujukan resmi "
-                f"(SP2KP/Disperindag NTB) yang berlaku pada periode pemeriksaan, yaitu sebesar "
-                f"<b>{rupiah(it.market_price)}</b>."
+                f"<b>{it.item_name}</b> (satuan {unit_txt}) yang bersumber dari survai harga pasar dan data "
+                f"rujukan resmi (SP2KP/Disperindag NTB) yang berlaku pada periode pemeriksaan"
+                f"{ref_date_txt}, yaitu sebesar <b>{rupiah(it.market_price)}</b> per {unit_txt}."
             ),
             (
                 f"<b>Penyebab:</b> Selisih harga tersebut diduga terjadi karena harga pembelian pada nota "
@@ -164,7 +174,7 @@ def _temuan_narasi(report, items, sppg_name, config):
                 f"pembelian belanja operasional SPPG."
             ),
             (
-                f"<b>Akibat:</b> Selisih sebesar {rupiah(diff)} per satuan pada item {it.item_name} berpotensi "
+                f"<b>Akibat:</b> Selisih sebesar {rupiah(diff)} per {unit_txt} pada item {it.item_name} berpotensi "
                 f"menimbulkan pemborosan anggaran / kerugian negara dan daerah sebesar "
                 f"<b>{rupiah(it.potential_loss)}</b> ({terbilang(it.potential_loss)}), jika dibiarkan tanpa "
                 f"tindak lanjut koreksi atas pembayaran."
@@ -180,10 +190,13 @@ def _temuan_narasi(report, items, sppg_name, config):
 
     if not signif:
         total = sum((i.qty or 0) * (i.market_price or 0) for i in items)
+        nota_ref_txt = ""
+        if getattr(report, "nota_date", None):
+            nota_ref_txt = f" atas nota/RAB tanggal {tanggal_indonesia(report.nota_date)}"
         blocks.append((
             "a. Hasil Pemeriksaan Item — Sesuai",
             [
-                f"Hasil pemeriksaan terhadap <b>{len(items)} item</b> belanja pada <b>{sppg_name or 'unit SPPG'}</b> "
+                f"Hasil pemeriksaan terhadap <b>{len(items)} item</b> belanja pada <b>{sppg_name or 'unit SPPG'}</b>{nota_ref_txt} "
                 f"menunjukkan bahwa seluruh harga pembelian yang tercantum pada nota telah memenuhi harga "
                 f"acuan pasar yang berlaku, sehingga <b>tidak ditemukan selisih harga</b> yang menimbulkan "
                 f"potensi kerugian. Total nilai belanja yang dianalisis adalah sebesar {rupiah(total)} "
@@ -343,24 +356,29 @@ def build_audit_report_pdf(report, items, sppg_name, config, penyusun=None, ttd_
     # --- III. Hasil Pemeriksaan (rincian) ---
     story.append(Paragraph("III. HASIL PEMERIKSAAN", styles["h2"]))
     story.append(Paragraph("3.1 Rincian Item Belanja", styles["h3"]))
-    header = ["No", "Uraian Item", "Qty", "Harga Nota (Rp)", "Harga Acuan (Rp)", "Selisih/Unit (Rp)", "% Markup", "Potensi Kerugian (Rp)"]
+    header = ["No", "Uraian Item", "Satuan", "Qty", "Harga Nota (Rp)", "Harga Acuan (Rp)", "Selisih/Unit (Rp)", "% Markup", "Potensi Kerugian (Rp)"]
     data = [[Paragraph(h, styles["th"]) for h in header]]
     for idx, it in enumerate(items, start=1):
         diff = (it.price_per_unit or 0) - (it.market_price or 0)
         pct = (diff / it.market_price * 100) if it.market_price else 0.0
+        unit_txt = (it.unit or "kg").strip() or "satuan"
+        acuan_txt = rupiah(it.market_price)
+        if getattr(it, "unit_converted", False):
+            acuan_txt += f" *" if it.market_price else ""
         row = [
             Paragraph(str(idx), styles["cellc"]),
             Paragraph(str(it.item_name or "-"), styles["cell"]),
+            Paragraph(unit_txt, styles["cellc"]),
             Paragraph(f"{it.qty:,.0f}", styles["cellr"]),
             Paragraph(rupiah(it.price_per_unit), styles["cellr"]),
-            Paragraph(rupiah(it.market_price), styles["cellr"]),
+            Paragraph(acuan_txt, styles["cellr"]),
             Paragraph(rupiah(diff), styles["cellr"]),
             Paragraph(f"{pct:.2f}%" if it.market_price else "N/A", styles["cellc"]),
             Paragraph(rupiah(it.potential_loss), styles["cellr"]),
         ]
         data.append(row)
 
-    tbl = Table(data, colWidths=[9 * mm, 45 * mm, 14 * mm, 26 * mm, 26 * mm, 26 * mm, 17 * mm, 26 * mm], repeatRows=1)
+    tbl = Table(data, colWidths=[9 * mm, 42 * mm, 12 * mm, 13 * mm, 25 * mm, 25 * mm, 25 * mm, 15 * mm, 26 * mm], repeatRows=1)
     tbl.setStyle(TableStyle([
         ("GRID", (0, 0), (-1, -1), 0.4, colors.black),
         ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.92, 0.92, 0.92)),
@@ -374,6 +392,12 @@ def build_audit_report_pdf(report, items, sppg_name, config, penyusun=None, ttd_
         if (it.potential_loss or 0) > 0 and i % 2 == 0:
             tbl.setStyle(TableStyle([("BACKGROUND", (0, i), (-1, i), colors.Color(1, 0.95, 0.9))]))
     story.append(tbl)
+    story.append(Spacer(1, 3))
+    if any(getattr(i, "unit_converted", False) for i in items):
+        story.append(Paragraph(
+            "Catatan: *) Harga acuan telah disetarakan dari satuan asal survai pasar ke satuan pada nota "
+            "berdasarkan faktor konversi yang ditetapkan (asumsi konversi untuk keperluan analisis).",
+            ParagraphStyle("legenda", parent=styles["base"], fontSize=8, leading=10, textColor=colors.grey)))
     story.append(Spacer(1, 6))
     story.append(Paragraph(
         f"Jumlah item: <b>{len(items)}</b>; Total potensi kerugian/pemborosan: "

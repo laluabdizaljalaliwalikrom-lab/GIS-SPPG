@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Dict, Any
 from datetime import date, datetime
 from uuid import UUID
 
@@ -268,6 +268,11 @@ class AuditItemBase(BaseModel):
     price_per_unit: float
     market_price: float
     potential_loss: float
+    unit: Optional[str] = "kg"
+    matched_market_price_id: Optional[int] = None
+    reference_date: Optional[date] = None
+    unit_converted: Optional[bool] = False
+    match_skipped_reason: Optional[str] = None
 
 
 class AuditItemResponse(AuditItemBase):
@@ -283,6 +288,7 @@ class AuditReportBase(BaseModel):
     status: str
     sppg_id: Optional[int] = None
     created_by_user_id: Optional[Union[str, UUID]] = None
+    nota_date: Optional[date] = None
 
 
 class AuditReportResponse(AuditReportBase):
@@ -299,6 +305,14 @@ class AuditReportResponse(AuditReportBase):
 
 class AuditReportApproveRequest(BaseModel):
     summary: Optional[str] = None
+
+
+class AuditReportRematchRequest(BaseModel):
+    nota_date: Optional[date] = None
+
+
+class UnitConversionsIn(BaseModel):
+    conversions: Dict[str, Dict[str, Any]]
 
 
 class AuditReportDetailResponse(AuditReportResponse):
