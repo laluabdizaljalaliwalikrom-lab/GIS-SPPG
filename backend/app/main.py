@@ -295,7 +295,7 @@ def generate_audit_report_pdf(id: int, db: Session = Depends(get_db), current_us
     try:
         from .reporting import build_audit_report_pdf
         config = crud.get_report_config(db)
-        sppg_name = report.sppg.nama if report.sppg else (report.sppg_name or None)
+        sppg_name = report.sppg.nama if report.sppg else (getattr(report, "sppg_name", None) or None)
         ttd_bytes = _fetch_ttd_image_bytes(config.get("laporan_ttd_url") or "")
         pdf_bytes = build_audit_report_pdf(
             report,

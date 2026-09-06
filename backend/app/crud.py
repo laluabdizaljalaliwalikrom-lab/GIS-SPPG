@@ -1986,17 +1986,18 @@ def get_audit_report(db: Session, report_id: int, user: models.Profile = None):
     if not report:
         return None
         
+    report.sppg_name = None
     if user and user.role in ['sppg_head', 'nutrition_inspector', 'finance_inspector']:
         if user.sppg_id and report.sppg_id and report.sppg_id != user.sppg_id:
             if report.created_by_user_id != user.id:
                 return None
-                
+
     if report.sppg:
         report.sppg_name = report.sppg.nama
     elif report.sppg_id:
         unit = db.query(models.SPPGUnit).filter(models.SPPGUnit.id == report.sppg_id).first()
         report.sppg_name = unit.nama if unit else None
-        
+
     return report
 
 def delete_audit_report(db: Session, report_id: int) -> bool:
