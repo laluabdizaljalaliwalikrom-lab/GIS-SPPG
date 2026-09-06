@@ -449,10 +449,10 @@ def rematch_audit_report_pdf(
     report = crud.get_audit_report(db, id, user=current_user)
     if not report:
         raise HTTPException(status_code=404, detail="Laporan audit tidak ditemukan.")
-    if report.report_status not in ("draft", None):
+    if report.report_status in ("final", "void"):
         raise HTTPException(
             status_code=400,
-            detail="Pencocokan ulang hanya dapat dilakukan pada laporan berstatus DRAFT / belum difinalkan.",
+            detail="Pencocokan ulang tidak dapat dilakukan pada laporan yang sudah difinalkan / dibatalkan.",
         )
     report = crud.rematch_audit_report(db, id, nota_date=body.nota_date if body else None)
     if not report:
