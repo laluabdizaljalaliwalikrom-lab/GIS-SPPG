@@ -54,6 +54,11 @@ _TRAILING_QTY_UNIT = re.compile(
 )
 
 
+# Gemini models to try in order. Google periodically deprecates model names;
+# iterate this list so a single model removal does not break OCR.
+GEMINI_MODELS = ["gemini-3.6-flash", "gemini-2.5-flash"]
+
+
 def _parse_number(value: Any) -> Optional[float]:
     """Parse Indonesian-style number ('17.500', '17,5', '12.500,50') to float."""
     if value is None:
@@ -150,7 +155,6 @@ def _gemini_extract(file_bytes: bytes, filename: str, mime_type: str, api_key: s
     logger.info(f"Running Gemini Vision OCR on {filename}...")
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
 
     if not mime_type:
         ext = filename.split(".")[-1].lower()
@@ -185,14 +189,24 @@ def _gemini_extract(file_bytes: bytes, filename: str, mime_type: str, api_key: s
         {"mime_type": mime_type, "data": file_bytes},
     ]
 
-    response = model.generate_content(contents)
-    text_response = response.text.strip()
-    parsed = _extract_json_array(text_response)
-    if isinstance(parsed, list) and len(parsed) > 0:
-        normalized = _normalize_items(parsed)
-        logger.info(f"Gemini extracted {len(normalized)} items from {filename}.")
-        return normalized
-    logger.warning("Gemini returned no parseable items.")
+    last_error = None
+    for model_name in GEMINI_MODELS:
+        try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(contents)
+            text_response = response.text.strip()
+            parsed = _extract_json_array(text_response)
+            if isinstance(parsed, list) and len(parsed) > 0:
+                normalized = _normalize_items(parsed)
+                logger.info(f"Gemini ({model_name}) extracted {len(normalized)} items from {filename}.")
+                return normalized
+            logger.warning(f"Gemini ({model_name}) returned no parseable items.")
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Gemini model {model_name} failed: {type(e).__name__}: {e}")
+
+    if last_error:
+        logger.error(f"All Gemini models failed for {filename}; last error: {last_error}")
     return []
 
 
@@ -356,7 +370,6 @@ def perform_survey_doc_ocr(file_bytes: bytes, filename: str, mime_type: str = No
             import google.generativeai as genai
             logger.info(f"Running Gemini OCR on official survey document {filename}...")
             genai.configure(api_key=resolved_key)
-            model = genai.GenerativeModel("gemini-1.5-flash")
 
             if not mime_type:
                 ext = filename.split(".")[-1].lower()
@@ -399,20 +412,28 @@ def perform_survey_doc_ocr(file_bytes: bytes, filename: str, mime_type: str = No
                 {"mime_type": mime_type, "data": file_bytes},
             ]
 
-            response = model.generate_content(contents)
-            text_response = response.text.strip()
-            if text_response.startswith("```"):
-                lines = text_response.split("\n")
-                if lines[0].startswith("```"):
-                    lines = lines[1:]
-                if lines[-1].strip() == "```":
-                    lines = lines[:-1]
-                text_response = "\n".join(lines).strip()
+            for model_name in GEMINI_MODELS:
+                try:
+                    model = genai.GenerativeModel(model_name)
+                    response = model.generate_content(contents)
+                    text_response = response.text.strip()
+                    if text_response.startswith("```"):
+                        lines = text_response.split("\n")
+                        if lines[0].startswith("```"):
+                            lines = lines[1:]
+                        if lines[-1].strip() == "```":
+                            lines = lines[:-1]
+                        text_response = "\n".join(lines).strip()
 
-            parsed_data = json.loads(text_response)
-            if isinstance(parsed_data, dict) and "items" in parsed_data:
-                logger.info(f"Extracted {len(parsed_data.get('items', []))} items from survey doc {filename}")
-                return parsed_data
+                    parsed_data = json.loads(text_response)
+                    if isinstance(parsed_data, dict) and "items" in parsed_data:
+                        logger.info(f"Gemini ({model_name}) extracted {len(parsed_data.get('items', []))} items from survey doc {filename}")
+                        return parsed_data
+                    logger.warning(f"Gemini ({model_name}) returned invalid survey data for {filename}.")
+                except Exception as e:
+                    logger.warning(f"Gemini model {model_name} failed for survey doc {filename}: {type(e).__name__}: {e}")
+        except ImportError:
+            logger.error("google.generativeai is not installed; cannot OCR survey document.")
         except Exception as e:
             logger.error(f"Error during survey doc OCR: {e}")
 
