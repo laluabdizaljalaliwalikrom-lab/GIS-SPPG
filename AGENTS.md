@@ -66,7 +66,8 @@ GIS-SPPG/
 │   │   │   ├── FormModal.jsx
 │   │   │   ├── ExcelImportButton.jsx
 │   │   │   ├── RaportPointManager.jsx
-│   │   │   └── SPPGChecklist.jsx
+│   │   │   ├── SPPGChecklist.jsx
+│   │   │   └── ServerWakeOverlay.jsx
 │   │   └── pages/
 │   │       ├── LandingPage.jsx
 │   │       ├── Login.jsx

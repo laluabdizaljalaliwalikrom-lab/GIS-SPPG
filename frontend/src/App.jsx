@@ -15,6 +15,7 @@ import LandingPageEditor from './pages/LandingPageEditor';
 import AuditCenter from './pages/AuditCenter';
 import RaportPage from './pages/RaportPage';
 import KomoditasHarga from './pages/KomoditasHarga';
+import ServerWakeOverlay from './components/ServerWakeOverlay';
 
 const ProtectedRoute = ({ children }) => {
   const [session, setSession] = useState(null);
@@ -54,6 +55,7 @@ const ProtectedRoute = ({ children }) => {
 function App() {
   return (
     <Router>
+      <ServerWakeOverlay />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
