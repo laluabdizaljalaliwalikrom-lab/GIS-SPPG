@@ -2,16 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../api';
-import { 
-  FileSpreadsheet, 
-  UploadCloud, 
-  AlertTriangle, 
-  CheckCircle, 
-  HelpCircle, 
-  Trash2, 
-  Plus, 
-  TrendingUp, 
-  DollarSign, 
+import {
+  FileSpreadsheet,
+  UploadCloud,
+  AlertTriangle,
+  CheckCircle,
+  HelpCircle,
+  Trash2,
+  Plus,
+  TrendingUp,
+  DollarSign,
   Activity,
   History,
   Tag,
@@ -19,7 +19,9 @@ import {
   Download,
   Loader2,
   Edit2,
-  AlertCircle
+  AlertCircle,
+  FileText,
+  Stamp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -45,6 +47,10 @@ const AuditCenter = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
+
+  // State for official LHA report actions
+  const [generating, setGenerating] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
 
   // Form states for new price
   const [newPrice, setNewPrice] = useState({
@@ -347,6 +353,69 @@ const AuditCenter = () => {
       console.error(error);
       toast.error('Gagal menghapus laporan.');
     }
+  };
+
+  const handleGenerateReport = async () => {
+    if (!selectedReport || generating) return;
+    setGenerating(true);
+    const toastId = toast.loading('Menyusun laporan resmi (LHA)...');
+    try {
+      const res = await api.post(`/audit/reports/${selectedReport.id}/generate`);
+      if (res.data) {
+        setSelectedReport(res.data);
+        setReportItems(res.data.items || []);
+        setReports((prev) => prev.map((r) => (r.id === res.data.id ? res.data : r)));
+        toast.success(`Laporan resmi dibuat: ${res.data.report_number || '-'}`, { id: toastId, icon: '📄' });
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error(error.response?.data?.detail || 'Gagal membuat laporan resmi.', { id: toastId });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleApproveReport = async () => {
+    if (!selectedReport || !isAdmin || finalizing) return;
+    if (!window.confirm('Finalkan laporan resmi ini? Setelah difinalkan, laporan dianggap resmi dan disahkan.')) return;
+    setFinalizing(true);
+    try {
+      const res = await api.post(`/audit/reports/${selectedReport.id}/approve`);
+      if (res.data) {
+        setSelectedReport(res.data);
+        setReports((prev) => prev.map((r) => (r.id === res.data.id ? res.data : r)));
+        toast.success('Laporan resmi telah di-FINAL-kan dan disahkan.');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error(error.response?.data?.detail || 'Gagal finalisasi laporan.');
+    } finally {
+      setFinalizing(false);
+    }
+  };
+
+  const getReportPdfUrl = () => {
+    if (!selectedReport?.report_url) return null;
+    return selectedReport.report_url.startsWith('http')
+      ? selectedReport.report_url
+      : `${api.defaults.baseURL.replace('/api', '')}${selectedReport.report_url}`;
+  };
+
+  const handleDownloadPdf = () => {
+    const url = getReportPdfUrl();
+    if (!url) {
+      toast.error('Laporan resmi belum tersedia. Klik "Buat Laporan Resmi (PDF)" terlebih dahulu.');
+      return;
+    }
+    window.open(url, '_blank');
+  };
+
+  const reportStatusBadge = (status) => {
+    const s = status || 'none';
+    if (s === 'final') return { label: 'FINAL · Disahkan', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: CheckCircle };
+    if (s === 'draft') return { label: 'DRAFT', cls: 'bg-amber-50 text-amber-700 border-amber-200', icon: FileText };
+    if (s === 'void') return { label: 'VOID', cls: 'bg-slate-100 text-slate-500 border-slate-200', icon: ShieldAlert };
+    return { label: 'Belum Dibuat', cls: 'bg-slate-100 text-slate-500 border-slate-200', icon: FileText };
   };
 
   const handleAddPrice = async (e) => {
@@ -806,6 +875,90 @@ const AuditCenter = () => {
                       </div>
                     );
                   })()}
+                </div>
+
+                {/* Official LHA Report Card */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-900">Laporan Resmi (LHA)</h2>
+                      <p className="text-slate-500 font-medium text-xs mt-0.5">
+                        Dokumen resmi hasil pemeriksaan sesuai format APIP/BPKP — lengkap dengan analisis temuan, simpulan & rekomendasi.
+                      </p>
+                    </div>
+                    {(() => {
+                      const b = reportStatusBadge(selectedReport.report_status);
+                      const BIcon = b.icon;
+                      return (
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-black uppercase tracking-wider ${b.cls}`}>
+                          <BIcon size={14} /> {b.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="p-5 flex flex-col gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="rounded-lg bg-slate-50/60 border border-slate-100 p-3">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Nomor Laporan</p>
+                        <p className="text-sm font-bold text-slate-800 mt-0.5 truncate" title={selectedReport.report_number || '-'}>
+                          {selectedReport.report_number || 'Belum diterbitkan'}
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-slate-50/60 border border-slate-100 p-3">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Tanggal Laporan</p>
+                        <p className="text-sm font-bold text-slate-800 mt-0.5">
+                          {selectedReport.report_date ? new Date(selectedReport.report_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-slate-50/60 border border-slate-100 p-3">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Status Pemeriksa</p>
+                        <p className="text-sm font-bold text-slate-800 mt-0.5 inline-flex items-center gap-1.5">
+                          <Stamp size={14} className="text-blue-600" /> {selectedReport.approved_at ? 'Disahkan' : 'Menunggu pengesahan'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {!selectedReport.report_url || selectedReport.report_status === 'draft' ? (
+                        <button
+                          onClick={handleGenerateReport}
+                          disabled={generating || selectedReport.report_status === 'final'}
+                          className="btn-primary flex items-center gap-2 text-xs"
+                        >
+                          {generating ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+                          {generating ? 'Menyusun laporan...' : selectedReport.report_url ? 'Perbarui Laporan (PDF)' : 'Buat Laporan Resmi (PDF)'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleDownloadPdf}
+                          className="btn-primary flex items-center gap-2 text-xs"
+                        >
+                          <Download size={14} /> Unduh PDF
+                        </button>
+                      )}
+
+                      {selectedReport.report_status === 'draft' && isAdmin && (
+                        <button
+                          onClick={handleApproveReport}
+                          disabled={finalizing}
+                          className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all"
+                        >
+                          {finalizing ? <Loader2 size={14} className="animate-spin" /> : <Stamp size={14} />}
+                          {finalizing ? 'Memfinalkan...' : 'Finalkan & Sahkan'}
+                        </button>
+                      )}
+
+                      {selectedReport.report_url && (
+                        <button
+                          onClick={handleDownloadPdf}
+                          className="btn-secondary flex items-center gap-2 text-xs"
+                        >
+                          <Download size={14} /> Unduh PDF
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Audit Details Results Table */}

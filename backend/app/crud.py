@@ -6,7 +6,7 @@ import os
 import re
 import time
 import logging
-from datetime import date
+from datetime import date, datetime
 from difflib import SequenceMatcher
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -2021,6 +2021,93 @@ def delete_audit_report(db: Session, report_id: int) -> bool:
             db.rollback()
         return True
     return False
+
+
+# --- OFFICIAL REPORT (LHA) METADATA CRUD ---
+
+def generate_report_number(db: Session, sppg, prefix: str = "LHA") -> str:
+    """Generate a sequential report number, reset every calendar year.
+
+    Format: `LHA-01/SPPG.SIKUR/2026`
+    """
+    year = datetime.utcnow().year
+    count = db.query(func.count(models.AuditReport.id)).filter(
+        models.AuditReport.report_number.isnot(None),
+        func.extract("year", models.AuditReport.created_at) == year,
+    ).scalar() or 0
+    code = getattr(sppg, "kode_sppg", None) or "SPPG"
+    return f"{prefix}-{count + 1:02d}/{code}/{year}"
+
+
+def save_audit_report_metadata(
+    db: Session, report_id: int,
+    report_number: str = None, report_url: str = None, report_status: str = None,
+    report_date: date = None, summary: str = None,
+):
+    r = db.query(models.AuditReport).filter(models.AuditReport.id == report_id).first()
+    if not r:
+        return None
+    if report_number is not None:
+        r.report_number = report_number
+    if report_url is not None:
+        r.report_url = report_url
+    if report_status is not None:
+        r.report_status = report_status
+    if report_date is not None:
+        r.report_date = report_date
+    if summary is not None:
+        r.summary = summary
+    db.commit()
+    db.refresh(r)
+    # Reattach sppg_name for response model
+    if r.sppg:
+        r.sppg_name = r.sppg.nama
+    return r
+
+
+def approve_audit_report(db: Session, report_id: int, user: models.Profile):
+    """Transition a draft report to FINAL (official). Only valid for drafts."""
+    r = db.query(models.AuditReport).filter(models.AuditReport.id == report_id).first()
+    if not r:
+        return None
+    if r.report_status not in ("draft", None):
+        return "invalid-state"
+    r.report_status = "final"
+    r.approved_by_user_id = user.id
+    r.approved_at = datetime.utcnow()
+    db.commit()
+    db.refresh(r)
+    if r.sppg:
+        r.sppg_name = r.sppg.nama
+    return r
+
+
+def get_report_config(db: Session) -> dict:
+    """Read LHA configuration from system_settings (never returns secrets)."""
+    keys = [
+        "laporan_instansi", "laporan_instansi_alamat", "laporan_instansi_kota",
+        "laporan_penanggung_jawab", "laporan_jabatan_pj", "laporan_nip_pj",
+        "laporan_nomor_prefix", "laporan_ttd_url",
+    ]
+    result = {}
+    defaults = {
+        "laporan_instansi": "Unit SPPG",
+        "laporan_instansi_alamat": "Kecamatan Sikur, Kabupaten Lombok Timur, Nusa Tenggara Barat",
+        "laporan_instansi_kota": "Lombok Timur",
+        "laporan_penanggung_jawab": "",
+        "laporan_jabatan_pj": "Penanggung Jawab Unit SPPG",
+        "laporan_nip_pj": "",
+        "laporan_nomor_prefix": "LHA",
+        "laporan_ttd_url": "",
+    }
+    settings = db.query(models.SystemSetting).filter(
+        models.SystemSetting.key.in_(keys)
+    ).all()
+    for s in settings:
+        result[s.key] = (s.value or "").strip()
+    for k, v in defaults.items():
+        result.setdefault(k, v)
+    return result
 
 
 def get_dashboard_stats(db: Session):

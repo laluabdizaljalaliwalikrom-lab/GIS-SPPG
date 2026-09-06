@@ -166,6 +166,15 @@ class AuditReport(Base):
     created_by_user_id = Column(postgresql.UUID(as_uuid=True), ForeignKey("profiles.id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
+    # Official report metadata (LHA-style)
+    report_number = Column(String(100), nullable=True)
+    report_url = Column(Text, nullable=True)
+    report_status = Column(String(20), default="none")  # none | draft | final | void
+    report_date = Column(Date, nullable=True)
+    approved_by_user_id = Column(postgresql.UUID(as_uuid=True), ForeignKey("profiles.id"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    summary = Column(Text, nullable=True)
+
     items = relationship("AuditItem", back_populates="report", cascade="all, delete-orphan")
     sppg = relationship("SPPGUnit", foreign_keys=[sppg_id])
 

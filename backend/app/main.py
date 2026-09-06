@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from typing import List, Optional
 from datetime import date
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from . import crud, models, schemas
 from .database import engine, get_db
 from .dependencies import (
@@ -267,6 +268,157 @@ def delete_audit_report(id: int, db: Session = Depends(get_db), current_user: mo
         raise HTTPException(status_code=404, detail="Laporan audit tidak ditemukan.")
     return {"status": "success", "message": f"Berhasil menghapus laporan audit ID {id}"}
 
+# --- Official LHA-style report generation & approval ---
+
+def _fetch_ttd_image_bytes(url: str) -> bytes:
+    """Download the ttd signature image if configured."""
+    if not url:
+        return b""
+    try:
+        import urllib.request
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = resp.read()
+        return data if len(data) > 100 else b""
+    except Exception as e:
+        print(f"TTD image fetch warning: {e}")
+        return b""
+
+
+@app.post("/api/audit/reports/{id}/generate", response_model=schemas.AuditReportDetailResponse)
+def generate_audit_report_pdf(id: int, db: Session = Depends(get_db), current_user: models.Profile = Depends(finance_only)):
+    report = crud.get_audit_report(db, id, user=current_user)
+    if not report:
+        raise HTTPException(status_code=404, detail="Laporan audit tidak ditemukan.")
+    if not report.items:
+        raise HTTPException(status_code=400, detail="Laporan tidak memiliki item untuk dibangun. Silakan unggah ulang dokumen.")
+    try:
+        from .reporting import build_audit_report_pdf
+        config = crud.get_report_config(db)
+        sppg_name = report.sppg.nama if report.sppg else (report.sppg_name or None)
+        ttd_bytes = _fetch_ttd_image_bytes(config.get("laporan_ttd_url") or "")
+        pdf_bytes = build_audit_report_pdf(
+            report,
+            report.items,
+            sppg_name,
+            config,
+            penyusun=(current_user.full_name or current_user.email.split("@")[0]) if current_user else None,
+            ttd_image_bytes=ttd_bytes,
+        )
+        if not pdf_bytes:
+            raise HTTPException(status_code=500, detail="Gagal menghasilkan PDF laporan.")
+
+        # Persist generated PDF (Supabase Storage -> local fallback)
+        report_url = None
+        bucket_name = "audit_reports"
+        if crud.supabase:
+            try:
+                try:
+                    crud.supabase.storage.create_bucket(bucket_name, options={"public": True})
+                except Exception:
+                    pass
+                import uuid
+                unique_filename = f"{uuid.uuid4()}.pdf"
+                crud.supabase.storage.from_(bucket_name).upload(
+                    path=unique_filename,
+                    file=pdf_bytes,
+                    file_options={"content-type": "application/pdf"},
+                )
+                report_url = crud.supabase.storage.from_(bucket_name).get_public_url(unique_filename)
+            except Exception as e:
+                print(f"Supabase Storage report upload warning: {e}")
+        if not report_url:
+            import uuid
+            unique_filename = f"{uuid.uuid4()}.pdf"
+            local_path = os.path.join(UPLOAD_DIR, unique_filename)
+            with open(local_path, "wb") as f_out:
+                f_out.write(pdf_bytes)
+            report_url = f"/static/uploads/{unique_filename}"
+
+        # Number only assigned once (stable across regeneration)
+        number = report.report_number or crud.generate_report_number(db, report.sppg, config.get("laporan_nomor_prefix") or "LHA")
+        cur_date = date.today()
+
+        report = crud.save_audit_report_metadata(
+            db, report.id,
+            report_number=number,
+            report_url=report_url,
+            report_status="draft",
+            report_date=cur_date,
+        )
+
+        # Record in audit trail
+        try:
+            db.execute(
+                text("INSERT INTO audit_logs (action, target_table, target_id, details) VALUES (:action, :table, :id, :details)"),
+                {
+                    "action": "AUDIT_REPORT_GENERATE",
+                    "table": "audit_reports",
+                    "id": report.id,
+                    "details": f"Generated official LHA report {report.report_number}",
+                },
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+
+        return report
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Gagal membuat laporan resmi: {str(e)}")
+
+
+@app.post("/api/audit/reports/{id}/approve", response_model=schemas.AuditReportDetailResponse)
+def approve_audit_report_pdf(
+    id: int,
+    body: Optional[schemas.AuditReportApproveRequest] = None,
+    db: Session = Depends(get_db),
+    current_user: models.Profile = Depends(admin_only),
+):
+    report = crud.get_audit_report(db, id, user=current_user)
+    if not report:
+        raise HTTPException(status_code=404, detail="Laporan audit tidak ditemukan.")
+    if report.report_status not in ("draft", None):
+        raise HTTPException(status_code=400, detail="Hanya laporan berstatus DRAFT yang dapat difinalkan.")
+
+    if body and body.summary:
+        report = crud.save_audit_report_metadata(db, id, summary=body.summary)
+    report = crud.approve_audit_report(db, id, current_user)
+    if report == "invalid-state":
+        raise HTTPException(status_code=400, detail="Status laporan tidak valid untuk persetujuan.")
+    if not report:
+        raise HTTPException(status_code=404, detail="Laporan audit tidak ditemukan.")
+
+    try:
+        db.execute(
+            text("INSERT INTO audit_logs (action, target_table, target_id, details) VALUES (:action, :table, :id, :details)"),
+            {
+                "action": "AUDIT_REPORT_APPROVE",
+                "table": "audit_reports",
+                "id": report.id,
+                "details": f"Official LHA report approved by {current_user.full_name or current_user.id}",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return report
+
+
+@app.get("/api/audit/reports/{id}/pdf")
+def download_audit_report_pdf(id: int, db: Session = Depends(get_db), current_user: models.Profile = Depends(finance_only)):
+    report = crud.get_audit_report(db, id, user=current_user)
+    if not report:
+        raise HTTPException(status_code=404, detail="Laporan audit tidak ditemukan.")
+    if not report.report_url:
+        raise HTTPException(status_code=400, detail="Laporan resmi belum dibuat. Klik 'Buat Laporan Resmi (PDF)' terlebih dahulu.")
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=report.report_url)
+
 @app.get("/api/audit/market-prices", response_model=List[schemas.MarketPriceResponse])
 def read_market_prices(db: Session = Depends(get_db), current_user: models.Profile = Depends(finance_only)):
     return crud.get_market_prices(db)
@@ -321,6 +473,49 @@ def update_system_setting(
         is_configured=bool(setting.value and setting.value.strip()),
         updated_at=setting.updated_at
     )
+
+
+@app.post("/api/system-settings/ttd-upload")
+async def upload_ttd_image(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _ = Depends(admin_only),
+):
+    """Upload tanda tangan (ttd) untuk kop pengesahan laporan resmi."""
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="File kosong.")
+    ext = (file.filename or "").split(".")[-1].lower()
+    if ext not in ("png", "jpg", "jpeg"):
+        raise HTTPException(status_code=400, detail="Gambar tanda tangan harus berformat PNG/JPG.")
+
+    url = None
+    if crud.supabase:
+        try:
+            try:
+                crud.supabase.storage.create_bucket("report_assets", options={"public": True})
+            except Exception:
+                pass
+            from uuid import uuid4
+            fn = f"{uuid4()}.{ext}"
+            crud.supabase.storage.from_("report_assets").upload(
+                path=fn,
+                file=contents,
+                file_options={"content-type": file.content_type or "image/png"},
+            )
+            url = crud.supabase.storage.from_("report_assets").get_public_url(fn)
+        except Exception as e:
+            print(f"Supabase ttd upload warning: {e}")
+    if not url:
+        from uuid import uuid4
+        fn = f"{uuid4()}.{ext}"
+        local_path = os.path.join(UPLOAD_DIR, fn)
+        with open(local_path, "wb") as f_out:
+            f_out.write(contents)
+        url = f"/static/uploads/{fn}"
+
+    crud.upsert_system_setting(db, "laporan_ttd_url", url, is_secret=False)
+    return {"url": url}
 
 
 # Dashboard Stats

@@ -289,7 +289,16 @@ class AuditReportResponse(AuditReportBase):
     id: int
     created_at: datetime
     sppg_name: Optional[str] = None
+    report_number: Optional[str] = None
+    report_url: Optional[str] = None
+    report_status: Optional[str] = None
+    report_date: Optional[date] = None
+    summary: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+
+class AuditReportApproveRequest(BaseModel):
+    summary: Optional[str] = None
 
 
 class AuditReportDetailResponse(AuditReportResponse):

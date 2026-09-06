@@ -13,7 +13,9 @@ import {
   Sparkles,
   Eye,
   EyeOff,
-  KeyRound
+  KeyRound,
+  FileText,
+  Upload
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
@@ -208,6 +210,166 @@ const SmartAuditSettings = () => {
   );
 };
 
+const LaporanAuditSettings = () => {
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [uploadingTtd, setUploadingTtd] = useState(false);
+  const [cached, setCached] = useState({});
+  const [values, setValues] = useState({
+    laporan_instansi: '',
+    laporan_instansi_alamat: '',
+    laporan_instansi_kota: '',
+    laporan_penanggung_jawab: '',
+    laporan_jabatan_pj: '',
+    laporan_nip_pj: '',
+    laporan_nomor_prefix: 'LHA',
+  });
+  const [ttdUrl, setTtdUrl] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await api.get('/system-settings');
+        const settings = res.data || [];
+        const map = {};
+        settings.forEach(s => { if (s.key.startsWith('laporan_')) map[s.key] = s.is_configured; });
+        setCached(map);
+      } catch (err) {
+        console.error(err);
+        if (active) toast.error('Gagal memuat konfigurasi laporan.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const hasValue = (key) => cached[key] === true;
+
+  const handleChange = (key, v) => setValues(prev => ({ ...prev, [key]: v }));
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    const toastId = toast.loading('Menyimpan konfigurasi laporan...');
+    try {
+      for (const [key, value] of Object.entries(values)) {
+        await api.put(`/system-settings/${key}`, { key, value });
+      }
+      const res = await api.get('/system-settings');
+      const map = {};
+      (res.data || []).forEach(s => { if (s.key.startsWith('laporan_')) map[s.key] = s.is_configured; });
+      setCached(map);
+      toast.success('Konfigurasi laporan berhasil disimpan.', { id: toastId });
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal menyimpan konfigurasi.', { id: toastId });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTtdUpload = async (file) => {
+    if (!file) return;
+    if (!['png', 'jpg', 'jpeg'].includes((file.name.split('.').pop() || '').toLowerCase())) {
+      toast.error('Gambar tanda tangan harus PNG/JPG.');
+      return;
+    }
+    setUploadingTtd(true);
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await api.post('/system-settings/ttd-upload', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setTtdUrl(res.data?.url || '');
+      setCached(prev => ({ ...prev, laporan_ttd_url: true }));
+      toast.success('Tanda tangan berhasil diunggah.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal mengunggah tanda tangan.');
+    } finally {
+      setUploadingTtd(false);
+    }
+  };
+
+  const field = (key, label, placeholder) => (
+    <div className="space-y-1.5">
+      <label className="text-xs font-semibold text-slate-700">{label}</label>
+      <input
+        className="input"
+        value={values[key]}
+        placeholder={placeholder || (hasValue(key) ? 'Terisi (kosongkan untuk mempertahankan)' : 'Isi di sini...')}
+        onChange={(e) => handleChange(key, e.target.value)}
+      />
+    </div>
+  );
+
+  return (
+    <div className="animate-in fade-in duration-200">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">
+          <FileText size={17} />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-slate-800">Laporan Audit Resmi (LHA)</h3>
+          <p className="text-xs text-slate-400">Identitas instansi, penanggung jawab, dan tanda tangan untuk dokumen laporan</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSave} className="space-y-5 max-w-xl">
+        <div className="rounded-xl border border-slate-200 p-4 space-y-3">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Kop Surat</p>
+          {field('laporan_instansi', 'Instansi / Unit Kerja', 'Contoh: UNIT SPPG KABUPATEN LOMBOK TIMUR')}
+          {field('laporan_instansi_alamat', 'Alamat Instansi', 'Jalan Raya Sikur, Kecamatan Sikur, Lombok Timur, NTB')}
+          {field('laporan_instansi_kota', 'Kota / Tempat Laporan', 'Lombok Timur')}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 p-4 space-y-3">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pengesahan</p>
+          {field('laporan_penanggung_jawab', 'Nama Penanggung Jawab', 'Nama lengkap + gelar, mis. H. Muhammad Taufik, S.Pd')}
+          {field('laporan_jabatan_pj', 'Jabatan Penanggung Jawab', 'Penanggung Jawab Unit SPPG')}
+          {field('laporan_nip_pj', 'NIP Penanggung Jawab', '19820315 200604 1 008')}
+          {field('laporan_nomor_prefix', 'Awalan Nomor Laporan', 'LHA')}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 p-4 space-y-3">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tanda Tangan (TTD)</p>
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            <label className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer transition-all">
+              <Upload size={14} />
+              {uploadingTtd ? 'Mengunggah...' : 'Unggah Gambar TTD'}
+              <input
+                type="file"
+                accept="image/png,image/jpeg"
+                className="hidden"
+                disabled={uploadingTtd}
+                onChange={(e) => handleTtdUpload(e.target.files[0])}
+              />
+            </label>
+            {(hasValue('laporan_ttd_url') || ttdUrl) && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+                <CheckCircle2 size={14} /> TTD tersedia di laporan
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-slate-400">
+            Gambar tanda tangan akan tampil pada blok pengesahan sebelum nama & jabatan penanggung jawab.
+          </p>
+        </div>
+
+        <div className="flex justify-end">
+          <button type="submit" disabled={saving || loading} className="btn-primary">
+            {saving ? 'Menyimpan...' : <><Save size={15} /> Simpan Konfigurasi</>}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
 const Settings = () => {
   const { profile } = useOutletContext();
   const [activeTab, setActiveTab] = useState('profile');
@@ -241,6 +403,7 @@ const Settings = () => {
     { id: 'map', name: 'Map Config', icon: MapIcon, adminOnly: false },
     { id: 'system', name: 'System', icon: Database, adminOnly: true },
     { id: 'smart-audit', name: 'Smart Audit', icon: Sparkles, adminOnly: true },
+    { id: 'laporan-audit', name: 'Laporan Audit', icon: FileText, adminOnly: true },
     { id: 'audit', name: 'Security Audit', icon: History, adminOnly: true },
   ];
 
@@ -340,6 +503,8 @@ const Settings = () => {
             {activeTab === 'raport' && <RaportPointManager />}
 
             {activeTab === 'smart-audit' && <SmartAuditSettings />}
+
+            {activeTab === 'laporan-audit' && <LaporanAuditSettings />}
 
             {activeTab === 'system' && (
               <div className="animate-in fade-in duration-200">
