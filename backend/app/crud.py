@@ -1992,7 +1992,7 @@ def _compute_audit_item(db: Session, item: dict, nota_date: date) -> dict:
         "matched_market_price_id": match.get("matched_id") if match else None,
         "reference_date": match.get("reference_date") if match else None,
         "unit_converted": bool(match.get("unit_converted")) if match else False,
-        "match_skipped_reason": (match.get("reason") or (None if match else "no_reference")),
+        "match_skipped_reason": match.get("reason") if match else "no_reference",
         "potential_loss": potential_loss,
         "markup_pct": markup_pct,
     }
