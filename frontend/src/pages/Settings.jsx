@@ -1,18 +1,21 @@
-import { useState } from 'react';
-import { 
-  User, 
-  Map as MapIcon, 
-  Database, 
-  History, 
-  Save, 
-  Download, 
-  Lock, 
-  Globe, 
-  Layers, 
+import {
+  User,
+  Map as MapIcon,
+  Database,
+  History,
+  Save,
+  Download,
+  Lock,
+  Globe,
+  Layers,
   CheckCircle2,
   Crosshair,
-  ClipboardCheck
+  Sparkles,
+  Eye,
+  EyeOff,
+  KeyRound
 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import api from '../api';
 import toast from 'react-hot-toast';
@@ -87,6 +90,124 @@ const ProfileForm = ({ profile }) => {
   );
 };
 
+const SmartAuditSettings = () => {
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [isConfigured, setIsConfigured] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await api.get('/system-settings');
+        const setting = (res.data || []).find(s => s.key === 'gemini_api_key');
+        if (active && setting) setIsConfigured(setting.is_configured);
+      } catch (err) {
+        console.error(err);
+        if (active) toast.error('Gagal memuat konfigurasi Smart Audit.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.put('/system-settings/gemini_api_key', {
+        key: 'gemini_api_key',
+        value: apiKey,
+        is_secret: true,
+      });
+      setIsConfigured(Boolean(apiKey && apiKey.trim()));
+      setApiKey('');
+      toast.success('Konfigurasi Gemini berhasil disimpan!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal menyimpan konfigurasi.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="animate-in fade-in duration-200">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-9 h-9 bg-fuchsia-50 rounded-lg flex items-center justify-center text-fuchsia-600">
+          <Sparkles size={17} />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-slate-800">Smart Audit &mdash; Gemini OCR</h3>
+          <p className="text-xs text-slate-400">Konfigurasi OCR cerdas untuk pembacaan dokumen</p>
+        </div>
+      </div>
+
+      <div className="space-y-5 max-w-xl">
+        <div className={`flex items-center gap-3 p-4 rounded-xl border ${isConfigured ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+          <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isConfigured ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+            {isConfigured ? <CheckCircle2 size={18} /> : <KeyRound size={18} />}
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-800">
+              {isConfigured ? 'OCR Gemini Aktif' : 'OCR Gemini Belum Dikonfigurasi'}
+            </p>
+            <p className="text-xs text-slate-500">
+              {isConfigured
+                ? 'API key Gemini tersedia untuk pembacaan nota/RAB yang akurat.'
+                : 'Tanpa API key, hanya PDF berbasis teks yang dapat diproses; gambar akan gagal.'}
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSave} className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-700">GEMINI_API_KEY</label>
+            <div className="relative">
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={isConfigured ? '•••••••• (isi untuk mengganti key)' : 'Masukkan API key Gemini'}
+                className="input pr-10"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600"
+                aria-label="Tampilkan/sembunyikan key"
+              >
+                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              {isConfigured
+                ? 'Kosongkan lalu klik Simpan untuk mempertahankan key yang sudah tersimpan.'
+                : 'Key tersimpan aman di database (diakses admin saja). Prioritas: variabel lingkungan GEMINI_API_KEY di server.'
+                }
+            </p>
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={saving || loading}
+              className="btn-primary"
+            >
+              {saving ? 'Menyimpan...' : <><Save size={15} /> Simpan</>}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const Settings = () => {
   const { profile } = useOutletContext();
   const [activeTab, setActiveTab] = useState('profile');
@@ -119,6 +240,7 @@ const Settings = () => {
     { id: 'profile', name: 'Profile', icon: User, adminOnly: false },
     { id: 'map', name: 'Map Config', icon: MapIcon, adminOnly: false },
     { id: 'system', name: 'System', icon: Database, adminOnly: true },
+    { id: 'smart-audit', name: 'Smart Audit', icon: Sparkles, adminOnly: true },
     { id: 'audit', name: 'Security Audit', icon: History, adminOnly: true },
   ];
 
@@ -216,6 +338,8 @@ const Settings = () => {
             )}
 
             {activeTab === 'raport' && <RaportPointManager />}
+
+            {activeTab === 'smart-audit' && <SmartAuditSettings />}
 
             {activeTab === 'system' && (
               <div className="animate-in fade-in duration-200">

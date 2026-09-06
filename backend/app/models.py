@@ -185,6 +185,16 @@ class AuditItem(Base):
     report = relationship("AuditReport", back_populates="items")
 
 
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, unique=True, nullable=False, index=True)
+    value = Column(Text, nullable=True)
+    is_secret = Column(Boolean, default=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class SurveySession(Base):
     __tablename__ = "survey_sessions"
 

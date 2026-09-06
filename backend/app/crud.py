@@ -3,9 +3,11 @@ from sqlalchemy import func, asc, text, and_
 from . import models, schemas
 from fastapi import HTTPException
 import os
+import re
 import time
 import logging
 from datetime import date
+from difflib import SequenceMatcher
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -880,6 +882,45 @@ def get_price_stats(db: Session, item_name: str, period_start: date = None, peri
     )
 
 
+# --- SYSTEM SETTINGS CRUD (e.g. GEMINI_API_KEY, configurable via Settings UI) ---
+
+def get_system_setting(db: Session, key: str) -> models.SystemSetting:
+    return db.query(models.SystemSetting).filter(models.SystemSetting.key == key).first()
+
+
+def get_all_system_settings(db: Session):
+    return db.query(models.SystemSetting).order_by(models.SystemSetting.key.asc()).all()
+
+
+def upsert_system_setting(db: Session, key: str, value: str = None, is_secret: bool = False):
+    """Insert or update a setting. An empty value preserves the previous value."""
+    setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == key).first()
+    if value is not None and value.strip() != "":
+        value = value.strip()
+    else:
+        value = None
+
+    if setting:
+        if value is not None:
+            setting.value = value
+        setting.is_secret = is_secret
+    else:
+        setting = models.SystemSetting(key=key, value=value, is_secret=is_secret)
+        db.add(setting)
+    db.commit()
+    db.refresh(setting)
+    return setting
+
+
+def get_gemini_api_key(db: Session) -> str:
+    """Return the Gemini API key. Precedence: environment variable > DB setting."""
+    env_key = os.getenv("GEMINI_API_KEY")
+    if env_key:
+        return env_key
+    setting = get_system_setting(db, "gemini_api_key")
+    return (setting.value or "").strip() if setting and setting.value else ""
+
+
 # --- SMART AUDIT & POTENTIAL LOSS DETECTION CRUD ---
 
 def get_survey_sessions(db: Session):
@@ -1683,9 +1724,11 @@ def create_or_update_market_price(db: Session, price_data: schemas.MarketPriceCr
             item_name_clean = comm_item.nama
     
     # Check if there is an exact match for item_name, shop_name, and price_date
+    # Treat NULL and '' as equivalent so editing a record without a shop does not
+    # silently create a duplicate row.
     db_mp = db.query(models.MarketPrice).filter(
         models.MarketPrice.item_name.ilike(item_name_clean),
-        models.MarketPrice.shop_name == price_data.shop_name,
+        func.coalesce(models.MarketPrice.shop_name, '') == (price_data.shop_name or '').strip(),
         models.MarketPrice.price_date == p_date
     ).first()
     
@@ -1728,41 +1771,73 @@ def get_market_price_history(db: Session, item_name: str, date_from: date = None
         query = query.filter(models.MarketPrice.price_date <= date_to)
     return query.order_by(models.MarketPrice.price_date.asc()).all()
 
+# Unit words that should not participate in name matching
+_UNIT_WORDS = {
+    'kg', 'gr', 'gram', 'g', 'liter', 'litre', 'l', 'ml', 'cc',
+    'pcs', 'pc', 'pack', 'dus', 'box', 'karton', 'karung', 'zak',
+    'butir', 'ekor', 'buah', 'bungkus', 'sachet', 'pouch', 'kaleng',
+    'botol', 'koli', 'lusin', 'kodi', 'gross', 'ikat', 'renceng',
+    'strip', 'rim', 'ton', 'kwintal', 'tray', 'porsi', 'kotak',
+    'kantong', 'plastik', 'kgr', 'gross', 'pcs', 'sak', 'sac',
+}
+
+def _normalize_tokens(name: str):
+    """Lowercase, strip punctuation, drop unit words. Returns list of tokens."""
+    if not name:
+        return []
+    s = name.lower()
+    s = re.sub(r'[^a-z0-9\s]', ' ', s)
+    s = re.sub(r'\s+', ' ', s).strip()
+    return [t for t in s.split(' ') if t and t not in _UNIT_WORDS and not t.isdigit()]
+
 def find_market_price(db: Session, item_name: str) -> models.MarketPrice:
-    normalized_name = item_name.strip().lower()
-    
-    # Query all reference prices sorted by price_date desc, created_at desc
-    # This guarantees that if there are multiple entries (history), we match the latest active reference price!
+    """Find the best reference market price for a (possibly noisy) OCR item name.
+
+    Strategy:
+      1. Exact normalized-name match.
+      2. Token-overlap + SequenceMatcher fuzzy match with a threshold.
+      3. No match -> None (caller decides how to treat items without a reference).
+
+    The market price list is ordered by price_date desc / created_at desc, so
+    on ties the most recently recorded reference price wins.
+    """
+    ocr_tokens = _normalize_tokens(item_name)
+    if not ocr_tokens:
+        return None
+
+    ocr_norm = ' '.join(ocr_tokens)
     market_prices = db.query(models.MarketPrice).order_by(
         models.MarketPrice.price_date.desc(),
         models.MarketPrice.created_at.desc()
     ).all()
-    
-    # 1. Exact match (case insensitive)
+
+    if not market_prices:
+        return None
+
+    # 1. Exact normalized match
     for mp in market_prices:
-        if mp.item_name.lower().strip() == normalized_name:
+        db_tokens = _normalize_tokens(mp.item_name)
+        if db_tokens and ' '.join(db_tokens) == ocr_norm:
             return mp
-            
-    # 2. Substring match: Is the database price item name inside the receipt item name?
-    # e.g., db price "Beras" matches receipt "Beras Cianjur Kepala"
+
+    # 2. Fuzzy token-overlap / ratio match
     best_match = None
+    best_score = 0.0
     for mp in market_prices:
-        mp_name = mp.item_name.lower().strip()
-        if mp_name in normalized_name:
-            if not best_match or len(mp_name) > len(best_match.item_name):
-                best_match = mp
-                
-    if best_match:
-        return best_match
-        
-    # 3. Substring match: Is the receipt item name inside the database price item name?
-    # e.g., receipt "Bawang" matches db price "Bawang Merah"
-    for mp in market_prices:
-        mp_name = mp.item_name.lower().strip()
-        if normalized_name in mp_name:
-            if not best_match or len(mp_name) < len(best_match.item_name):
-                best_match = mp
-                
+        db_tokens = _normalize_tokens(mp.item_name)
+        if not db_tokens:
+            continue
+        ocr_set = set(ocr_tokens)
+        db_set = set(db_tokens)
+        overlap = len(ocr_set & db_set)
+        min_len = min(len(ocr_set), len(db_set))
+        token_score = overlap / min_len if min_len > 0 else 0.0
+        ratio = SequenceMatcher(None, ocr_norm, ' '.join(db_tokens)).ratio()
+        score = max(token_score, ratio)
+        if score >= 0.70 and score > best_score:
+            best_score = score
+            best_match = mp
+
     return best_match
 
 def create_audit_report(db: Session, doc_url: str, extracted_items: list, user_id: str = None, sppg_id: int = None) -> models.AuditReport:
@@ -1791,8 +1866,10 @@ def create_audit_report(db: Session, doc_url: str, extracted_items: list, user_i
         if matched_mp:
             market_price = matched_mp.reference_price
         else:
-            # Fallback: if not found in market surveys, market_price defaults to bill price (0 markup, 0 loss)
-            market_price = price_per_unit
+            # No reference found: mark marketplace price as 0 so the item is
+            # clearly shown as "without reference" instead of hiding a markup
+            # by silently defaulting to the bill price.
+            market_price = 0.0
 
         # Calculation: potential loss and markup
         potential_loss_item = 0.0

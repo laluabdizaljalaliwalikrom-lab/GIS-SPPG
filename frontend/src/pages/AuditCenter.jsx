@@ -18,7 +18,8 @@ import {
   ShieldAlert,
   Download,
   Loader2,
-  Edit2
+  Edit2,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -860,8 +861,9 @@ const AuditCenter = () => {
                         ) : (
                           reportItems.map((item) => {
                             const isMarkup = item.potential_loss > 0;
-                            const markupPct = item.market_price > 0 ? (((item.price_per_unit - item.market_price) / item.market_price) * 100) : 0;
-                            
+                            const noReference = item.market_price <= 0;
+                            const markupPct = noReference ? 0 : (((item.price_per_unit - item.market_price) / item.market_price) * 100);
+
                             // Highlight if potential loss > 0 AND markup is significant (e.g. >15%)
                             const highlightClass = isMarkup && markupPct > 15.0 
                               ? 'bg-rose-50/40 hover:bg-rose-50/70 border-l-4 border-l-rose-500' 
@@ -880,11 +882,19 @@ const AuditCenter = () => {
                                 <td className="px-6 py-4.5 text-right font-bold text-slate-700 text-sm">
                                   {formatRupiah(item.price_per_unit)}
                                 </td>
-                                <td className="px-6 py-4.5 text-right font-medium text-slate-400 text-sm">
-                                  {formatRupiah(item.market_price)}
+                                <td className="px-6 py-4.5 text-right font-medium text-sm">
+                                  {noReference ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[11px] font-semibold">
+                                      <AlertCircle size={12} /> Tanpa Acuan Pasar
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 font-medium">{formatRupiah(item.market_price)}</span>
+                                  )}
                                 </td>
                                 <td className="px-6 py-4.5 text-center font-black text-sm">
-                                  {isMarkup ? (
+                                  {noReference ? (
+                                    <span className="text-slate-300 font-medium text-xs">N/A</span>
+                                  ) : isMarkup ? (
                                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black ${
                                       markupPct > 15.0 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
                                     }`}>

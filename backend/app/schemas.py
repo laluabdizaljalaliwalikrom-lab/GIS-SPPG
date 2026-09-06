@@ -316,6 +316,20 @@ class DashboardStats(BaseModel):
     top_sppg: List[SPPGRaportSummary]
 
 
+class SystemSettingResponse(BaseModel):
+    key: str
+    is_secret: bool = False
+    is_configured: bool = False
+    updated_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SystemSettingUpsert(BaseModel):
+    key: str
+    value: Optional[str] = None
+    is_secret: Optional[bool] = False
+
+
 class DisperindagLivePriceResponse(BaseModel):
     komoditas: str
     kategori: str

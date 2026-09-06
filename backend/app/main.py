@@ -232,7 +232,8 @@ async def upload_audit_file(
             
         # 3. OCR scanning (Gemini + Local Fallback)
         from .ocr import perform_ocr
-        extracted_items = perform_ocr(contents, file.filename, file.content_type)
+        api_key = crud.get_gemini_api_key(db)
+        extracted_items = perform_ocr(contents, file.filename, file.content_type, api_key=api_key)
         
         if not extracted_items:
             raise HTTPException(status_code=400, detail="Gagal mengekstrak item dari dokumen. Silakan periksa format dokumen.")
@@ -289,6 +290,37 @@ def delete_market_price(
     if not success:
         raise HTTPException(status_code=404, detail="Referensi harga tidak ditemukan.")
     return {"status": "success", "message": f"Berhasil menghapus harga referensi ID {id}"}
+
+
+# System Settings API (admin-only, e.g. Gemini API key for Smart Audit OCR)
+@app.get("/api/system-settings", response_model=List[schemas.SystemSettingResponse])
+def read_system_settings(db: Session = Depends(get_db), _ = Depends(admin_only)):
+    settings = crud.get_all_system_settings(db)
+    return [
+        schemas.SystemSettingResponse(
+            key=s.key,
+            is_secret=s.is_secret or False,
+            is_configured=bool(s.value and s.value.strip()),
+            updated_at=s.updated_at
+        )
+        for s in settings
+    ]
+
+
+@app.put("/api/system-settings/{key}", response_model=schemas.SystemSettingResponse)
+def update_system_setting(
+    key: str,
+    payload: schemas.SystemSettingUpsert,
+    db: Session = Depends(get_db),
+    _ = Depends(admin_only)
+):
+    setting = crud.upsert_system_setting(db, key, payload.value, payload.is_secret or False)
+    return schemas.SystemSettingResponse(
+        key=setting.key,
+        is_secret=setting.is_secret or False,
+        is_configured=bool(setting.value and setting.value.strip()),
+        updated_at=setting.updated_at
+    )
 
 
 # Dashboard Stats
@@ -488,7 +520,8 @@ async def scan_official_survey_document(
             doc_url = f"/static/uploads/{unique_filename}"
 
         # Run OCR extraction
-        ocr_result = perform_survey_doc_ocr(compressed_bytes, file.filename, mime)
+        api_key = crud.get_gemini_api_key(db)
+        ocr_result = perform_survey_doc_ocr(compressed_bytes, file.filename, mime, api_key=api_key)
 
         return {
             "doc_url": doc_url,
