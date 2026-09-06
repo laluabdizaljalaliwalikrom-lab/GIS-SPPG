@@ -63,7 +63,7 @@ const LandingPage = ({ previewData = null }) => {
       <div className="h-screen flex items-center justify-center bg-slate-900 text-blue-500 font-bold">
         <div className="flex flex-col items-center gap-3">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs font-mono uppercase tracking-widest text-slate-400">Memuat Portal GIS-SPPG...</span>
+          <span className="text-xs font-mono uppercase tracking-widest text-slate-400">Memuat Portal SI-SPPG...</span>
         </div>
       </div>
     );
@@ -149,7 +149,7 @@ const LandingPage = ({ previewData = null }) => {
               <MapIcon size={18} />
             </div>
             <div className="flex flex-col">
-               <span className="text-base font-bold tracking-tight leading-none text-slate-900">GIS-SPPG</span>
+               <span className="text-base font-bold tracking-tight leading-none text-slate-900">SI-SPPG Sikur</span>
                <span className="text-[10px] font-medium text-slate-500 mt-0.5">Kecamatan Sikur</span>
             </div>
           </div>
@@ -582,7 +582,7 @@ const LandingPage = ({ previewData = null }) => {
                 <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">
                   <MapIcon size={16} />
                 </div>
-                <span className="text-lg font-bold tracking-tight">GIS-SPPG</span>
+                <span className="text-lg font-bold tracking-tight">SI-SPPG Sikur</span>
               </div>
               <p className="text-xs text-slate-400 leading-relaxed">
                 {config.footer_text || 'Sistem Informasi Pemetaan dan Alokasi Kelompok Penerima Satuan Pangan Produksi Gizi (SPPG) Kecamatan Sikur, Lombok Timur.'}
@@ -608,7 +608,7 @@ const LandingPage = ({ previewData = null }) => {
           </div>
 
           <div className="pt-6 border-t border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs text-slate-500">
-            <p>&copy; 2026 GIS-SPPG Kecamatan Sikur — Badan Gizi Nasional</p>
+            <p>&copy; 2026 SI-SPPG Sikur — Badan Gizi Nasional</p>
             <p>PostGIS & GeoAlchemy2 Powered</p>
           </div>
         </div>

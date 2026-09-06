@@ -214,7 +214,7 @@ const Dashboard = () => {
           </div>
           {!isCollapsed && (
             <div>
-              <span className="text-sm font-bold text-slate-900 tracking-tight">GIS SPPG</span>
+              <span className="text-sm font-bold text-slate-900 tracking-tight">SI-SPPG Sikur</span>
             </div>
           )}
         </div>

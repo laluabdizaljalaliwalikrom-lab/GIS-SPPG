@@ -191,7 +191,7 @@ const Login = () => {
               <MapIcon size={20} className="text-white" />
             </div>
             <div>
-              <span className="font-bold tracking-tight text-white text-base block leading-none">GIS-SPPG</span>
+              <span className="font-bold tracking-tight text-white text-base block leading-none">SI-SPPG Sikur</span>
               <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Portal Gizi Terpadu</span>
             </div>
           </div>
@@ -260,7 +260,7 @@ const Login = () => {
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-sm">
               <MapIcon size={16} />
             </div>
-            <span className="font-bold text-slate-900 tracking-tight text-sm">GIS-SPPG</span>
+            <span className="font-bold text-slate-900 tracking-tight text-sm">SI-SPPG Sikur</span>
           </div>
 
           <button

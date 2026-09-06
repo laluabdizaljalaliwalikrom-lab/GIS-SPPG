@@ -162,7 +162,7 @@ const StatsOverview = () => {
           }} />
           <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full -mr-20 -mt-20 blur-3xl pointer-events-none" />
           <div className="relative z-10">
-            <p className="text-xs font-medium text-slate-400 mb-2 uppercase tracking-widest">GIS-SPPG · Command Center</p>
+            <p className="text-xs font-medium text-slate-400 mb-2 uppercase tracking-widest">SI-SPPG Sikur · Command Center</p>
             <h1 className="text-2xl lg:text-3xl font-bold tracking-tight mb-1.5">
               {getGreeting()}, <span className="text-blue-400">{profile?.full_name?.split(' ')[0] || 'User'}</span>
             </h1>
