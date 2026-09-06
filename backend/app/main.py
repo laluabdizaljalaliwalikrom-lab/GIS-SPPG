@@ -446,6 +446,14 @@ def rematch_audit_report_pdf(
 ):
     """Re-run unit+date-aware price matching on an existing report (corrects
     the nota date and/or applies updated unit conversions)."""
+    report = crud.get_audit_report(db, id, user=current_user)
+    if not report:
+        raise HTTPException(status_code=404, detail="Laporan audit tidak ditemukan.")
+    if report.report_status not in ("draft", None):
+        raise HTTPException(
+            status_code=400,
+            detail="Pencocokan ulang hanya dapat dilakukan pada laporan berstatus DRAFT / belum difinalkan.",
+        )
     report = crud.rematch_audit_report(db, id, nota_date=body.nota_date if body else None)
     if not report:
         raise HTTPException(status_code=404, detail="Laporan audit tidak ditemukan.")
