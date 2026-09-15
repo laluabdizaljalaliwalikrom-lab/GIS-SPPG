@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -276,7 +276,6 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
 
       // Upload local compressed photos if any
       if (uploadedPhotos.length > 0) {
-        setIsUploadingPhotos(true);
         const photoFormData = new FormData();
         uploadedPhotos.forEach(p => {
           photoFormData.append('files', p.file);
@@ -290,8 +289,6 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
         } catch (photoErr) {
           console.error('Error uploading photos:', photoErr);
           toast.error('Peringatan: Gagal mengunggah beberapa foto dokumentasi, melanjutkan simpan survei.');
-        } finally {
-          setIsUploadingPhotos(false);
         }
       }
 
