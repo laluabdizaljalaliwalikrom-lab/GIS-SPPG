@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS survey_sessions (
     survey_date DATE NOT NULL,
     surveyor_name VARCHAR,
     head_of_market_name VARCHAR,
+    owner_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
     documentation_photos JSONB DEFAULT '[]'::jsonb,
     official_doc_url VARCHAR,
     notes TEXT,
