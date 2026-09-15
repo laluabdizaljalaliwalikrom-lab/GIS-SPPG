@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileSpreadsheet, Download, UploadCloud, X, AlertCircle, 
-  CheckCircle2, Sparkles, Loader2, Info, Building2, MapPin, Calendar,
+  CheckCircle2, Sparkles, Loader2, Building2, MapPin, Calendar,
   Camera, FileCheck, Image as ImageIcon, User, Trash2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api';
-import { compressImage, formatFileSize } from '../utils/imageCompressor';
+import { compressImage } from '../utils/imageCompressor';
 
 const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onSuccess, currentUser }) => {
   const [file, setFile] = useState(null);
@@ -29,7 +29,6 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
 
   // Documentation Photos & Official Doc Upload State
   const [uploadedPhotos, setUploadedPhotos] = useState([]);
-  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   const [officialDocFile, setOfficialDocFile] = useState(null);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
 
@@ -300,7 +299,7 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
         region_id: headerForm.region_id,
         shop_name: headerForm.shop_name,
         survey_date: headerForm.survey_date,
-        surveyor_name: headerForm.surveyor_name,
+        surveyor_name: (currentUser?.full_name || headerForm.surveyor_name || '').trim() || null,
         head_of_market_name: headerForm.head_of_market_name || null,
         official_doc_url: headerForm.official_doc_url || null,
         documentation_photos: finalPhotoUrls,
@@ -472,15 +471,21 @@ const ExcelSurveyImportModal = ({ isOpen, onClose, existingCommodities = [], onS
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
-                    <User size={13} className="text-slate-400" /> Surveyor Lapangan
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                      <User size={13} className="text-slate-400" /> Surveyor Lapangan
+                    </label>
+                    <span className="text-[10px] font-semibold text-blue-600 flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                      🔒 Otomatis Akun Login
+                    </span>
+                  </div>
                   <input
                     type="text"
-                    placeholder="Nama petugas survei"
-                    value={headerForm.surveyor_name}
-                    onChange={(e) => setHeaderForm({ ...headerForm, surveyor_name: e.target.value })}
-                    className="input text-xs"
+                    readOnly
+                    disabled
+                    value={currentUser?.full_name || headerForm.surveyor_name || 'Petugas'}
+                    title="Nama surveyor diambil otomatis dari akun yang sedang login"
+                    className="input text-xs bg-slate-100 text-slate-700 cursor-not-allowed select-none"
                   />
                 </div>
 

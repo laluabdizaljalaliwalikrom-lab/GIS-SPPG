@@ -666,6 +666,8 @@ def submit_market_survey(
     db: Session = Depends(get_db),
     current_user: models.Profile = Depends(finance_only)
 ):
+    if current_user and current_user.full_name:
+        survey.surveyor_name = current_user.full_name
     return crud.submit_market_survey(db, survey, current_user)
 
 
@@ -676,7 +678,7 @@ def import_market_survey_excel(
     current_user: models.Profile = Depends(finance_only)
 ):
     try:
-        if not payload.surveyor_name and current_user:
+        if current_user and current_user.full_name:
             payload.surveyor_name = current_user.full_name
         return crud.import_market_survey_excel(db, payload, user_id=current_user.id)
     except Exception as e:

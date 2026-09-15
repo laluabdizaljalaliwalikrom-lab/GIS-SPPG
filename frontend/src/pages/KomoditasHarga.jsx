@@ -604,7 +604,7 @@ const KomoditasHarga = () => {
       ...surveyForm,
       shop_name: surveyForm.shop_name.trim(),
       region_id: surveyForm.region_id.trim(),
-      surveyor_name: surveyForm.surveyor_name ? surveyForm.surveyor_name.trim() : null,
+      surveyor_name: (profile?.full_name || surveyForm.surveyor_name || '').trim() || null,
       head_of_market_name: surveyForm.head_of_market_name ? surveyForm.head_of_market_name.trim() : null,
       official_doc_url: surveyForm.official_doc_url || null,
       documentation_photos: finalPhotoUrls,
@@ -1628,11 +1628,20 @@ const KomoditasHarga = () => {
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm" />
                     </div>
                     <div className="space-y-1 sm:col-span-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Surveyor</label>
-                      <input type="text" placeholder="Nama petugas"
-                        value={surveyForm.surveyor_name}
-                        onChange={(e) => setSurveyForm(prev => ({ ...prev, surveyor_name: e.target.value }))}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 outline-none transition-all font-medium text-sm" />
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Surveyor Lapangan</label>
+                        <span className="text-[10px] font-semibold text-blue-600 flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                          🔒 Otomatis Akun Login
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        readOnly
+                        disabled
+                        value={profile?.full_name || surveyForm.surveyor_name || 'Petugas'}
+                        title="Nama surveyor diambil otomatis dari akun yang sedang login"
+                        className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl font-medium text-sm text-slate-700 cursor-not-allowed select-none"
+                      />
                     </div>
                   </div>
                 </div>

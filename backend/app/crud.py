@@ -2446,13 +2446,28 @@ def import_market_survey_excel(
             survey_session_id=session_id,
             notes=row.notes or "Imported via Excel Survey",
             commodity_item_id=commodity_item_id,
-            surveyor_name=req.surveyor_name,
-            head_of_market_name=req.head_of_market_name,
-            official_doc_url=req.official_doc_url,
-            documentation_photos=req.documentation_photos or []
+            surveyor_name=req.surveyor_name
         )
         db.add(db_price)
         inserted_count += 1
+
+    # Save SurveySession metadata (photos, official signed doc, head of market)
+    try:
+        new_session = models.SurveySession(
+            survey_session_id=session_id,
+            shop_name=req.shop_name or "Pasar/Toko",
+            region_id=req.region_id or "Sikur",
+            survey_date=req.survey_date,
+            surveyor_name=req.surveyor_name,
+            head_of_market_name=req.head_of_market_name or None,
+            documentation_photos=req.documentation_photos or [],
+            official_doc_url=req.official_doc_url or None,
+            notes=f"Imported via Excel Survey ({inserted_count} komoditas)",
+            owner_id=user_id
+        )
+        db.add(new_session)
+    except Exception as e:
+        logging.getLogger("sppg_survey").warning(f"Could not persist SurveySession for Excel import: {e}")
 
     db.commit()
 
